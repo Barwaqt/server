@@ -1,0 +1,51 @@
+import { Router } from "express";
+import { z } from "zod";
+import * as c from "../controllers/order.controller.js";
+import { authenticate, roles } from "../middlewares/auth.middleware.js";
+import { validate } from "../middlewares/validate.middleware.js";
+import { page } from "../validators/common.validator.js";
+import { checkout, action, assign } from "../validators/commerce.validator.js";
+export const orderRouter = Router();
+orderRouter.param("id", (req, res, next, value) => {
+  z.uuid().parse(value);
+  next();
+});
+orderRouter.use(authenticate);
+orderRouter.post(
+  "/checkout",
+  roles("CUSTOMER"),
+  validate(checkout),
+  c.checkout,
+);
+orderRouter.get(
+  "/",
+  roles("CUSTOMER", "VENDOR", "RIDER", "ADMIN", "DISPATCHER", "FINANCE"),
+  validate(page, "query"),
+  c.list,
+);
+orderRouter.get(
+  "/:id",
+  roles("CUSTOMER", "VENDOR", "RIDER", "ADMIN", "DISPATCHER", "FINANCE"),
+  c.get,
+);
+orderRouter.post("/:id/actions", validate(action), c.transition);
+orderRouter.post(
+  "/:id/assign",
+  roles("ADMIN", "DISPATCHER"),
+  validate(assign),
+  c.assign,
+);
+orderRouter.post("/:id/reset-pin", roles("ADMIN", "DISPATCHER"), c.resetPin);
+orderRouter.patch(
+  "/:id/location",
+  roles("RIDER"),
+  validate(
+    z
+      .object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+      })
+      .strict(),
+  ),
+  c.location,
+);

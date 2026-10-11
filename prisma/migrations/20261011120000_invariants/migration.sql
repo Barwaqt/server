@@ -1,0 +1,11 @@
+CREATE UNIQUE INDEX "Shift_one_open_per_rider" ON "Shift" ("riderId") WHERE "endedAt" IS NULL;
+ALTER TABLE "Product" ADD CONSTRAINT "Product_valid_amounts" CHECK ("stock" >= 0 AND "priceMinor" > 0);
+ALTER TABLE "Vendor" ADD CONSTRAINT "Vendor_valid_commission" CHECK ("commissionBps" BETWEEN 0 AND 10000);
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_valid_quantity" CHECK ("quantity" BETWEEN 1 AND 99);
+ALTER TABLE "Coupon" ADD CONSTRAINT "Coupon_valid_usage" CHECK ("used" >= 0 AND "used" <= "maxUses" AND "percentBps" BETWEEN 1 AND 10000);
+ALTER TABLE "VendorOrder" ADD CONSTRAINT "VendorOrder_valid_amounts" CHECK ("subtotalMinor" >= 0 AND "discountMinor" >= 0 AND "discountMinor" <= "subtotalMinor" AND "deliveryMinor" >= 0 AND "payableMinor" >= 0 AND "commissionMinor" >= 0 AND "codCollectedMinor" >= 0);
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_valid_quantity" CHECK ("quantity" > 0 AND "unitPriceMinor" > 0);
+ALTER TABLE "Review" ADD CONSTRAINT "Review_valid_rating" CHECK ("rating" BETWEEN 1 AND 5);
+ALTER TABLE "Remittance" ADD CONSTRAINT "Remittance_positive_amount" CHECK ("amountMinor" > 0);
+ALTER TABLE "Settlement" ADD CONSTRAINT "Settlement_positive_amount" CHECK ("amountMinor" > 0);
+ALTER TABLE "Refund" ADD CONSTRAINT "Refund_positive_amount" CHECK ("amountMinor" > 0);

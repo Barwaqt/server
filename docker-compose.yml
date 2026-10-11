@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: barwaqt
+      POSTGRES_USER: barwaqt
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - barwaqt_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barwaqt -d barwaqt"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  barwaqt_postgres:
