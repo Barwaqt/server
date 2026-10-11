@@ -72,9 +72,9 @@ Bearer authentication is used; the API does not set authentication cookies. Stor
 
 ## Frontend integration
 
-The existing `web` and `vendor_web` still use their demo stores; this task adds the backend without replacing frontend behavior. See [API reference](docs/API.md) and [frontend mapping](docs/FRONTEND.md). Frontend static product IDs must be replaced with API UUIDs, and the storefront's AED labels must change to PKR when connected.
+The `web` and `vendor_web` authentication flows now call the backend through HTTP-only cookie proxies. Commerce screens still use their demo stores. See [API reference](docs/API.md) and [frontend mapping](docs/FRONTEND.md). Frontend static product IDs must be replaced with API UUIDs, and the storefront's AED labels must change to PKR when connected.
 
-Not connected: online gateways (CARD/JAZZCASH/EASYPAISA return 503), SMS/email/OTP sign-in, password-recovery delivery, social login, external push notifications, bank transfers, document storage/verification, and warehouse fulfillment. No mock payment success or fake identity verification is exposed. Vendor identity/bank documents should be verified through your chosen provider/storage before production onboarding. The PDF explicitly places warehouse fulfillment in a future phase.
+Authentication is connected in both frontends; see [authentication setup](docs/AUTH_SETUP.md) for SMTP, Google and Apple credentials. Provider credentials are required for live email/social sign-in. Not connected: online gateways (CARD/JAZZCASH/EASYPAISA return 503), SMS/OTP sign-in, external push notifications, bank transfers, document storage/verification, and warehouse fulfillment. No mock payment success or fake identity verification is exposed. Vendor identity/bank documents should be verified through your chosen provider/storage before production onboarding. The PDF explicitly places warehouse fulfillment in a future phase.
 
 ## Verification
 

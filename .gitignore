@@ -4,4 +4,4 @@ node_modules/
 .env.example
 coverage/
 .dockerignore
-
+Dockerfile

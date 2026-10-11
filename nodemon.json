@@ -9,5 +9,6 @@
     "tests",
     "prisma/migrations"
   ],
-  "delay": "300"
+  "delay": 300,
+  "signal": "SIGTERM"
 }

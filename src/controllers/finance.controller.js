@@ -2,11 +2,9 @@ import * as s from "../services/finance.service.js";
 export const remittance = async (req, res) =>
   res.status(201).json({ data: await s.remittance(req.user, req.input.body) });
 export const createSettlement = async (req, res) =>
-  res
-    .status(201)
-    .json({
-      data: await s.createSettlement(req.user, req.input.body.vendorId),
-    });
+  res.status(201).json({
+    data: await s.createSettlement(req.user, req.input.body.vendorId),
+  });
 export const updateSettlement = async (req, res) =>
   res.json({
     data: await s.updateSettlement(req.user, req.params.id, req.input.body),

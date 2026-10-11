@@ -6,6 +6,20 @@ config({
 });
 import { z } from "zod";
 const schema = z.object({
+  GOOGLE_CLIENT_ID: z.string().default(""),
+  APPLE_CLIENT_ID: z.string().default(""),
+  APPLE_REDIRECT_URI: z.string().default(""),
+  SMTP_HOST: z.string().default(""),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
+  SMTP_FROM: z.string().default(""),
+  WEB_URL: z.url().default("http://localhost:3000"),
+  VENDOR_WEB_URL: z.url().default("http://localhost:3001"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

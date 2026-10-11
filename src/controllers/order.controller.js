@@ -1,14 +1,12 @@
 import * as s from "../services/order.service.js";
 export const checkout = async (req, res) =>
-  res
-    .status(201)
-    .json({
-      data: await s.checkout(
-        req.user,
-        req.input.body,
-        req.get("Idempotency-Key"),
-      ),
-    });
+  res.status(201).json({
+    data: await s.checkout(
+      req.user,
+      req.input.body,
+      req.get("Idempotency-Key"),
+    ),
+  });
 export const list = async (req, res) =>
   res.json({ data: await s.list(req.user, req.input.query) });
 export const get = async (req, res) =>

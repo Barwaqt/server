@@ -42,6 +42,9 @@ model User {
  id String @id @default(uuid())
  email String @unique
  phone String? @unique
+ googleSubject String? @unique
+ appleSubject String? @unique
+ passwordResets PasswordReset[]
  passwordHash String
  role Role @default(CUSTOMER)
  firstName String
@@ -306,4 +309,19 @@ model AuditLog {
  entityId String
  metadata Json @default("{}")
  createdAt DateTime @default(now())
+}
+
+model PasswordReset {
+ id String @id @default(uuid())
+ userId String
+ user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+ tokenHash String @unique
+ expiresAt DateTime
+ createdAt DateTime @default(now())
+}
+model AuthChallenge {
+ id String @id @default(uuid())
+ tokenHash String @unique
+ provider String
+ expiresAt DateTime
 }

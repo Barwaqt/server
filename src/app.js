@@ -66,7 +66,9 @@ app.get(["/", "/api/v1"], (req, res) =>
   }),
 );
 app.get("/favicon.ico", (req, res) => res.status(204).end());
-app.get("/health", (req, res) => res.json({ status: true, message: "Barwaqt API is Running" }));
+app.get("/health", (req, res) =>
+  res.json({ status: true, message: "Barwaqt API is Running..." }),
+);
 app.get("/ready", async (req, res) => {
   await db.$queryRaw`SELECT 1`;
   res.json({ status: "ready" });

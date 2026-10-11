@@ -18,7 +18,7 @@ function access(user, session) {
     algorithm: "HS256",
   });
 }
-async function sessionFor(user) {
+export async function sessionFor(user) {
   const refreshToken = token();
   const session = await db.session.create({
     data: {
@@ -94,6 +94,7 @@ export async function changePassword(user, input) {
   await transaction(async (tx) => {
     await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
     await tx.session.deleteMany({ where: { userId: user.id } });
+    await tx.passwordReset.deleteMany({ where: { userId: user.id } });
   });
   return { message: "Password changed. Sign in again." };
 }
