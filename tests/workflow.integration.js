@@ -106,6 +106,27 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
     ).status,
     404,
   );
+  const updatedVendor = await ok(
+    call("patch", "/vendor/profile", vendors[0].token, {
+      description: "Updated business description",
+    }),
+  );
+  assert.equal(updatedVendor.description, "Updated business description");
+  assert.equal(
+    (
+      await call("patch", "/vendor/profile", vendors[0].token, {
+        commissionBps: 0,
+      })
+    ).status,
+    422,
+  );
+  const lowPrice = await ok(call("get", "/catalog/products?maxPriceMinor=1"));
+  assert.equal(lowPrice.total, 0);
+  assert.equal(
+    (await call("get", "/catalog/products?minPriceMinor=20&maxPriceMinor=10"))
+      .status,
+    422,
+  );
   const addressBody = {
     firstName: "Customer",
     phone: "+923001234567",
@@ -137,6 +158,44 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
         "Idempotency-Key",
         `checkout-${suffix}`,
       );
+  const beforeQuote = await db.product.findUnique({
+    where: { id: products[0].id },
+  });
+  const preview = await ok(call("post", "/orders/quote", ct, body));
+  assert.equal(preview.vendorOrders.length, 2);
+  assert.equal(preview.totalMinor, 195000);
+  assert.equal(
+    (await db.product.findUnique({ where: { id: products[0].id } })).stock,
+    beforeQuote.stock,
+  );
+  assert.equal(
+    (await db.coupon.findUnique({ where: { id: coupon.id } })).used,
+    0,
+  );
+  assert.equal((await ok(call("get", "/customer/cart", ct))).length, 2);
+  assert.equal(
+    (await call("post", "/orders/quote", vendors[0].token, body)).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call("post", "/orders/quote", ct, {
+        ...body,
+        couponCode: "NOT_REAL",
+      })
+    ).status,
+    422,
+  );
+  const directory = await ok(
+    call("get", "/catalog/vendors?city=Mardan&zone=Central"),
+  );
+  assert.ok(directory.items.some((v) => v.id === vendors[0].id));
+  const publicVendor = await ok(
+    call("get", `/catalog/vendors/${vendors[0].id}`),
+  );
+  assert.equal(publicVendor.name, vendors[0].name);
+  assert.equal(publicVendor.bankDetails, undefined);
+  assert.equal(publicVendor.ownerId, undefined);
   const results = await Promise.all([place(), place()]);
   for (const r of results) assert.equal(r.status, 201, JSON.stringify(r.body));
   const order = results[0].body.data;
@@ -144,6 +203,7 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
   assert.equal(order.vendorOrders.length, 2);
   assert.equal(order.discountMinor, 20000);
   assert.equal(order.totalMinor, 195000);
+  assert.equal(order.totalMinor, preview.totalMinor);
   assert.ok(order.vendorOrders.every((o) => !o.pinHash));
   assert.equal(
     (await db.product.findUnique({ where: { id: products[0].id } })).stock,
@@ -397,6 +457,50 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
       })
     ).status,
     409,
+  );
+  // Checked cart items are purchased independently; unselected items remain.
+  for (const product of products)
+    await ok(call("put", `/customer/cart/${product.id}`, ct, { quantity: 1 }));
+  const selectedBody = { addressId: address.id, productIds: [products[0].id] };
+  const selectedQuote = await ok(
+    call("post", "/orders/quote", ct, selectedBody),
+  );
+  assert.equal(selectedQuote.vendorOrders.length, 1);
+  assert.equal(selectedQuote.subtotalMinor, products[0].priceMinor);
+  assert.equal(
+    (
+      await call("post", "/orders/quote", ct, {
+        ...selectedBody,
+        productIds: [randomUUID()],
+      })
+    ).status,
+    422,
+  );
+  const selectedOrder = await ok(
+    call("post", "/orders/checkout", ct, selectedBody).set(
+      "Idempotency-Key",
+      `selected-${suffix}`,
+    ),
+  );
+  assert.equal(selectedOrder.vendorOrders.length, 1);
+  const remaining = await ok(call("get", "/customer/cart", ct));
+  assert.deepEqual(
+    remaining.map((item) => item.productId),
+    [products[1].id],
+  );
+  const dashboard = await ok(
+    call("get", "/vendor/dashboard", vendors[0].token),
+  );
+  assert.equal(dashboard.sales.length, 30);
+  assert.equal(
+    dashboard.productStatus.active + dashboard.productStatus.inactive,
+    dashboard.products,
+  );
+  assert.ok(dashboard.pendingPayableMinor >= 0);
+  await ok(
+    call("post", `/orders/${selectedOrder.vendorOrders[0].id}/actions`, ct, {
+      action: "cancel",
+    }),
   );
   await ok(call("post", "/rider/shifts", rt, { action: "end" }));
   await ok(

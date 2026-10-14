@@ -11,6 +11,7 @@ orderRouter.param("id", (req, res, next, value) => {
   next();
 });
 orderRouter.use(authenticate);
+orderRouter.post("/quote", roles("CUSTOMER"), validate(checkout), c.quote);
 orderRouter.post(
   "/checkout",
   roles("CUSTOMER"),

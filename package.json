@@ -17,7 +17,8 @@
     "test:integration": "node --test --test-concurrency=1 tests/*.integration.js",
     "check": "node scripts/check.js",
     "format": "prettier --write \"src/**/*.js\" \"prisma/*.js\" \"tests/*.js\" \"scripts/*.js\"",
-    "format:check": "prettier --check \"src/**/*.js\" \"prisma/*.js\" \"tests/*.js\" \"scripts/*.js\""
+    "format:check": "prettier --check \"src/**/*.js\" \"prisma/*.js\" \"tests/*.js\" \"scripts/*.js\"",
+    "db:seed:catalog": "node prisma/seed-catalog.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.0",

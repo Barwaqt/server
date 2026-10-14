@@ -72,7 +72,7 @@ Bearer authentication is used; the API does not set authentication cookies. Stor
 
 ## Frontend integration
 
-The `web` and `vendor_web` authentication flows now call the backend through HTTP-only cookie proxies. Commerce screens still use their demo stores. See [API reference](docs/API.md) and [frontend mapping](docs/FRONTEND.md). Frontend static product IDs must be replaced with API UUIDs, and the storefront's AED labels must change to PKR when connected.
+The `web` and `vendor_web` authentication and commerce screens call the backend through HttpOnly-cookie proxies. Customer catalog, cart, wishlist, addresses, COD checkout, orders and notifications use persisted API data. Vendor products, order actions, dashboard, settlements and business settings are connected. All commerce amounts use PKR and resource IDs use backend UUIDs. See [complete API reference](complete_api.md) and [frontend integration guide](docs/FRONTEND.md).
 
 Authentication is connected in both frontends; see [authentication setup](docs/AUTH_SETUP.md) for SMTP, Google and Apple credentials. Provider credentials are required for live email/social sign-in. Not connected: online gateways (CARD/JAZZCASH/EASYPAISA return 503), SMS/OTP sign-in, external push notifications, bank transfers, document storage/verification, and warehouse fulfillment. No mock payment success or fake identity verification is exposed. Vendor identity/bank documents should be verified through your chosen provider/storage before production onboarding. The PDF explicitly places warehouse fulfillment in a future phase.
 
@@ -89,3 +89,7 @@ NODE_ENV=test DATABASE_URL=postgresql://.../barwaqt_test JWT_SECRET=<32-or-more-
 Integration tests create uniquely named fixtures (they do not truncate databases). They verify ownership/role rejection, multi-vendor checkout, idempotency, concurrent stock protection, coupons, dispatch, PIN failures, COD, refunds, settlements, session rotation and revocation. Remove the dedicated test database when finished.
 
 Framework references: [Prisma PostgreSQL adapter](https://www.prisma.io/docs/orm/v7/core-concepts/supported-databases/postgresql), [Express 5 error handling](https://expressjs.com/en/5x/guide/error-handling/).
+
+## Import existing storefront catalog
+
+Run `npm run db:seed:catalog` after migrations to import the original 218 products and 171 category entries, assigned to a manageable vendor. See [catalog seed instructions](prisma/CATALOG_SEED.md) for images, login credentials, stock, price conventions and repeat-run behavior.

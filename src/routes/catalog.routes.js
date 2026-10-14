@@ -11,3 +11,6 @@ catalogRouter.param("id", (req, res, next, value) => {
 catalogRouter.get("/categories", c.categories);
 catalogRouter.get("/products", validate(page, "query"), c.products);
 catalogRouter.get("/products/:id", c.product);
+
+catalogRouter.get("/vendors", validate(page, "query"), c.vendors);
+catalogRouter.get("/vendors/:id", c.vendor);

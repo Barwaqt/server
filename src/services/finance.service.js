@@ -187,5 +187,66 @@ export async function vendorSummary(user) {
       select: { id: true, status: true, totalMinor: true, createdAt: true },
     }),
   ]);
-  return { currency: "PKR", products, orders, delivered, recent };
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() - 29);
+  const [active, outOfStock, dailyOrders, soldItems, pending] =
+    await Promise.all([
+      db.product.count({ where: { vendorId, active: true } }),
+      db.product.count({ where: { vendorId, stock: 0 } }),
+      db.vendorOrder.findMany({
+        where: { vendorId, status: "DELIVERED", deliveredAt: { gte: start } },
+        select: { deliveredAt: true, subtotalMinor: true },
+      }),
+      db.orderItem.groupBy({
+        by: ["productId", "name", "image", "unitPriceMinor"],
+        where: { vendorOrder: { vendorId, status: "DELIVERED" } },
+        _sum: { quantity: true },
+      }),
+      db.vendorOrder.aggregate({
+        where: {
+          vendorId,
+          status: "DELIVERED",
+          OR: [{ settlementId: null }, { settlement: { status: "PENDING" } }],
+        },
+        _sum: { payableMinor: true },
+      }),
+    ]);
+  const days = new Map(
+    Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
+      return [d.toISOString().slice(0, 10), 0];
+    }),
+  );
+  for (const o of dailyOrders) {
+    const day = o.deliveredAt.toISOString().slice(0, 10);
+    if (days.has(day)) days.set(day, days.get(day) + o.subtotalMinor);
+  }
+  const ranked = new Map();
+  for (const item of soldItems) {
+    const product = ranked.get(item.productId) || {
+      id: item.productId,
+      name: item.name,
+      image: item.image || "",
+      sold: 0,
+      totalMinor: 0,
+    };
+    product.sold += item._sum.quantity || 0;
+    product.totalMinor += (item._sum.quantity || 0) * item.unitPriceMinor;
+    ranked.set(item.productId, product);
+  }
+  return {
+    currency: "PKR",
+    products,
+    orders,
+    delivered,
+    recent,
+    productStatus: { active, inactive: products - active, outOfStock },
+    sales: [...days].map(([date, totalMinor]) => ({ date, totalMinor })),
+    topProducts: [...ranked.values()]
+      .sort((a, b) => b.sold - a.sold)
+      .slice(0, 5),
+    pendingPayableMinor: pending._sum.payableMinor || 0,
+  };
 }

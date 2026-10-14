@@ -1,18 +1,73 @@
 import { db } from "../config/database.js";
 import { pagination } from "../validators/common.validator.js";
 import { assert } from "../utils/error.js";
-export const categoryList = () =>
-  db.category.findMany({ orderBy: { name: "asc" } });
+export async function categoryList() {
+  const rows = await db.category.findMany({
+    orderBy: { name: "asc" },
+    include: {
+      catalogProducts: {
+        where: { active: true, vendor: { status: "APPROVED" } },
+        select: { id: true },
+      },
+    },
+  });
+  return rows.map(({ catalogProducts, ...category }) => ({
+    ...category,
+    productIds: catalogProducts.map((p) => p.id),
+  }));
+}
 export async function products(q) {
+  assert(
+    q.minPriceMinor === undefined ||
+      q.maxPriceMinor === undefined ||
+      q.minPriceMinor <= q.maxPriceMinor,
+    422,
+    "Minimum price must not exceed maximum price",
+  );
+  let categoryIds = q.categoryId ? [q.categoryId] : [];
+  if (q.categoryId) {
+    const rows = await db.category.findMany({
+      select: { id: true, slug: true, parentSlug: true },
+    });
+    const slugs = new Set(
+      rows.filter((c) => c.id === q.categoryId).map((c) => c.slug),
+    );
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const c of rows)
+        if (c.parentSlug && slugs.has(c.parentSlug) && !slugs.has(c.slug)) {
+          slugs.add(c.slug);
+          categoryIds.push(c.id);
+          changed = true;
+        }
+    }
+  }
   const where = {
     active: true,
+    ...(q.minPriceMinor !== undefined || q.maxPriceMinor !== undefined
+      ? {
+          priceMinor: {
+            ...(q.minPriceMinor !== undefined ? { gte: q.minPriceMinor } : {}),
+            ...(q.maxPriceMinor !== undefined ? { lte: q.maxPriceMinor } : {}),
+          },
+        }
+      : {}),
+    ...(q.inStock === "true" ? { stock: { gt: 0 } } : {}),
     vendor: {
       status: "APPROVED",
       ...(q.city ? { city: { equals: q.city, mode: "insensitive" } } : {}),
       ...(q.zone ? { zone: { equals: q.zone, mode: "insensitive" } } : {}),
     },
     ...(q.search ? { name: { contains: q.search, mode: "insensitive" } } : {}),
-    ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+    ...(q.categoryId
+      ? {
+          OR: [
+            { categoryId: { in: categoryIds } },
+            { catalogCategories: { some: { id: q.categoryId } } },
+          ],
+        }
+      : {}),
     ...(q.vendorId ? { vendorId: q.vendorId } : {}),
   };
   const [items, total] = await Promise.all([
@@ -23,7 +78,14 @@ export async function products(q) {
         category: true,
         vendor: { select: { id: true, name: true, city: true, zone: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy:
+        q.sort === "price-asc"
+          ? { priceMinor: "asc" }
+          : q.sort === "price-desc"
+            ? { priceMinor: "desc" }
+            : q.sort === "name"
+              ? { name: "asc" }
+              : { createdAt: "desc" },
     }),
     db.product.count({ where }),
   ]);
@@ -47,7 +109,13 @@ export async function product(id) {
 }
 export async function vendorProducts(user, q) {
   return db.product.findMany({
-    where: { vendorId: user.vendor.id },
+    where: {
+      vendorId: user.vendor.id,
+      ...(q.search
+        ? { name: { contains: q.search, mode: "insensitive" } }
+        : {}),
+      ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+    },
     ...pagination(q),
     orderBy: { createdAt: "desc" },
   });
@@ -58,7 +126,51 @@ export async function saveProduct(user, id, input) {
       where: { id, vendorId: user.vendor.id },
     });
     assert(owned, 404, "Product not found");
-    return db.product.update({ where: { id }, data: input });
+    return db.product.update({
+      where: { id },
+      data: {
+        ...input,
+        ...(input.categoryId && input.categoryId !== owned.categoryId
+          ? { catalogCategories: { set: [] } }
+          : {}),
+      },
+    });
   }
   return db.product.create({ data: { ...input, vendorId: user.vendor.id } });
+}
+
+const publicVendor = {
+  id: true,
+  name: true,
+  slug: true,
+  description: true,
+  businessType: true,
+  city: true,
+  zone: true,
+};
+export async function vendors(q) {
+  const where = {
+    status: "APPROVED",
+    ...(q.search ? { name: { contains: q.search, mode: "insensitive" } } : {}),
+    ...(q.city ? { city: { equals: q.city, mode: "insensitive" } } : {}),
+    ...(q.zone ? { zone: { equals: q.zone, mode: "insensitive" } } : {}),
+  };
+  const [items, total] = await Promise.all([
+    db.vendor.findMany({
+      where,
+      select: publicVendor,
+      ...pagination(q),
+      orderBy: { name: "asc" },
+    }),
+    db.vendor.count({ where }),
+  ]);
+  return { items, total, page: q.page, limit: q.limit };
+}
+export async function vendor(id) {
+  const result = await db.vendor.findFirst({
+    where: { id, status: "APPROVED" },
+    select: publicVendor,
+  });
+  assert(result, 404, "Vendor not found");
+  return result;
 }

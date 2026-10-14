@@ -23,3 +23,6 @@ export const location = async (req, res) =>
   res.json({ data: await s.location(req.user, req.params.id, req.input.body) });
 export const resetPin = async (req, res) =>
   res.json({ data: await s.resetPin(req.user, req.params.id) });
+
+export const quote = async (req, res) =>
+  res.json({ data: await s.quote(req.user, req.input.body) });

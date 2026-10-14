@@ -87,6 +87,7 @@ export const coupon = z
 export const checkout = z
   .object({
     addressId: id,
+    productIds: z.array(id).min(1).max(100).optional(),
     couponCode: z.string().max(30).optional(),
     paymentMethod: z
       .enum(["COD", "CARD", "JAZZCASH", "EASYPAISA"])

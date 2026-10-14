@@ -93,12 +93,16 @@ model Vendor {
  settlements Settlement[]
 }
 model Category {
+ image String?
+ parentSlug String?
+ catalogProducts Product[] @relation("CatalogCategories")
  id String @id @default(uuid())
  name String
  slug String @unique
  products Product[]
 }
 model Product {
+ catalogCategories Category[] @relation("CatalogCategories")
  id String @id @default(uuid())
  vendorId String
  vendor Vendor @relation(fields:[vendorId],references:[id])

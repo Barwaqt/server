@@ -11,6 +11,126 @@ const ended = ["DELIVERED", "CANCELLED", "RETURNED"];
 async function notify(tx, userId, title, body) {
   await tx.notification.create({ data: { userId, title, body } });
 }
+async function prepareCheckout(tx, user, input, reserve = false) {
+  const address = await tx.address.findFirst({
+    where: { id: input.addressId, userId: user.id },
+  });
+  assert(address, 404, "Address not found");
+  const cart = await tx.cartItem.findMany({
+    where: {
+      userId: user.id,
+      ...(input.productIds ? { productId: { in: input.productIds } } : {}),
+    },
+    include: { product: { include: { vendor: true } } },
+  });
+  assert(cart.length, 422, "Cart is empty");
+  if (input.productIds)
+    assert(
+      cart.length === new Set(input.productIds).size,
+      409,
+      "A selected product is no longer in your cart",
+    );
+  assert(cart.length <= 100, 422, "Cart cannot exceed 100 distinct products");
+  const grouped = new Map();
+  for (const item of cart) {
+    const p = item.product;
+    assert(
+      p.active && p.vendor.status === "APPROVED",
+      409,
+      `${p.name} is unavailable`,
+    );
+    assert(
+      p.vendor.city.toLowerCase() === address.city.toLowerCase() &&
+        p.vendor.zone.toLowerCase() === address.zone.toLowerCase(),
+      422,
+      `${p.vendor.name} does not serve this address`,
+    );
+    assert(p.stock >= item.quantity, 409, `${p.name} has insufficient stock`);
+    if (reserve) {
+      const stock = await tx.product.updateMany({
+        where: { id: p.id, stock: { gte: item.quantity }, active: true },
+        data: { stock: { decrement: item.quantity } },
+      });
+      assert(stock.count, 409, `${p.name} has insufficient stock`);
+    }
+    const list = grouped.get(p.vendorId) || [];
+    list.push(item);
+    grouped.set(p.vendorId, list);
+  }
+  const groups = [...grouped.values()];
+  const subtotals = groups.map((items) =>
+    items.reduce((s, i) => s + i.product.priceMinor * i.quantity, 0),
+  );
+  const subtotal = subtotals.reduce((a, b) => a + b, 0);
+  assert(subtotal <= 1000000000, 422, "Order exceeds the maximum value");
+  let discount = 0,
+    coupon;
+  if (input.couponCode) {
+    coupon = await tx.coupon.findUnique({
+      where: { code: input.couponCode.toUpperCase() },
+    });
+    assert(
+      coupon &&
+        coupon.active &&
+        coupon.expiresAt > new Date() &&
+        coupon.used < coupon.maxUses &&
+        subtotal >= coupon.minSubtotalMinor,
+      422,
+      "Coupon is invalid, expired or exhausted",
+    );
+    discount = Math.min(
+      percentage(subtotal, coupon.percentBps),
+      coupon.maxDiscountMinor,
+    );
+    if (reserve)
+      await tx.coupon.update({
+        where: { id: coupon.id },
+        data: { used: { increment: 1 } },
+      });
+  }
+  const discounts = allocate(discount, subtotals),
+    fees = allocate(env.DELIVERY_FEE_MINOR, subtotals);
+  return {
+    address,
+    groups,
+    subtotals,
+    subtotal,
+    discount,
+    coupon,
+    discounts,
+    fees,
+  };
+}
+export async function quote(user, input) {
+  return transaction(async (tx) => {
+    const p = await prepareCheckout(tx, user, input);
+    return {
+      currency: "PKR",
+      paymentMethods: ["COD"],
+      addressId: p.address.id,
+      subtotalMinor: p.subtotal,
+      discountMinor: p.discount,
+      deliveryMinor: env.DELIVERY_FEE_MINOR,
+      totalMinor: p.subtotal - p.discount + env.DELIVERY_FEE_MINOR,
+      vendorOrders: p.groups.map((items, i) => ({
+        vendorId: items[0].product.vendorId,
+        vendorName: items[0].product.vendor.name,
+        subtotalMinor: p.subtotals[i],
+        discountMinor: p.discounts[i],
+        deliveryMinor: p.fees[i],
+        totalMinor: p.subtotals[i] - p.discounts[i] + p.fees[i],
+        items: items.map((item) => ({
+          productId: item.productId,
+          name: item.product.name,
+          quantity: item.quantity,
+          unitPriceMinor: item.product.priceMinor,
+          images: item.product.images,
+        })),
+      })),
+    };
+  });
+}
+
 export async function checkout(user, input, key) {
   assert(
     key && /^[a-zA-Z0-9_-]{8,100}$/.test(key),
@@ -38,71 +158,16 @@ export async function checkout(user, input, key) {
       );
       return sanitizeOrder(previous);
     }
-    const address = await tx.address.findFirst({
-      where: { id: input.addressId, userId: user.id },
-    });
-    assert(address, 404, "Address not found");
-    const cart = await tx.cartItem.findMany({
-      where: { userId: user.id },
-      include: { product: { include: { vendor: true } } },
-    });
-    assert(cart.length, 422, "Cart is empty");
-    assert(cart.length <= 100, 422, "Cart cannot exceed 100 distinct products");
-    const grouped = new Map();
-    for (const item of cart) {
-      const p = item.product;
-      assert(
-        p.active && p.vendor.status === "APPROVED",
-        409,
-        `${p.name} is unavailable`,
-      );
-      assert(
-        p.vendor.city.toLowerCase() === address.city.toLowerCase() &&
-          p.vendor.zone.toLowerCase() === address.zone.toLowerCase(),
-        422,
-        `${p.vendor.name} does not serve this address`,
-      );
-      const stock = await tx.product.updateMany({
-        where: { id: p.id, stock: { gte: item.quantity }, active: true },
-        data: { stock: { decrement: item.quantity } },
-      });
-      assert(stock.count, 409, `${p.name} has insufficient stock`);
-      const list = grouped.get(p.vendorId) || [];
-      list.push(item);
-      grouped.set(p.vendorId, list);
-    }
-    const groups = [...grouped.values()];
-    const subtotals = groups.map((items) =>
-      items.reduce((s, i) => s + i.product.priceMinor * i.quantity, 0),
-    );
-    const subtotal = subtotals.reduce((a, b) => a + b, 0);
-    assert(subtotal <= 1000000000, 422, "Order exceeds the maximum value");
-    let discount = 0,
-      coupon;
-    if (input.couponCode) {
-      coupon = await tx.coupon.findUnique({
-        where: { code: input.couponCode.toUpperCase() },
-      });
-      assert(
-        coupon &&
-          coupon.active &&
-          coupon.expiresAt > new Date() &&
-          coupon.used < coupon.maxUses &&
-          subtotal >= coupon.minSubtotalMinor,
-        422,
-        "Coupon is invalid, expired or exhausted",
-      );
-      discount = Math.min(
-        percentage(subtotal, coupon.percentBps),
-        coupon.maxDiscountMinor,
-      );
-      await tx.coupon.update({
-        where: { id: coupon.id },
-        data: { used: { increment: 1 } },
-      });
-    }
-    const discounts = allocate(discount, subtotals),
-      fees = allocate(env.DELIVERY_FEE_MINOR, subtotals);
+    const {
+      address,
+      groups,
+      subtotals,
+      subtotal,
+      discount,
+      coupon,
+      discounts,
+      fees,
+    } = await prepareCheckout(tx, user, input, true);
     const { userId, ...snapshot } = address;
     const parent = await tx.order.create({
       data: {
@@ -159,7 +224,12 @@ export async function checkout(user, input, key) {
         `Order ${child.id} is waiting for acceptance.`,
       );
     }
-    await tx.cartItem.deleteMany({ where: { userId: user.id } });
+    await tx.cartItem.deleteMany({
+      where: {
+        userId: user.id,
+        ...(input.productIds ? { productId: { in: input.productIds } } : {}),
+      },
+    });
     return sanitizeOrder(
       await tx.order.findUnique({
         where: { id: parent.id },
@@ -172,7 +242,10 @@ export async function list(user, q) {
   if (user.role === "CUSTOMER")
     return (
       await db.order.findMany({
-        where: { customerId: user.id },
+        where: {
+          customerId: user.id,
+          ...(q.status ? { vendorOrders: { some: { status: q.status } } } : {}),
+        },
         ...pagination(q),
         include: orderInclude,
         orderBy: { createdAt: "desc" },

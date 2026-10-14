@@ -2,6 +2,14 @@
 
 This document describes the endpoints implemented in `src/app.js` and `src/routes`, including service-level requirements. It describes the Node API directly; the Next.js authentication proxy has a different cookie-based interface.
 
+## Postman and mobile developer quick start
+
+Import [the complete Postman collection](postman/Barwaqt.postman_collection.json) and [the local environment template](postman/Barwaqt.local.postman_environment.json). The collection has **65 unique endpoints and 78 requests**, including explicit order-action/shift/settlement examples. Every request includes its contract description, authentication configuration, and JSON payload where needed.
+
+Select an environment, set your account email/password, and run login. Login/refresh automatically save tokens; selected create requests capture resource IDs. Duplicate environments per role. Read [the Postman/mobile integration guide](postman/README.md) for setup, variables, workflow order and mobile token handling. Do not run the whole collection blindly: many requests mutate data.
+
+This file is the human-readable contract; the collection is its importable request companion. Both describe implemented APIs, not unimplemented features.
+
 ## Connection and conventions
 
 - Development origin: `http://localhost:4000`.
@@ -70,6 +78,10 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/auth/me` | Authenticated |
 | POST | `/api/v1/auth/logout` | Authenticated |
 | POST | `/api/v1/auth/change-password` | Authenticated |
+| GET | `/api/v1/catalog/vendors` | Public |
+| GET | `/api/v1/catalog/vendors/:id` | Public |
+| POST | `/api/v1/orders/quote` | CUSTOMER |
+| PATCH | `/api/v1/vendor/profile` | Approved VENDOR |
 | GET | `/api/v1/catalog/categories` | Public |
 | GET | `/api/v1/catalog/products` | Public |
 | GET | `/api/v1/catalog/products/:id` | Public |
@@ -364,7 +376,7 @@ No pagination or category hierarchy endpoint.
 
 **Access:** Public.
 
-**Query:** page, limit; optional search (name contains, case-insensitive), city and zone (exact case-insensitive vendor match), categoryId UUID, vendorId UUID. String filters max 100.
+**Query:** page, limit; optional search (name contains, case-insensitive), city and zone (exact case-insensitive vendor match), categoryId UUID, vendorId UUID. String filters max 100. Optional minPriceMinor/maxPriceMinor (integer 0–100,000,000; min must not exceed max), inStock=true to require stock > 0 (false means no stock restriction), sort=newest/price-asc/price-desc/name (default newest).
 
 **Body:** None.
 
@@ -569,13 +581,13 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 
 **Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.
 
-Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; couponCode optional max 30; paymentMethod defaults COD. CARD/JAZZCASH/EASYPAISA validate but return 503 because online payment is not configured. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and clears cart atomically. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.
+Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. CARD/JAZZCASH/EASYPAISA validate but return 503 because online payment is not configured. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.
 
 ### GET /api/v1/orders
 
 **Access:** CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE.
 
-**Query:** page, limit; status applies only to non-customer lists. Other shared filters are ignored. Status: NEW/PREPARING/READY/ASSIGNED/PICKED_UP/DELIVERED/FAILED/CANCELLED/RETURNED.
+**Query:** page, limit; status filters child orders for non-customers; for customers it returns parent orders having at least one matching child (all children remain included). Other shared filters are ignored. Status: NEW/PREPARING/READY/ASSIGNED/PICKED_UP/DELIVERED/FAILED/CANCELLED/RETURNED.
 
 **Body:** None.
 
@@ -690,21 +702,23 @@ All endpoints in this section require the caller’s vendor status APPROVED.
 
 **Body:** None.
 
-**Success:** 200; `data: {currency:"PKR",products,orders,delivered,recent}`.
+**Success:** 200; `data: {currency:"PKR",products,orders,delivered,recent,productStatus,sales,topProducts,pendingPayableMinor}`.
 
 products is a count. orders is `[{status,_count}]`. delivered is `{_sum:{subtotalMinor,commissionMinor,payableMinor}}` (sums can be null). recent contains up to 10 `{id,status,totalMinor,createdAt}` child orders.
+
+`productStatus` contains `{active,inactive,outOfStock}` counts. `sales` contains 30 UTC days of `{date:"YYYY-MM-DD",totalMinor}` delivered gross sales, including zero days. `topProducts` contains up to five `{id,name,image,sold,totalMinor}` products ranked by delivered quantity; `totalMinor` is delivered gross item revenue. `pendingPayableMinor` sums delivered child-order payables not yet in a PAID settlement (cash reconciliation is still required before payout). All results are scoped to the authenticated vendor.
 
 ### GET /api/v1/vendor/products
 
 **Access:** Approved VENDOR.
 
-**Query:** page, limit only.
+**Query:** page, limit; optional search (case-insensitive name contains) and categoryId UUID.
 
 **Body:** None.
 
 **Success:** 200; `data: Product[]`, newest first, including inactive owned products.
 
-No total-count wrapper. Search/category/status filters are not applied.
+No total-count wrapper. Search and categoryId are supported; status is not a product filter.
 
 ### POST /api/v1/vendor/products
 
@@ -1058,7 +1072,7 @@ These are scalar response fields, not additional writable fields. Relations appe
 | Review | `id: String`, `userId: String`, `productId: String`, `rating: Int`, `comment: String`, `createdAt: DateTime` |
 | AuditLog | `id: String`, `actorId: String`, `action: String`, `entityId: String`, `metadata: Json`, `createdAt: DateTime` |
 
-PublicUser contains only `id, email, phone, role, firstName, lastName, profile, active, createdAt`; no password hashes, linked subject identifiers, or sessions. Category has no createdAt field. CartItem and WishlistItem have compound keys and no independent id. PIN hashes and attempt counts are stripped from all order responses. Parent Order responses currently include idempotencyKey and requestHash; integrations should treat these as internal metadata, not IDs. Address in Order is a checkout-time JSON snapshot (without userId), not a live relation.
+PublicUser contains only `id, email, phone, role, firstName, lastName, profile, active, createdAt`; no password hashes, linked subject identifiers, or sessions. Category also returns nullable `image` (asset URL) and `parentSlug` (parent category slug). The public category list adds `productIds` for active approved-vendor products explicitly assigned to that collection; direct and descendant primary-category memberships are included when filtering catalog products. Category has no createdAt field. CartItem and WishlistItem have compound keys and no independent id. PIN hashes and attempt counts are stripped from all order responses. Parent Order responses currently include idempotencyKey and requestHash; integrations should treat these as internal metadata, not IDs. Address in Order is a checkout-time JSON snapshot (without userId), not a live relation.
 
 ## Integration walkthrough
 
@@ -1098,3 +1112,59 @@ curl -X POST 'http://localhost:4000/api/v1/orders/checkout' \
 - Lists capped at 100 without pagination cannot be made exhaustive by adding page/limit parameters.
 - Frontend sample data must be replaced with actual API resources and UUIDs. See [FRONTEND.md](docs/FRONTEND.md) and [README.md](README.md) for setup/context.
 - Examples are illustrative; no real credentials or personal data are included.
+
+## Marketplace additions (2026-10-13)
+
+### GET /api/v1/catalog/vendors
+
+**Access:** Public. **Body:** None.
+
+**Query:** page (default 1), limit (default 20, max 100), search (vendor name contains), city, zone (case-insensitive exact match). String filters max 100.
+
+**Success:** 200; `data: {items, total, page, limit}`. Items have `{id,name,slug,description,businessType,city,zone}`. Only APPROVED vendors, sorted by name; owner/bank/commission fields are never included.
+
+### GET /api/v1/catalog/vendors/:id
+
+**Access:** Public. **Body:** None. id is vendor UUID.
+
+**Success:** 200; `data: {id,name,slug,description,businessType,city,zone}`. Missing/suspended vendor returns 404. Fetch its products using `/catalog/products?vendorId=<id>`.
+
+### POST /api/v1/orders/quote
+
+**Access:** CUSTOMER. No Idempotency-Key needed.
+
+```json
+{"addressId":"11111111-1111-4111-8111-111111111111","couponCode":"WELCOME10","paymentMethod":"COD"}
+```
+
+To quote or purchase only checked cart items, add the same selection to both requests:
+
+```json
+{"addressId":"11111111-1111-4111-8111-111111111111","productIds":["22222222-2222-4222-8222-222222222222"],"paymentMethod":"COD"}
+```
+
+Product IDs must already be in this customer's cart. Omitting `productIds` uses the entire cart. Quotes do not modify the cart; checkout removes only selected items. A selection containing both cart and non-cart IDs returns 409; an entirely absent selection returns 422 (empty cart).
+
+Same payload validation as checkout: addressId required; productIds optionally selects 1–100 cart product UUIDs; couponCode optional; paymentMethod defaults COD. The result always advertises COD only, even if a different valid payment enum was requested. Unsupported payment methods still fail at checkout.
+
+**Success:** 200; `data: {currency:"PKR", paymentMethods:["COD"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, vendorOrders}`.
+
+Each quote vendorOrders entry contains `{vendorId,vendorName,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID/PIN.
+
+Validates the customer's current cart, owned address, stock, vendor approval, service city/zone and coupon. Same calculations as checkout; no stock reservation, coupon consumption, cart clearing or order creation. The quote is advisory, not a price/stock lock. Requote when inputs change; checkout revalidates atomically. Errors include 404 address, 422 empty cart/invalid coupon/unsupported area and 409 unavailable stock.
+
+### PATCH /api/v1/vendor/profile
+
+**Access:** Approved VENDOR.
+
+```json
+{"name":"Gulberg Market","description":"Fresh everyday groceries","address":"Main Boulevard, Building A"}
+```
+
+At least one field required. name/address trimmed 1–200; description up to 5,000. All three optional individually. Other fields rejected, including status, commissionBps, ownerId, bankDetails, city and zone. Changes are audited; owner account email uses separate account administration, not this route.
+
+**Success:** 200; `data: Vendor`. Never accepts another vendor's ID; derives ownership from session.
+
+For a screen-by-screen implementation status, see [IMPLEMENTATION_AUDIT.md](docs/IMPLEMENTATION_AUDIT.md).
+
+Category filters now include products assigned to descendant categories and explicit imported collection memberships. Catalog category responses include optional image and parentSlug. See [catalog seed instructions](prisma/CATALOG_SEED.md) for importing the original storefront products.

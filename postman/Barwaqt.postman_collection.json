@@ -1,0 +1,3989 @@
+{
+  "info": {
+    "name": "Barwaqt API \u2014 complete integration reference",
+    "description": "All 65 implemented Node API endpoints, plus action variants. Read server/complete_api.md and postman/README.md. Select a role-specific environment. Do not Run All: requests mutate real data. Examples require real IDs and provider credentials.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "GET /",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 200; unwrapped `{name, version, message, endpoints}` API discovery object."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 200; unwrapped `{name, version, message, endpoints}` API discovery object."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 200; `{\"status\":true,\"message\":\"Barwaqt API is Running...\"}`.\n\nLiveness only; does not check the database."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 200; `{\"status\":\"ready\"}`.\n\nRuns a database query; database errors use the error handler."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /favicon.ico",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/favicon.ico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "favicon.ico"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 204; empty body."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /api/v1/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Example JSON body:**\n\n```json\n{\n  \"email\": \"customer@example.com\",\n  \"password\": \"ExamplePass123!\",\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\"\n}\n```\n\n**Success:** 201; session response including public user.\n\nRequired: email, password, firstName. Optional: lastName (trimmed, max 200; empty allowed), phone. Always creates CUSTOMER. Vendors/staff are created by ADMIN; a `role` field is rejected.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if (pm.response.code < 300) { const d = pm.response.json().data; if(d.accessToken) pm.environment.set(\"accessToken\",d.accessToken); if(d.refreshToken) pm.environment.set(\"refreshToken\",d.refreshToken); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Example JSON body:**\n\n```json\n{\n  \"identity\": \"customer@example.com\",\n  \"password\": \"ExamplePass123!\"\n}\n```\n\n**Success:** 200; session response.\n\nBoth fields required. identity is an email or exact phone string (text); password 1\u201372 characters. Supports all roles; check returned user.role to choose the portal. Password login itself does not enforce vendor approval; vendor routes do.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identity\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if (pm.response.code < 300) { const d = pm.response.json().data; if(d.accessToken) pm.environment.set(\"accessToken\",d.accessToken); if(d.refreshToken) pm.environment.set(\"refreshToken\",d.refreshToken); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Example JSON body:**\n\n```json\n{\n  \"refreshToken\": \"<opaque refresh token from login>\"\n}\n```\n\n**Success:** 200; `data: {accessToken, refreshToken, expiresIn}` (no user).\n\nrefreshToken is required, 32\u2013200 characters. Serialize refresh calls to avoid reusing a rotated token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if (pm.response.code < 300) { const d = pm.response.json().data; if(d.accessToken) pm.environment.set(\"accessToken\",d.accessToken); if(d.refreshToken) pm.environment.set(\"refreshToken\",d.refreshToken); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/auth/providers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/providers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "providers"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 200; `data: {googleClientId, appleClientId, appleRedirectUri, passwordReset}`.\n\nClient IDs/redirect URI are public configuration strings; empty strings mean unconfigured. passwordReset is a boolean configuration check, not proof of SMTP connectivity."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/forgot-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Example JSON body:**\n\n```json\n{\n  \"email\": \"customer@example.com\",\n  \"portal\": \"customer\"\n}\n```\n\n**Success:** 200; `data: {message: \"If an eligible account exists, a password-reset link will be emailed shortly.\"}`.\n\nemail required; portal customer/vendor, defaults customer. Only active matching-role accounts receive email. SMTP configuration is required (503 if missing). Link is `<portal URL>/reset-password#token=<token>`, expires in 20 minutes. The API never returns the reset token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"portal\": \"{{portal}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/reset-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Example JSON body:**\n\n```json\n{\n  \"token\": \"<token extracted from email URL fragment>\",\n  \"newPassword\": \"NewExamplePass123!\"\n}\n```\n\n**Success:** 200; `data: {message: \"Your password has been changed. Sign in with your new password.\"}`.\n\nBoth required. token 32\u2013200 characters; newPassword 12\u201372. Single use; invalid/expired links return 422. Clears all reset tokens and sessions for the user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) {pm.environment.unset(\"accessToken\");pm.environment.unset(\"refreshToken\");}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/challenge",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/challenge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "challenge"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Example JSON body:**\n\n```json\n{\n  \"provider\": \"google\"\n}\n```\n\n**Success:** 200; `data: {nonce: \"<opaque challenge>\"}`.\n\nprovider required: google/apple. Challenge expires after five minutes. Provider must be configured (503 otherwise). Pass this nonce to the provider SDK so it is included in the signed ID token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"{{provider}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code === 200) pm.environment.set(\"nonce\",pm.response.json().data.nonce);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/social",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/social",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "social"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Example JSON body:**\n\n```json\n{\n  \"provider\": \"google\",\n  \"credential\": \"<provider-issued signed ID token>\",\n  \"nonce\": \"<nonce from challenge endpoint>\",\n  \"portal\": \"customer\"\n}\n```\n\n**Success:** 200; session response.\n\nRequired: provider google/apple, credential (20\u201310,000 characters), nonce (32\u2013200). portal customer/vendor defaults customer. Use an ID token, not an OAuth access token or authorization code. Signature, issuer/audience, verified email and matching nonce are checked. Successful challenges are single use. New identities create CUSTOMER only. Existing email without provider link returns 409; sign in with password and link explicitly. Vendor identities must already be linked to an admin-created, approved vendor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"{{provider}}\",\n  \"credential\": \"{{credential}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"portal\": \"{{portal}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if (pm.response.code < 300) { const d = pm.response.json().data; if(d.accessToken) pm.environment.set(\"accessToken\",d.accessToken); if(d.refreshToken) pm.environment.set(\"refreshToken\",d.refreshToken); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/link-provider",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/link-provider",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "link-provider"
+              ]
+            },
+            "description": "**Access:** Authenticated.\n\n**Example JSON body:**\n\n```json\n{\n  \"provider\": \"google\",\n  \"credential\": \"<provider-issued signed ID token>\",\n  \"nonce\": \"<nonce from challenge endpoint>\",\n  \"portal\": \"customer\"\n}\n```\n\n**Success:** 200; `data: {message: \"Google account linked. You can now use it to sign in.\"}` (Apple wording for Apple).\n\nSame payload validation/challenge flow as social sign-in. Provider email must match the signed-in account email. A provider linked elsewhere returns 409. Does not issue a new session.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"{{provider}}\",\n  \"credential\": \"{{credential}}\",\n  \"nonce\": \"{{nonce}}\",\n  \"portal\": \"{{portal}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "**Access:** Authenticated.\n\n**Body:** None.\n\n**Success:** 200; `data: PublicUser` (see response fields below)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "**Access:** Authenticated.\n\n**Body:** None.\n\n**Success:** 204; empty body.\n\nRevokes only the session associated with the supplied access token."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) {pm.environment.unset(\"accessToken\");pm.environment.unset(\"refreshToken\");}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/change-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "change-password"
+              ]
+            },
+            "description": "**Access:** Authenticated.\n\n**Example JSON body:**\n\n```json\n{\n  \"currentPassword\": \"ExamplePass123!\",\n  \"newPassword\": \"NewExamplePass123!\"\n}\n```\n\n**Success:** 200; `data: {message: \"Password changed. Sign in again.\"}`.\n\nBoth required. currentPassword max 72; newPassword 12\u201372. Revokes all sessions, including the current one.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) {pm.environment.unset(\"accessToken\");pm.environment.unset(\"refreshToken\");}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "GET /api/v1/catalog/categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "categories"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 200; `data: Category[]`, sorted by name.\n\nNo pagination or category hierarchy endpoint."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/catalog/products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/products?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": "rice",
+                  "disabled": true
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "vendorId",
+                  "value": "{{vendorId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "city",
+                  "value": "Lahore",
+                  "disabled": true
+                },
+                {
+                  "key": "zone",
+                  "value": "Gulberg",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "price-asc",
+                  "disabled": true
+                },
+                {
+                  "key": "minPriceMinor",
+                  "value": "100",
+                  "disabled": true
+                },
+                {
+                  "key": "maxPriceMinor",
+                  "value": "100000",
+                  "disabled": true
+                },
+                {
+                  "key": "inStock",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Query:** page, limit; optional search (name contains, case-insensitive), city and zone (exact case-insensitive vendor match), categoryId UUID, vendorId UUID. String filters max 100. Optional minPriceMinor/maxPriceMinor (integer 0\u2013100,000,000; min must not exceed max), inStock=true to require stock > 0 (false means no stock restriction), sort=newest/price-asc/price-desc/name (default newest).\n\n**Body:** None.\n\n**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone}`.\n\nOnly active products from APPROVED vendors, newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/catalog/products/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "products",
+                "{{productId}}"
+              ]
+            },
+            "description": "**Access:** Public.\n\n**Body:** None.\n\n**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone}`, and up to 50 newest reviews `{rating,comment,createdAt}`.\n\nid is product UUID. Inactive products/suspended vendors return 404."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/catalog/vendors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/vendors?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "vendors"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": "Market",
+                  "disabled": true
+                },
+                {
+                  "key": "city",
+                  "value": "Lahore",
+                  "disabled": true
+                },
+                {
+                  "key": "zone",
+                  "value": "Gulberg",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** Public. **Body:** None.\n\n**Query:** page (default 1), limit (default 20, max 100), search (vendor name contains), city, zone (case-insensitive exact match). String filters max 100.\n\n**Success:** 200; `data: {items, total, page, limit}`. Items have `{id,name,slug,description,businessType,city,zone}`. Only APPROVED vendors, sorted by name; owner/bank/commission fields are never included."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/catalog/vendors/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalog/vendors/{{vendorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "vendors",
+                "{{vendorId}}"
+              ]
+            },
+            "description": "**Access:** Public. **Body:** None. id is vendor UUID.\n\n**Success:** 200; `data: {id,name,slug,description,businessType,city,zone}`. Missing/suspended vendor returns 404. Fetch its products using `/catalog/products?vendorId=<id>`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customer",
+      "item": [
+        {
+          "name": "PATCH /api/v1/customer/profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "profile"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\",\n  \"profile\": {\n    \"birthday\": \"1995-06-20\",\n    \"gender\": \"Male\",\n    \"nationality\": \"Pakistani\",\n    \"tourist\": false\n  }\n}\n```\n\n**Success:** 200; `data: PublicUser`.\n\nAll fields optional. firstName text; lastName max 100; phone shared format. profile allows only birthday (ISO YYYY-MM-DD), gender Male/Female/Other, nationality max 100, tourist boolean. Supplied profile replaces the stored JSON object; send retained fields too. Cannot change email or role here.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\",\n  \"profile\": {\n    \"birthday\": \"1995-06-20\",\n    \"gender\": \"Male\",\n    \"nationality\": \"Pakistani\",\n    \"tourist\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/customer/addresses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/addresses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "addresses"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Body:** None.\n\n**Success:** 200; `data: Address[]`, own addresses newest first."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/customer/addresses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/addresses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "addresses"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"kind\": \"Home\",\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"street\": \"Main Boulevard\",\n  \"building\": \"Building A\",\n  \"apartment\": \"Flat 12\",\n  \"directions\": \"Call on arrival\",\n  \"latitude\": 31.52,\n  \"longitude\": 74.35\n}\n```\n\n**Success:** 201; `data: Address`.\n\nRequired: firstName, phone, city, zone, street. Optional: kind Home/Work/Other (default Home), lastName max 100 (default empty), building max 200, apartment max 100, directions max 500 (these default empty), latitude \u221290\u202690, longitude \u2212180\u2026180. Other required strings use text rules.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"Home\",\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"street\": \"Main Boulevard\",\n  \"building\": \"Building A\",\n  \"apartment\": \"Flat 12\",\n  \"directions\": \"Call on arrival\",\n  \"latitude\": 31.52,\n  \"longitude\": 74.35\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) pm.environment.set(\"addressId\",pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/v1/customer/addresses/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/addresses/{{addressId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "addresses",
+                "{{addressId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"kind\": \"Home\",\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"street\": \"Main Boulevard\",\n  \"building\": \"Building A\",\n  \"apartment\": \"Flat 12\",\n  \"directions\": \"Call on arrival\",\n  \"latitude\": 31.52,\n  \"longitude\": 74.35\n}\n```\n\n**Success:** 200; `data: Address`.\n\nid is owned address UUID. Full validated address input required, not a partial PATCH. Required: firstName, phone, city, zone, street. Optional: kind Home/Work/Other (default Home), lastName max 100 (default empty), building max 200, apartment max 100, directions max 500 (these default empty), latitude \u221290\u202690, longitude \u2212180\u2026180. Other required strings use text rules.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"Home\",\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Khan\",\n  \"phone\": \"+923001234567\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"street\": \"Main Boulevard\",\n  \"building\": \"Building A\",\n  \"apartment\": \"Flat 12\",\n  \"directions\": \"Call on arrival\",\n  \"latitude\": 31.52,\n  \"longitude\": 74.35\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/v1/customer/addresses/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/addresses/{{addressId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "addresses",
+                "{{addressId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Body:** None.\n\n**Success:** 204; empty body.\n\nOnly deletes an owned address. Missing/non-owned IDs also return 204."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/customer/cart",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/cart",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "cart"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Body:** None.\n\n**Success:** 200; `data: CartItem[]`, each including product and product.vendor `{id,name,status,city,zone}`.\n\nNo totals envelope; checkout calculates authoritative prices and totals."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/v1/customer/cart/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/cart/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "cart",
+                "{{productId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"quantity\": 2\n}\n```\n\n**Success:** 200; `data: {userId,productId,quantity}`; quantity 0 returns `data: {count}`.\n\nid is PRODUCT UUID, not cart item ID. quantity required integer 0\u201399. Sets absolute quantity, not an increment. Zero removes the item. Positive quantities require active product, approved vendor and sufficient stock. Cart does not reserve stock.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/customer/wishlist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/wishlist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "wishlist"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Body:** None.\n\n**Success:** 200; `data: WishlistItem[]`, each `{userId,productId,product}`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/v1/customer/wishlist/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/wishlist/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "wishlist",
+                "{{productId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Body:** None.\n\n**Success:** 200; `data: {userId,productId}`.\n\nid is product UUID. Idempotently saves an active product from an approved vendor."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/v1/customer/wishlist/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/wishlist/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "wishlist",
+                "{{productId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Body:** None.\n\n**Success:** 204; empty body.\n\nid is product UUID. Idempotently removes the caller\u2019s wishlist item."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/v1/customer/reviews/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customer/reviews/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customer",
+                "reviews",
+                "{{productId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"rating\": 5,\n  \"comment\": \"Arrived on time and in good condition.\"\n}\n```\n\n**Success:** 200; `data: Review`.\n\nid is product UUID. Both fields required: rating integer 1\u20135, comment trimmed 1\u20132,000. Requires a DELIVERED purchase of the product. Creates or updates the caller\u2019s single review for that product.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"comment\": \"Arrived on time and in good condition.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "POST /api/v1/orders/checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "checkout"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"addressId\": \"11111111-1111-4111-8111-111111111111\",\n  \"couponCode\": \"WELCOME10\",\n  \"paymentMethod\": \"COD\"\n}\n```\n\n**Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.\n\nRequired header: `Idempotency-Key: checkout-20261012-001` (8\u2013100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1\u2013100 product UUIDs from the authenticated customer\u2019s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. CARD/JAZZCASH/EASYPAISA validate but return 503 because online payment is not configured. Uses the server cart (1\u2013100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addressId\": \"{{addressId}}\",\n  \"paymentMethod\": \"COD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get(\"idempotencyKey\")) pm.environment.set(\"idempotencyKey\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) { const d=pm.response.json().data; pm.environment.set(\"customerOrderId\",d.id); if(d.vendorOrders.length) pm.environment.set(\"vendorOrderId\",d.vendorOrders[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "NEW",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE.\n\n**Query:** page, limit; status filters child orders for non-customers; for customers it returns parent orders having at least one matching child (all children remain included). Other shared filters are ignored. Status: NEW/PREPARING/READY/ASSIGNED/PICKED_UP/DELIVERED/FAILED/CANCELLED/RETURNED.\n\n**Body:** None.\n\n**Success:** 200; `data: Order[]` for CUSTOMER, `data: VendorOrder[]` for all other roles.\n\nCustomer sees own parent orders with children/items/events. Vendor sees own children; rider sees assigned children; admin/dispatch/finance see all children. Non-customer rows include items, events, and order `{address,currency,paymentMethod}`. Newest first. No total-count envelope."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/orders/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{customerOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{customerOrderId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE.\n\n**Body:** None.\n\n**Success:** 200; `data: Order` for CUSTOMER; `data: VendorOrder` for other roles, with relations as in the list.\n\nCUSTOMER supplies parent Order.id. All other roles supply child VendorOrder.id. Ownership restrictions match the list. Parent orders do not have a single status: inspect vendorOrders[].status."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/orders/:id/actions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"accept\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/orders/:id/assign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/assign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "assign"
+              ]
+            },
+            "description": "**Access:** ADMIN, DISPATCHER.\n\n**Example JSON body:**\n\n```json\n{\n  \"riderId\": \"11111111-1111-4111-8111-111111111111\"\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields.\n\nid is child UUID. Order must be READY. riderId required UUID for active RIDER on an AVAILABLE open shift. Sets ASSIGNED and marks rider BUSY.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"riderId\": \"{{riderId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/orders/:id/reset-pin",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/reset-pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "reset-pin"
+              ]
+            },
+            "description": "**Access:** ADMIN, DISPATCHER.\n\n**Body:** None.\n\n**Success:** 200; `data: {message: \"New PIN sent to customer notifications\"}`.\n\nid is child UUID. Cannot reset DELIVERED/CANCELLED/RETURNED orders. Resets attempts and sends a new customer notification; does not return the PIN."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/orders/:id/location",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/location",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "location"
+              ]
+            },
+            "description": "**Access:** RIDER.\n\n**Example JSON body:**\n\n```json\n{\n  \"latitude\": 31.52,\n  \"longitude\": 74.35\n}\n```\n\n**Success:** 200; `data: {updated: true}`.\n\nid is assigned child UUID in ASSIGNED or PICKED_UP state. Both coordinates required (latitude \u221290\u202690; longitude \u2212180\u2026180). Updates locationAt. No active matching assignment returns 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 31.52,\n  \"longitude\": 74.35\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/orders/quote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/quote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "quote"
+              ]
+            },
+            "description": "**Access:** CUSTOMER. No Idempotency-Key needed.\n\n```json\n{\"addressId\":\"11111111-1111-4111-8111-111111111111\",\"couponCode\":\"WELCOME10\",\"paymentMethod\":\"COD\"}\n```\n\nTo quote or purchase only checked cart items, add the same selection to both requests:\n\n```json\n{\"addressId\":\"11111111-1111-4111-8111-111111111111\",\"productIds\":[\"22222222-2222-4222-8222-222222222222\"],\"paymentMethod\":\"COD\"}\n```\n\nProduct IDs must already be in this customer's cart. Omitting `productIds` uses the entire cart. Quotes do not modify the cart; checkout removes only selected items. A selection containing both cart and non-cart IDs returns 409; an entirely absent selection returns 422 (empty cart).\n\nSame payload validation as checkout: addressId required; productIds optionally selects 1\u2013100 cart product UUIDs; couponCode optional; paymentMethod defaults COD. The result always advertises COD only, even if a different valid payment enum was requested. Unsupported payment methods still fail at checkout.\n\n**Success:** 200; `data: {currency:\"PKR\", paymentMethods:[\"COD\"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, vendorOrders}`.\n\nEach quote vendorOrders entry contains `{vendorId,vendorName,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID/PIN.\n\nValidates the customer's current cart, owned address, stock, vendor approval, service city/zone and coupon. Same calculations as checkout; no stock reservation, coupon consumption, cart clearing or order creation. The quote is advisory, not a price/stock lock. Requote when inputs change; checkout revalidates atomically. Errors include 404 address, 422 empty cart/invalid coupon/unsupported area and 409 unavailable stock.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addressId\": \"{{addressId}}\",\n  \"paymentMethod\": \"COD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: reject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\",\n  \"reason\": \"Describe the actual reason here\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: ready",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"ready\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"cancel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: pickup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"pickup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: deliver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deliver\",\n  \"pin\": \"{{deliveryPin}}\",\n  \"cashCollectedMinor\": {{cashCollectedMinor}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: fail",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"fail\",\n  \"reason\": \"Describe the actual reason here\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: retry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"retry\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order action: return",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** Authenticated; action-specific permissions below.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"deliver\",\n  \"pin\": \"123456\",\n  \"cashCollectedMinor\": 130000\n}\n```\n\n**Success:** 200; `data: VendorOrder` scalar fields (without items/events).\n\nAlways supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3\u2013500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"return\",\n  \"reason\": \"Describe the actual reason here\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET child order (vendor/rider/admin/dispatch/finance)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{vendorOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{vendorOrderId}}"
+              ]
+            },
+            "description": "**Access:** CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE.\n\n**Body:** None.\n\n**Success:** 200; `data: Order` for CUSTOMER; `data: VendorOrder` for other roles, with relations as in the list.\n\nCUSTOMER supplies parent Order.id. All other roles supply child VendorOrder.id. Ownership restrictions match the list. Parent orders do not have a single status: inspect vendorOrders[].status."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Vendor",
+      "item": [
+        {
+          "name": "GET /api/v1/vendor/profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vendor/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendor",
+                "profile"
+              ]
+            },
+            "description": "**Access:** Approved VENDOR.\n\n**Body:** None.\n\n**Success:** 200; `data: Vendor`.\n\nAll endpoints in this section require the caller\u2019s vendor status APPROVED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/vendor/dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vendor/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendor",
+                "dashboard"
+              ]
+            },
+            "description": "**Access:** Approved VENDOR.\n\n**Body:** None.\n\n**Success:** 200; `data: {currency:\"PKR\",products,orders,delivered,recent,productStatus,sales,topProducts,pendingPayableMinor}`.\n\nproducts is a count. orders is `[{status,_count}]`. delivered is `{_sum:{subtotalMinor,commissionMinor,payableMinor}}` (sums can be null). recent contains up to 10 `{id,status,totalMinor,createdAt}` child orders.\n\n`productStatus` contains `{active,inactive,outOfStock}` counts. `sales` contains 30 UTC days of `{date:\"YYYY-MM-DD\",totalMinor}` delivered gross sales, including zero days. `topProducts` contains up to five `{id,name,image,sold,totalMinor}` products ranked by delivered quantity; `totalMinor` is delivered gross item revenue. `pendingPayableMinor` sums delivered child-order payables not yet in a PAID settlement (cash reconciliation is still required before payout). All results are scoped to the authenticated vendor."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/vendor/products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vendor/products?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendor",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": "rice",
+                  "disabled": true
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** Approved VENDOR.\n\n**Query:** page, limit; optional search (case-insensitive name contains) and categoryId UUID.\n\n**Body:** None.\n\n**Success:** 200; `data: Product[]`, newest first, including inactive owned products.\n\nNo total-count wrapper. Search and categoryId are supported; status is not a product filter."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/vendor/products",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vendor/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendor",
+                "products"
+              ]
+            },
+            "description": "**Access:** Approved VENDOR.\n\n**Example JSON body:**\n\n```json\n{\n  \"name\": \"Basmati Rice 5kg\",\n  \"slug\": \"basmati-rice-5kg\",\n  \"categoryId\": \"11111111-1111-4111-8111-111111111111\",\n  \"description\": \"Premium basmati rice.\",\n  \"priceMinor\": 125000,\n  \"stock\": 50,\n  \"images\": [\n    \"https://example.com/rice.jpg\",\n    \"/shop/rice.webp\"\n  ],\n  \"attributes\": {\n    \"weight\": \"5kg\",\n    \"brand\": \"Example\"\n  },\n  \"active\": true\n}\n```\n\n**Success:** 201; `data: Product`.\n\nRequired: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0\u20131,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), active boolean (default true). Owner vendorId is server assigned. Slug is globally unique. This endpoint accepts image URLs, not file uploads.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Basmati Rice 5kg\",\n  \"slug\": \"basmati-rice-5kg\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"description\": \"Premium basmati rice.\",\n  \"priceMinor\": 125000,\n  \"stock\": 50,\n  \"images\": [\n    \"https://example.com/rice.jpg\",\n    \"/shop/rice.webp\"\n  ],\n  \"attributes\": {\n    \"weight\": \"5kg\",\n    \"brand\": \"Example\"\n  },\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) pm.environment.set(\"productId\",pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/vendor/products/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vendor/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendor",
+                "products",
+                "{{productId}}"
+              ]
+            },
+            "description": "**Access:** Approved VENDOR.\n\n**Example JSON body:**\n\n```json\n{\n  \"priceMinor\": 120000,\n  \"stock\": 40,\n  \"active\": true\n}\n```\n\n**Success:** 200; `data: Product`.\n\nid must belong to caller\u2019s vendor. Same fields/rules as product creation, all optional. Supplied stock is absolute; supplied images/attributes replace those values. Set active false to unpublish; no product DELETE route.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"priceMinor\": 120000,\n  \"stock\": 40,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/vendor/settlements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vendor/settlements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendor",
+                "settlements"
+              ]
+            },
+            "description": "**Access:** Approved VENDOR.\n\n**Body:** None.\n\n**Success:** 200; `data: Settlement[]` with orders `{id,subtotalMinor,discountMinor,commissionMinor,payableMinor}`.\n\nOwn settlements only, newest first, max 100; no pagination query."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/vendor/profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/vendor/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendor",
+                "profile"
+              ]
+            },
+            "description": "**Access:** Approved VENDOR.\n\n```json\n{\"name\":\"Gulberg Market\",\"description\":\"Fresh everyday groceries\",\"address\":\"Main Boulevard, Building A\"}\n```\n\nAt least one field required. name/address trimmed 1\u2013200; description up to 5,000. All three optional individually. Other fields rejected, including status, commissionBps, ownerId, bankDetails, city and zone. Changes are audited; owner account email uses separate account administration, not this route.\n\n**Success:** 200; `data: Vendor`. Never accepts another vendor's ID; derives ownership from session.\n\nFor a screen-by-screen implementation status, see [IMPLEMENTATION_AUDIT.md](docs/IMPLEMENTATION_AUDIT.md).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gulberg Market\",\n  \"description\": \"Fresh everyday groceries\",\n  \"address\": \"Main Boulevard, Building A\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "POST /api/v1/admin/vendors",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/vendors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "vendors"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"VendorPass123!\",\n  \"phone\": \"+923001234568\",\n  \"firstName\": \"Sara\",\n  \"lastName\": \"Ahmed\",\n  \"name\": \"Gulberg Market\",\n  \"slug\": \"gulberg-market\",\n  \"businessType\": \"Grocery\",\n  \"description\": \"Local groceries\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"address\": \"Main Boulevard\",\n  \"commissionBps\": 1000\n}\n```\n\n**Success:** 201; `data: Vendor` (not a session).\n\nRequired: email, password, phone, firstName, name, slug, businessType, city, zone, address. Optional: lastName text, description max 5,000, commissionBps integer 0\u201310,000 (default 1000). Creates owner role VENDOR and vendor status APPROVED. Owner signs in using assigned credentials. No public vendor registration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"VendorPass123!\",\n  \"phone\": \"+923001234568\",\n  \"firstName\": \"Sara\",\n  \"lastName\": \"Ahmed\",\n  \"name\": \"Gulberg Market\",\n  \"slug\": \"gulberg-market\",\n  \"businessType\": \"Grocery\",\n  \"description\": \"Local groceries\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"address\": \"Main Boulevard\",\n  \"commissionBps\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) pm.environment.set(\"vendorId\",pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/admin/vendors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/vendors?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "vendors"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Query:** page, limit only.\n\n**Body:** None.\n\n**Success:** 200; `data: Vendor[]`, including owner PublicUser.\n\nNewest first. No total-count wrapper; search/status/city filters are not applied."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/admin/vendors/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/vendors/{{vendorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "vendors",
+                "{{vendorId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"status\": \"SUSPENDED\",\n  \"commissionBps\": 1200\n}\n```\n\n**Success:** 200; `data: Vendor`.\n\nid is vendor UUID, not owner user UUID. Both fields optional: status APPROVED/SUSPENDED; commissionBps integer 0\u201310,000. Commission changes apply to future checkouts, not existing order snapshots.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SUSPENDED\",\n  \"commissionBps\": 1200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/admin/staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/staff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "staff"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"email\": \"rider@example.com\",\n  \"password\": \"RiderPass123!\",\n  \"phone\": \"+923001234569\",\n  \"firstName\": \"Usman\",\n  \"lastName\": \"Ali\",\n  \"role\": \"RIDER\"\n}\n```\n\n**Success:** 201; `data: PublicUser` (not a session).\n\nRequired: email, password, firstName, role RIDER/DISPATCHER/FINANCE. Optional: phone, lastName text. ADMIN cannot be created through this route; initial admin uses seed setup.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"rider@example.com\",\n  \"password\": \"RiderPass123!\",\n  \"phone\": \"+923001234569\",\n  \"firstName\": \"Usman\",\n  \"lastName\": \"Ali\",\n  \"role\": \"RIDER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code === 201 && pm.response.json().data.role === \"RIDER\") pm.environment.set(\"riderId\",pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/admin/categories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "categories"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"name\": \"Groceries\",\n  \"slug\": \"groceries\"\n}\n```\n\n**Success:** 201; `data: Category`.\n\nBoth required: name text, slug. Slug unique. No update/delete category routes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Groceries\",\n  \"slug\": \"groceries\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) pm.environment.set(\"categoryId\",pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/admin/coupons",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/coupons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "coupons"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"code\": \"WELCOME10\",\n  \"percentBps\": 1000,\n  \"maxDiscountMinor\": 50000,\n  \"minSubtotalMinor\": 100000,\n  \"maxUses\": 100,\n  \"expiresAt\": \"2030-12-31T23:59:59.000Z\"\n}\n```\n\n**Success:** 201; `data: Coupon`.\n\nRequired: code (trimmed/uppercased, 3\u201330 uppercase letters/digits/_/-), percentBps integer 1\u201310,000, positive maxDiscountMinor, maxUses integer 1\u20131,000,000, expiresAt ISO datetime. Optional minSubtotalMinor defaults 0. New coupons active=true and used=0. Checkout validates expiry, usage and minimum; no standalone coupon validation/list/update endpoint.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WELCOME10\",\n  \"percentBps\": 1000,\n  \"maxDiscountMinor\": 50000,\n  \"minSubtotalMinor\": 100000,\n  \"maxUses\": 100,\n  \"expiresAt\": \"2030-12-31T23:59:59.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/admin/reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "reports"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Body:** None.\n\n**Success:** 200; `data: {currency,orders,delivered,codRemittedMinor,codOutstandingMinor,settlementsPaidMinor,refundsMinor}`.\n\nAll-time aggregates, no date filter. orders: `{_sum:{totalMinor},_count}`. delivered: `{_sum:{subtotalMinor,discountMinor,commissionMinor,deliveryMinor,payableMinor,codCollectedMinor},_count}` for DELIVERED children. Aggregate sums can be null; scalar report amounts default to zero."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/admin/audit-logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/audit-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "audit-logs"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Body:** None.\n\n**Success:** 200; `data: AuditLog[]`, newest 100.\n\nNo pagination/filter parameters."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rider",
+      "item": [
+        {
+          "name": "GET /api/v1/rider/shifts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rider/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rider",
+                "shifts"
+              ]
+            },
+            "description": "**Access:** RIDER, ADMIN, DISPATCHER.\n\n**Body:** None.\n\n**Success:** 200; `data: Shift[]` with rider `{id,firstName,lastName}` and computed workedSeconds.\n\nRider sees own shifts; admin/dispatch see all. Newest 100, no query filters. workedSeconds excludes recorded breaks and any current break."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/rider/shifts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rider/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rider",
+                "shifts"
+              ]
+            },
+            "description": "**Access:** RIDER.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"start\"\n}\n```\n\n**Success:** 200; `data: Shift` scalar fields.\n\naction required: start/break/resume/end. Payloads: `{\"action\":\"break\"}`, `{\"action\":\"resume\"}`, `{\"action\":\"end\"}`. start requires no open shift; break requires AVAILABLE; resume requires BREAK. BUSY riders cannot break/resume/end. End requires all collected COD remitted, including earlier shifts. Shift statuses AVAILABLE/BUSY/BREAK/ENDED; assignment updates BUSY automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"start\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Shift action: break",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rider/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rider",
+                "shifts"
+              ]
+            },
+            "description": "**Access:** RIDER.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"start\"\n}\n```\n\n**Success:** 200; `data: Shift` scalar fields.\n\naction required: start/break/resume/end. Payloads: `{\"action\":\"break\"}`, `{\"action\":\"resume\"}`, `{\"action\":\"end\"}`. start requires no open shift; break requires AVAILABLE; resume requires BREAK. BUSY riders cannot break/resume/end. End requires all collected COD remitted, including earlier shifts. Shift statuses AVAILABLE/BUSY/BREAK/ENDED; assignment updates BUSY automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"break\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Shift action: resume",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rider/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rider",
+                "shifts"
+              ]
+            },
+            "description": "**Access:** RIDER.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"start\"\n}\n```\n\n**Success:** 200; `data: Shift` scalar fields.\n\naction required: start/break/resume/end. Payloads: `{\"action\":\"break\"}`, `{\"action\":\"resume\"}`, `{\"action\":\"end\"}`. start requires no open shift; break requires AVAILABLE; resume requires BREAK. BUSY riders cannot break/resume/end. End requires all collected COD remitted, including earlier shifts. Shift statuses AVAILABLE/BUSY/BREAK/ENDED; assignment updates BUSY automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"resume\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Shift action: end",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rider/shifts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rider",
+                "shifts"
+              ]
+            },
+            "description": "**Access:** RIDER.\n\n**Example JSON body:**\n\n```json\n{\n  \"action\": \"start\"\n}\n```\n\n**Success:** 200; `data: Shift` scalar fields.\n\naction required: start/break/resume/end. Payloads: `{\"action\":\"break\"}`, `{\"action\":\"resume\"}`, `{\"action\":\"end\"}`. start requires no open shift; break requires AVAILABLE; resume requires BREAK. BUSY riders cannot break/resume/end. End requires all collected COD remitted, including earlier shifts. Shift statuses AVAILABLE/BUSY/BREAK/ENDED; assignment updates BUSY automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"end\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Finance",
+      "item": [
+        {
+          "name": "POST /api/v1/finance/remittances",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/remittances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "remittances"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"riderId\": \"11111111-1111-4111-8111-111111111111\",\n  \"amountMinor\": 130000,\n  \"reference\": \"CASH-20261012-001\"\n}\n```\n\n**Success:** 201; `data: Remittance`.\n\nAll required: riderId UUID, positive amountMinor, reference text (unique). Amount cannot exceed rider\u2019s outstanding COD. Partial remittances are allowed; delivered orders become cashReceived=true only when the entire outstanding balance is cleared. This records money received; it does not transfer money.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"riderId\": \"{{riderId}}\",\n  \"amountMinor\": 130000,\n  \"reference\": \"CASH-20261012-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/v1/finance/settlements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/settlements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "settlements"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Body:** None.\n\n**Success:** 200; `data: Settlement[]` with orders `{id,subtotalMinor,discountMinor,commissionMinor,payableMinor}`.\n\nAll vendors, newest 100. No filters/pagination."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/finance/settlements",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/settlements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "settlements"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"vendorId\": \"11111111-1111-4111-8111-111111111111\"\n}\n```\n\n**Success:** 201; `data: Settlement`, status PENDING.\n\nvendorId required UUID. Collects that vendor\u2019s DELIVERED, cashReceived, unsettled children. Sum payableMinor must be positive. Once attached to a settlement, those orders cannot receive refunds through the refund route.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorId\": \"{{vendorId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));",
+                  "if(pm.response.code < 300) pm.environment.set(\"settlementId\",pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/finance/settlements/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/settlements/{{settlementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "settlements",
+                "{{settlementId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"status\": \"PAID\",\n  \"reference\": \"BANK-20261012-001\"\n}\n```\n\n**Success:** 200; `data: Settlement`.\n\nid is settlement UUID. status required PROCESSED/PAID. Only PENDING\u2192PROCESSED\u2192PAID allowed. First send `{\"status\":\"PROCESSED\"}`; then the example above. reference text required for PAID and must be unique; a reference supplied at PROCESSED is ignored. Records payout status; does not execute a bank transfer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PAID\",\n  \"reference\": \"BANK-20261012-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/finance/orders/:id/refunds",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/orders/{{vendorOrderId}}/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "orders",
+                "{{vendorOrderId}}",
+                "refunds"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"amountMinor\": 25000,\n  \"reason\": \"Damaged item adjustment\",\n  \"reference\": \"REFUND-20261012-001\"\n}\n```\n\n**Success:** 201; `data: Refund`.\n\nid is child VendorOrder UUID. All fields required: positive amountMinor, reason text, reference unique text. Requires DELIVERED, cashReceived=true and no settlementId. Cumulative refunds cannot exceed subtotalMinor\u2212discountMinor; delivery fee is not refundable here. Adjusts payable and proportionally reverses commission. Records an externally handled refund; no payment gateway transfer is executed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountMinor\": 25000,\n  \"reason\": \"Damaged item adjustment\",\n  \"reference\": \"REFUND-20261012-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Settlement: mark processed",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/settlements/{{settlementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "settlements",
+                "{{settlementId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"status\": \"PAID\",\n  \"reference\": \"BANK-20261012-001\"\n}\n```\n\n**Success:** 200; `data: Settlement`.\n\nid is settlement UUID. status required PROCESSED/PAID. Only PENDING\u2192PROCESSED\u2192PAID allowed. First send `{\"status\":\"PROCESSED\"}`; then the example above. reference text required for PAID and must be unique; a reference supplied at PROCESSED is ignored. Records payout status; does not execute a bank transfer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"PROCESSED\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "GET /api/v1/notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "**Access:** Authenticated.\n\n**Body:** None.\n\n**Success:** 200; `data: Notification[]`, newest 100 owned notifications.\n\nIncludes customer delivery PIN notifications. No pagination/unread filter or push/WebSocket endpoint."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/v1/notifications/:id/read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            },
+            "description": "**Access:** Authenticated.\n\n**Body:** None.\n\n**Success:** 200; `data: {count: 1}` on an owned match, `{count: 0}` otherwise.\n\nid is notification UUID. Sets readAt; does not return the notification object."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.within(200, 299));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
