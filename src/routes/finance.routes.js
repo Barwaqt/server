@@ -3,7 +3,7 @@ import { z } from "zod";
 import * as c from "../controllers/finance.controller.js";
 import { authenticate, roles } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
-import { id, text, minor } from "../validators/common.validator.js";
+import { id, text, minor, page } from "../validators/common.validator.js";
 export const financeRouter = Router();
 financeRouter.param("id", (req, res, next, value) => {
   z.uuid().parse(value);
@@ -20,6 +20,8 @@ financeRouter.post(
   c.remittance,
 );
 financeRouter.get("/settlements", c.settlements);
+financeRouter.get("/remittances", validate(page, "query"), c.remittances);
+financeRouter.get("/refunds", validate(page, "query"), c.refunds);
 financeRouter.post(
   "/settlements",
   validate(z.object({ vendorId: id }).strict()),

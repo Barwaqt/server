@@ -4,11 +4,11 @@ This document describes the endpoints implemented in `src/app.js` and `src/route
 
 ## Postman and mobile developer quick start
 
-Import [the complete Postman collection](postman/Barwaqt.postman_collection.json) and [the local environment template](postman/Barwaqt.local.postman_environment.json). The collection has **65 unique endpoints and 78 requests**, including explicit order-action/shift/settlement examples. Every request includes its contract description, authentication configuration, and JSON payload where needed.
+Import [the complete Postman collection](postman/Barwaqt.postman_collection.json) and [the local environment template](postman/Barwaqt.local.postman_environment.json). The collection includes endpoint payloads and explicit order-action/shift/settlement examples. Every request includes its contract description, authentication configuration, and JSON payload where needed.
 
 Select an environment, set your account email/password, and run login. Login/refresh automatically save tokens; selected create requests capture resource IDs. Duplicate environments per role. Read [the Postman/mobile integration guide](postman/README.md) for setup, variables, workflow order and mobile token handling. Do not run the whole collection blindly: many requests mutate data.
 
-This file is the human-readable contract; the collection is its importable request companion. Both describe implemented APIs, not unimplemented features.
+This file is the human-readable contract; the collection is its importable request companion. Both describe implemented APIs, not unimplemented features. Marketplace and operations additions are included in the corresponding Postman folder; use resourceId for its path placeholders.
 
 ## Connection and conventions
 
@@ -111,8 +111,13 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/vendor/settlements` | Approved VENDOR |
 | POST | `/api/v1/admin/vendors` | ADMIN |
 | GET | `/api/v1/admin/vendors` | ADMIN |
+| GET | `/api/v1/admin/vendors/:id` | ADMIN |
 | PATCH | `/api/v1/admin/vendors/:id` | ADMIN |
+| GET | `/api/v1/admin/products` | ADMIN |
+| PATCH | `/api/v1/admin/products/:id` | ADMIN |
+| GET | `/api/v1/admin/staff` | ADMIN |
 | POST | `/api/v1/admin/staff` | ADMIN |
+| PATCH | `/api/v1/admin/staff/:id` | ADMIN |
 | POST | `/api/v1/admin/categories` | ADMIN |
 | POST | `/api/v1/admin/coupons` | ADMIN |
 | GET | `/api/v1/admin/reports` | ADMIN |
@@ -581,7 +586,7 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 
 **Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.
 
-Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. CARD/JAZZCASH/EASYPAISA validate but return 503 because online payment is not configured. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.
+Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. BANK_TRANSFER/JAZZCASH/EASYPAISA use configured active platform transfer accounts and require admin verification; disabled methods and CARD return 503. See Central platform payments. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.
 
 ### GET /api/v1/orders
 
@@ -748,7 +753,7 @@ No total-count wrapper. Search and categoryId are supported; status is not a pro
 
 **Success:** 201; `data: Product`.
 
-Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), active boolean (default true). Owner vendorId is server assigned. Slug is globally unique. This endpoint accepts image URLs, not file uploads.
+Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), active boolean (default true). Owner vendorId is server assigned. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
 
 ### PATCH /api/v1/vendor/products/:id
 
@@ -812,13 +817,23 @@ Required: email, password, phone, firstName, name, slug, businessType, city, zon
 
 **Access:** ADMIN.
 
-**Query:** page, limit only.
+**Query:** page, limit; optional search (vendor name contains, case-insensitive), status APPROVED/SUSPENDED, city and zone (case-insensitive exact match). String filters max 100.
 
 **Body:** None.
 
 **Success:** 200; `data: Vendor[]`, including owner PublicUser.
 
-Newest first. No total-count wrapper; search/status/city filters are not applied.
+Newest first. No total-count wrapper. Filters are applied server-side.
+
+### GET /api/v1/admin/vendors/:id
+
+**Access:** ADMIN.
+
+**Body:** None.
+
+**Success:** 200; `data: Vendor`, including owner PublicUser.
+
+id is vendor UUID. Unlike the public `/catalog/vendors/:id`, this returns suspended vendors too and includes the owner account and commission. Missing vendors return 404.
 
 ### PATCH /api/v1/admin/vendors/:id
 
@@ -858,6 +873,65 @@ id is vendor UUID, not owner user UUID. Both fields optional: status APPROVED/SU
 
 Required: email, password, firstName, role RIDER/DISPATCHER/FINANCE. Optional: phone, lastName text. ADMIN cannot be created through this route; initial admin uses seed setup.
 
+### GET /api/v1/admin/staff
+
+**Access:** ADMIN.
+
+**Query:** page, limit; optional role RIDER/DISPATCHER/FINANCE, search (name or email contains, case-insensitive). String filters max 100.
+
+**Body:** None.
+
+**Success:** 200; `data: {items: PublicUser[], total, page, limit}`, newest first.
+
+Lists staff accounts. Omitting role returns all RIDER, DISPATCHER and FINANCE accounts. ADMIN and other roles are never listed.
+
+### PATCH /api/v1/admin/staff/:id
+
+**Access:** ADMIN.
+
+**Example JSON body:**
+
+```json
+{
+  "active": false,
+  "role": "DISPATCHER"
+}
+```
+
+**Success:** 200; `data: PublicUser`.
+
+id is a staff user UUID. Both fields optional (at least one required): active boolean, role RIDER/DISPATCHER/FINANCE. Only existing RIDER/DISPATCHER/FINANCE accounts can be updated; other or missing ids return 404. Changes are audited as STAFF_UPDATED.
+
+### GET /api/v1/admin/products
+
+**Access:** ADMIN.
+
+**Query:** page, limit; optional search (name contains, case-insensitive), vendorId UUID, categoryId UUID, active true/false. String filters max 100.
+
+**Body:** None.
+
+**Success:** 200; `data: {items: Product[], total, page, limit}`.
+
+Lists products from every vendor regardless of vendor status, including inactive products; each item includes category and vendor `{id,name,city,zone,status}`. Newest first. This is the administrative counterpart to the public `/catalog/products`, which only shows active products from approved vendors.
+
+### PATCH /api/v1/admin/products/:id
+
+**Access:** ADMIN.
+
+**Example JSON body:**
+
+```json
+{
+  "active": false,
+  "priceMinor": 120000,
+  "stock": 40
+}
+```
+
+**Success:** 200; `data: Product`.
+
+id is product UUID; the product may belong to any vendor. Same fields/rules as the vendor product routes, all optional. Supplied stock is absolute; supplied images/attributes replace those values; setting a new categoryId resets explicit category memberships. Changes are audited as PRODUCT_UPDATED. Missing products return 404.
+
 ### POST /api/v1/admin/categories
 
 **Access:** ADMIN.
@@ -873,7 +947,7 @@ Required: email, password, firstName, role RIDER/DISPATCHER/FINANCE. Optional: p
 
 **Success:** 201; `data: Category`.
 
-Both required: name text, slug. Slug unique. No update/delete category routes.
+Both required: name text, slug. Slug unique. See Operations additions for image, hierarchy, collection membership and update/delete routes.
 
 ### POST /api/v1/admin/coupons
 
@@ -894,7 +968,7 @@ Both required: name text, slug. Slug unique. No update/delete category routes.
 
 **Success:** 201; `data: Coupon`.
 
-Required: code (trimmed/uppercased, 3–30 uppercase letters/digits/_/-), percentBps integer 1–10,000, positive maxDiscountMinor, maxUses integer 1–1,000,000, expiresAt ISO datetime. Optional minSubtotalMinor defaults 0. New coupons active=true and used=0. Checkout validates expiry, usage and minimum; no standalone coupon validation/list/update endpoint.
+Required: code (trimmed/uppercased, 3–30 uppercase letters/digits/_/-), percentBps integer 1–10,000, positive maxDiscountMinor, maxUses integer 1–1,000,000, expiresAt ISO datetime. Optional minSubtotalMinor defaults 0. New coupons active=true and used=0. Checkout validates expiry, usage and minimum; list/update/delete are documented in Operations additions.
 
 ### GET /api/v1/admin/reports
 
@@ -988,7 +1062,7 @@ All vendors, newest 100. No filters/pagination.
 
 **Success:** 201; `data: Settlement`, status PENDING.
 
-vendorId required UUID. Collects that vendor’s DELIVERED, cashReceived, unsettled children. Sum payableMinor must be positive. Once attached to a settlement, those orders cannot receive refunds through the refund route.
+vendorId required UUID. Collects that vendor’s DELIVERED, cashReceived, unsettled children. Sum payableMinor must be positive. Post-settlement refunds create negative adjustments against future payouts; open returns are excluded.
 
 ### PATCH /api/v1/finance/settlements/:id
 
@@ -1023,7 +1097,7 @@ id is settlement UUID. status required PROCESSED/PAID. Only PENDING→PROCESSED�
 
 **Success:** 201; `data: Refund`.
 
-id is child VendorOrder UUID. All fields required: positive amountMinor, reason text, reference unique text. Requires DELIVERED, cashReceived=true and no settlementId. Cumulative refunds cannot exceed subtotalMinor−discountMinor; delivery fee is not refundable here. Adjusts payable and proportionally reverses commission. Records an externally handled refund; no payment gateway transfer is executed.
+id is child VendorOrder UUID. All fields required: positive amountMinor, reason text, reference unique text. Requires DELIVERED and cashReceived=true. See Operations additions for return receipt and post-settlement adjustment rules. Cumulative refunds cannot exceed subtotalMinor−discountMinor; delivery fee is not refundable here. Adjusts payable and proportionally reverses commission. Records an externally handled refund; no payment gateway transfer is executed.
 
 ## Notifications
 
@@ -1082,7 +1156,7 @@ PublicUser contains only `id, email, phone, role, firstName, lastName, profile, 
 4. CUSTOMER posts checkout with addressId and a fresh Idempotency-Key. Save parent `data.id` and each `data.vendorOrders[].id` separately. Retry network failures with the same key and payload.
 5. VENDOR reads `/orders`, accepts each child, then marks it ready. RIDER starts a shift. ADMIN/DISPATCHER assigns an available rider to a ready child.
 6. RIDER marks pickup, updates location as needed, then delivers using the PIN shown in the CUSTOMER’s notifications and exact child totalMinor. For failed deliveries, dispatch retries or returns the child.
-7. FINANCE records COD remittance. Record any refunds before creating a vendor settlement. Process the settlement, then mark it paid with the actual payment reference. Rider can end the shift after active deliveries and outstanding COD are cleared.
+7. FINANCE records COD remittance. Refunds after settlement are carried into future payouts as negative adjustments. Process the settlement, then mark it paid with the actual payment reference. Rider can end the shift after active deliveries and outstanding COD are cleared.
 
 ### curl examples
 
@@ -1106,7 +1180,7 @@ curl -X POST 'http://localhost:4000/api/v1/orders/checkout' \
 ## Current boundaries and setup
 
 - Only the endpoints listed here exist. There are no generic CRUD routes for every database model.
-- Online payments, upload endpoints, SMS/OTP endpoints, real-time tracking streams, public vendor signup, and automatic bank payouts are not implemented. COD is the supported checkout method.
+- Automated online payment gateways, SMS/OTP endpoints, real-time tracking streams, public vendor signup, and automatic bank payouts are not implemented. COD and configured platform bank/wallet transfers are supported checkout methods.
 - Google/Apple sign-in and reset emails require server provider configuration. See [AUTH_SETUP.md](docs/AUTH_SETUP.md). Fetch `/auth/providers` before displaying enabled provider options.
 - Product image URLs must resolve from your deployed frontend/CDN; storing a URL does not upload the image.
 - Lists capped at 100 without pagination cannot be made exhaustive by adding page/limit parameters.
@@ -1125,7 +1199,7 @@ curl -X POST 'http://localhost:4000/api/v1/orders/checkout' \
 
 ### GET /api/v1/catalog/vendors/:id
 
-**Access:** Public. **Body:** None. id is vendor UUID.
+**Access:** Public. **Body:** None. The path value is the vendor UUID **or** its slug.
 
 **Success:** 200; `data: {id,name,slug,description,businessType,city,zone}`. Missing/suspended vendor returns 404. Fetch its products using `/catalog/products?vendorId=<id>`.
 
@@ -1145,7 +1219,7 @@ To quote or purchase only checked cart items, add the same selection to both req
 
 Product IDs must already be in this customer's cart. Omitting `productIds` uses the entire cart. Quotes do not modify the cart; checkout removes only selected items. A selection containing both cart and non-cart IDs returns 409; an entirely absent selection returns 422 (empty cart).
 
-Same payload validation as checkout: addressId required; productIds optionally selects 1–100 cart product UUIDs; couponCode optional; paymentMethod defaults COD. The result always advertises COD only, even if a different valid payment enum was requested. Unsupported payment methods still fail at checkout.
+Same payload validation as checkout: addressId required; productIds optionally selects 1–100 cart product UUIDs; couponCode optional; paymentMethod defaults COD. The result advertises COD plus configured active platform transfer methods. Unsupported/unconfigured methods fail at checkout.
 
 **Success:** 200; `data: {currency:"PKR", paymentMethods:["COD"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, vendorOrders}`.
 
@@ -1168,3 +1242,240 @@ At least one field required. name/address trimmed 1–200; description up to 5,0
 For a screen-by-screen implementation status, see [IMPLEMENTATION_AUDIT.md](docs/IMPLEMENTATION_AUDIT.md).
 
 Category filters now include products assigned to descendant categories and explicit imported collection memberships. Catalog category responses include optional image and parentSlug. See [catalog seed instructions](prisma/CATALOG_SEED.md) for importing the original storefront products.
+
+## Operations additions (2026-10-15)
+
+These routes use the same bearer authentication and `{data: ...}` response envelope. New paginated lists return `{items,total,page,limit}`; defaults are page=1, limit=20, maximum limit=100. GET and DELETE requests have no body. All `:id` values below are UUIDs.
+
+### GET /api/v1/admin/categories
+
+**Access:** ADMIN. Query: page, limit, search (name, case-insensitive).
+**Success:** 200; paginated categories including image, parentSlug, productIds (explicit collection memberships) and `_count: {products,catalogProducts}`.
+
+### PATCH /api/v1/admin/categories/:id
+
+**Access:** ADMIN. The same optional fields are also supported by POST `/admin/categories` (name and slug required on create).
+
+```json
+{"name":"Home essentials","slug":"home-essentials","image":"/api/media/11111111-1111-4111-8111-111111111111","parentSlug":null,"productIds":["22222222-2222-4222-8222-222222222222"]}
+```
+
+At least one field on PATCH. Name 1–200 trimmed characters; slug/parentSlug lowercase letters, digits, hyphens, max 180. Image is null, empty, HTTPS URL or single-leading-slash path (max 2,000). Parent must exist; cycles rejected. Renaming a slug updates child parentSlug references. `productIds` optionally replaces the collection membership (max 500 existing product UUIDs); `[]` clears it. Omission preserves memberships. Primary product categories remain controlled by product management. Success: 200 Category (POST 201).
+
+### DELETE /api/v1/admin/categories/:id
+
+**Access:** ADMIN. Success: 204. Returns 409 if products, collection memberships, or child categories remain. Reassign/clear these before deletion. Changes are audited.
+
+### GET /api/v1/admin/coupons
+
+**Access:** ADMIN. Query: page, limit, search (code). Success: 200 paginated Coupon records, including used and active.
+
+### PATCH /api/v1/admin/coupons/:id
+
+**Access:** ADMIN.
+
+```json
+{"active":false,"percentBps":1500,"maxDiscountMinor":25000,"minSubtotalMinor":100000,"maxUses":500,"expiresAt":"2027-12-31T18:59:59.000Z"}
+```
+
+Any nonempty subset of POST coupon fields plus active boolean. `code` may also be changed. Field validation matches creation; maxUses cannot be below used. Success: 200 Coupon. Deactivating does not change existing orders.
+
+### DELETE /api/v1/admin/coupons/:id
+
+**Access:** ADMIN. Success: 204. Used coupons or coupons referenced by orders return 409; deactivate instead.
+
+### GET /api/v1/finance/remittances
+
+**Access:** ADMIN, FINANCE. Query: page, limit. Success: 200 paginated `{id,riderId,amountMinor,reference,receivedBy,createdAt}` records, newest first.
+
+### GET /api/v1/finance/refunds
+
+**Access:** ADMIN, FINANCE. Query: page, limit. Success: 200 paginated `{id,vendorOrderId,amountMinor,reason,reference,createdBy,createdAt}` records, newest first.
+
+**Updated settlement/refund rules:** Creating a settlement excludes orders with open return requests and includes unsettled negative vendor adjustments. A refund on an already-settled order leaves the original settlement amount unchanged and creates a negative adjustment applied to a future payout. If the resulting payout is not positive, settlement creation returns 409. Vendor pending payable includes unsettled orders, PENDING/PROCESSED settlements, and unapplied adjustments, and can be negative. Settlement responses include adjustments. Refund reference retries with the same shipment, amount and reason return the existing refund; conflicting reference reuse returns 409. These endpoints record external cash/bank operations and do not send money.
+
+### GET /api/v1/delivery/slots
+
+**Access:** CUSTOMER, ADMIN, DISPATCHER. Query: page, limit, city, zone (case-insensitive exact matches). Customers only see active, future slots; admins/dispatchers see all matching slots.
+
+**Success:** 200; paginated `{id,city,zone,startsAt,endsAt,capacity,reserved,available,active,createdAt}`. available is max(0,capacity−reserved).
+
+### POST /api/v1/delivery/slots
+
+**Access:** ADMIN, DISPATCHER.
+
+```json
+{"city":"Lahore","zone":"Gulberg","startsAt":"2027-01-20T04:00:00.000Z","endsAt":"2027-01-20T08:00:00.000Z","capacity":20,"active":true}
+```
+
+All except active required (defaults true). Times are ISO UTC, start must be future and end after start. Capacity integer 1–10,000. City/zone trimmed text 1–200. Success: 201 DeliverySlot.
+
+### PATCH /api/v1/delivery/slots/:id
+
+**Access:** ADMIN, DISPATCHER.
+
+```json
+{"capacity":25,"active":false}
+```
+
+Nonempty subset of create fields. Capacity cannot drop below reservations. City/zone/start/end cannot change once reserved. Omit unchanged timestamps; disabling a slot keeps existing bookings intact. Success: 200 DeliverySlot.
+
+**Scheduled checkout:** Add `deliverySlotId` to both quote and checkout:
+
+```json
+{"addressId":"11111111-1111-4111-8111-111111111111","deliverySlotId":"22222222-2222-4222-8222-222222222222","paymentMethod":"COD"}
+```
+
+The selected slot must match the address city/zone, be active and future, and have capacity. Quote includes `deliverySlot` and does not reserve capacity. Checkout reserves one capacity unit per parent order atomically with stock and coupon use. Idempotent retries do not reserve again. If every child shipment is cancelled, capacity is released. Persisted orders contain deliverySlotId and a historical `deliveryWindow:{startsAt,endsAt,city,zone}` snapshot; operational child order responses include the parent deliveryWindow. No slot ID means normal vendor delivery. Availability may change between quote and checkout (409 full, 422 unavailable/mismatched).
+
+### GET /api/v1/returns
+
+**Access:** CUSTOMER (own requests), approved VENDOR (own shipments), ADMIN, FINANCE, DISPATCHER (all).
+**Query:** page, limit. Success: 200 paginated ReturnRequest records including vendorOrder with items, subtotalMinor, discountMinor, refunds and order address/paymentMethod. Return record fields: id,vendorOrderId,customerId,reason,status,note,restocked,refundId,createdAt,updatedAt.
+
+### POST /api/v1/returns
+
+**Access:** CUSTOMER.
+
+```json
+{"vendorOrderId":"11111111-1111-4111-8111-111111111111","reason":"The delivered item is damaged"}
+```
+
+Reason trimmed 5–1,000 characters. Full-shipment returns only: customer must own a delivered shipment, request within RETURN_WINDOW_DAYS (default 14) after deliveredAt, and not already have a return or full refund. One request per shipment. Success: 201, status REQUESTED. A return request does not change order status, stock or money. Other customer's shipments return 404.
+
+### POST /api/v1/returns/:id/actions
+
+**Access:** ADMIN, DISPATCHER.
+
+```json
+{"action":"approve","note":"Collection arranged with customer"}
+```
+
+```json
+{"action":"reject","note":"Return window has expired"}
+```
+
+```json
+{"action":"receive","note":"All items inspected and resalable","restock":true}
+```
+
+Transitions: REQUESTED→APPROVED or REJECTED; APPROVED→RECEIVED. Rejection requires note min 3; note max 1,000, defaults empty; restock defaults false. Receive optionally restores each item's quantity exactly once. Repeated/invalid actions return 409. Success: 200 ReturnRequest. All transitions audited and customer notified. Collection itself is coordinated operationally; this does not assign a reverse-logistics rider.
+
+For a RECEIVED request, use existing `POST /finance/orders/:vendorOrderId/refunds` with amountMinor equal to the remaining full product net (subtotal−discount−previous refunds), reason and actual external refund reference. The shipment must have reconciled payment. Delivery fees excluded. Successful recording marks the return REFUNDED. The refund API rejects open returns before receipt. Approval/receipt never automatically sends money.
+
+### POST /api/v1/uploads
+
+**Access:** ADMIN, approved VENDOR. JSON endpoint; no multipart form.
+
+```json
+{"filename":"product.png","kind":"IMAGE","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII="}
+```
+
+filename 1–200 chars; kind IMAGE (default) or DOCUMENT. data is raw base64 without a data URL prefix. Max decoded size 5 MB; this route has a 7 MB JSON limit. Images: PNG/JPEG/WebP; documents: PDF only. File signature checked, server-generated UUID filenames; SVG/HTML rejected. Invalid format 422, size 413.
+
+**Success:** 201; `data:{id,ownerId,kind,filename,mimeType,size,createdAt,url}`. url is `/api/media/<id>`, supported by all three Next.js frontends. Save this URL in product images/category image separately. For a mobile/native client, fetch binary content directly from `<API base>/uploads/<id>/content`; the relative media URL is a frontend proxy, not a Node API endpoint.
+
+### GET /api/v1/uploads
+
+**Access:** ADMIN, approved VENDOR. Body/query: none. Success: 200, array of own latest 100 upload metadata records, each with url. Does not list another account's private documents.
+
+### GET /api/v1/uploads/:id/content
+
+**Access:** Public for IMAGE; owner or ADMIN bearer token for DOCUMENT. Success: 200 binary body with correct Content-Type and X-Content-Type-Options:nosniff. PDFs are attachment/private/no-store. No JSON envelope on success. Missing metadata/file 404. Private files require authenticated owner/admin (401/403).
+
+### DELETE /api/v1/uploads/:id
+
+**Access:** Owner (approved VENDOR) or ADMIN. Success: 204. Rejects 409 if image is referenced by a product, category or historical order item. Rejects 403 for another owner's file. Removes metadata and disk file.
+
+**Storage:** Set UPLOAD_DIR to a persistent directory (default server/uploads). Keep it backed up with PostgreSQL. Shared/replicated deployments need a shared persistent volume; disk uploads are not S3 replication. Migrations: run `npm run db:generate` and `npm run db:migrate`, then restart the API. RETURN_WINDOW_DAYS controls new customer return eligibility. No provider credentials are needed for these operations. Manual platform bank/wallet transfers are supported as described in Central platform payments; automated merchant gateways are not connected.
+
+### GET /api/v1/admin/vendors/:id
+
+**Access:** ADMIN. Body: none. Success: 200 vendor with owner profile and business details; 404 missing.
+
+### GET /api/v1/admin/products
+
+**Access:** ADMIN. Body: none. Query: page, limit, search, vendorId, categoryId, active (`true`/`false`). Success: 200 `{items,total,page,limit}` including inactive products and products of suspended vendors; each item includes vendor and category.
+
+### PATCH /api/v1/admin/products/:id
+
+**Access:** ADMIN.
+
+```json
+{"active":false}
+```
+
+Accepts a subset of the vendor product creation fields (name, slug, categoryId, description, priceMinor, stock, images, attributes, active), with the same validation. Changes are audited. Success: 200 Product.
+
+### GET /api/v1/admin/staff
+
+**Access:** ADMIN. Body: none. Query: page, limit, search, role (RIDER/DISPATCHER/FINANCE). Success: 200 `{items,total,page,limit}`. Password hashes are not exposed.
+
+### PATCH /api/v1/admin/staff/:id
+
+**Access:** ADMIN.
+
+```json
+{"active":false}
+```
+
+Accepts active boolean and/or role (RIDER/DISPATCHER/FINANCE), at least one field required; unknown fields rejected. Changes are audited. Disabling an account invalidates authenticated access. Success: 200 staff profile.
+
+Administrative vendor updates also accept `city` and `zone` text fields on PATCH `/admin/vendors/:id` to change future service coverage. Existing order address snapshots are preserved.
+
+## Central platform payments (2026-10-15)
+
+All funds belong to Barwaqt's collection flow. Customer bank/JazzCash/Easypaisa transfers go to platform accounts configured by ADMIN; vendors cannot configure destinations or verify payments. COD is collected by the rider and remitted to the platform through finance remittances. Vendor settlements are separate payouts after delivery, payment reconciliation, commission and refund adjustments.
+
+The implemented bank and wallet flow is **manual transfer plus admin verification**, not an automatic merchant gateway. No wallet credentials or card details are collected. Payment methods are enabled only after an admin configures and activates the actual platform collection account. COD remains available. CARD remains unavailable (503 at checkout).
+
+### GET /api/v1/payments/accounts
+
+**Access:** CUSTOMER, ADMIN, FINANCE. **Body:** None.
+**Success:** 200; array of `{id,method,accountTitle,accountNumber,bankName,instructions,active,updatedAt}`. ADMIN sees inactive accounts too; customers/finance see active accounts. These are platform-owned account details intended for customers to send transfers.
+
+### PUT /api/v1/payments/accounts
+
+**Access:** ADMIN.
+
+```json
+{"method":"BANK_TRANSFER","accountTitle":"Barwaqt platform account","accountNumber":"REPLACE-WITH-PLATFORM-IBAN","bankName":"Your bank","instructions":"Transfer the exact order total and submit your transaction reference.","active":false}
+```
+
+Method is BANK_TRANSFER, JAZZCASH or EASYPAISA; one account per method. accountTitle trimmed 1–200; accountNumber trimmed 5–100; bankName max 200 defaults empty; instructions max 1,000 defaults empty; active defaults false. Use the real platform wallet number for wallet methods. Full upsert payload; audited. Success: 200 PaymentAccount. Existing orders retain an immutable snapshot of their original destination, even if this configuration changes.
+
+### GET /api/v1/payments
+
+**Access:** CUSTOMER (own orders), ADMIN/FINANCE (all). **Body:** None.
+Query: page (default 1), limit (default 20, max 100), optional status AWAITING_TRANSFER/UNDER_REVIEW/REJECTED/PAID/REFUND_DUE/REFUNDED/CANCELLED.
+**Success:** 200 `{items,total,page,limit}`. Each item: `{id,orderId,method,amountMinor,status,accountSnapshot,verifiedAt,verifiedBy,createdAt,updatedAt,submissions,order}`. Submissions include id,reference,method,status,note,reviewedBy,reviewedAt,createdAt. Order summary includes id,customerId,address and vendorOrders (id,status,totalMinor,refunds). No COD rows: COD reconciliation is tracked through rider collections/remittances.
+
+### POST /api/v1/payments/orders/:id/submissions
+
+**Access:** CUSTOMER. **id:** parent Order UUID (not a vendor shipment).
+
+```json
+{"reference":"BANK-OR-WALLET-TRANSACTION-123"}
+```
+
+Reference trimmed 3–100 characters, normalized uppercase, unique across all submissions for that method. Requires an owned, unverified prepaid order. A cancelled order can accept a reference for money already transferred, so the platform can verify and refund it; customers must not make a new transfer for a cancelled order. Only one reference may await review at a time. Rejected references remain recorded; customers may submit a different corrected reference. Repeating an existing reference on the same payment returns its existing submission; reuse on another payment returns 409. Submitted references never mark money as received. Success: 201 PaymentSubmission; payment moves to UNDER_REVIEW. Ownership failure 404; already verified/pending review 409.
+
+### POST /api/v1/payments/submissions/:id/review
+
+**Access:** ADMIN, FINANCE. **id:** PaymentSubmission UUID.
+
+```json
+{"action":"verify","note":"Exact order amount matched to the platform bank statement"}
+```
+
+```json
+{"action":"reject","note":"Reference not found in the platform statement"}
+```
+
+Action verify/reject; note trimmed 3–1,000 required. Verify must only be used after checking that the exact payment.amountMinor was received in the configured platform account. It records verifiedAt/verifiedBy, sets payment PAID (or REFUND_DUE for already cancelled shipments), sets child cashReceived=true and notifies vendors/customer. It does not execute or query a bank/wallet transfer. A verified submission can be retried idempotently; another submission cannot verify an already paid order. A rejected submission can later be verified by finance if the transfer is actually located; it cannot be rejected twice. Rejection leaves the order reserved and marks REJECTED; the customer can correct the reference, or admin/customer can cancel NEW shipments to release stock and scheduled capacity. Success: 200 PaymentSubmission; audited.
+
+**Updated quote/checkout contract:** paymentMethod additionally accepts BANK_TRANSFER. Quote advertises COD plus configured active methods. For a prepaid checkout, a Payment in AWAITING_TRANSFER is created atomically with orders, stock reservation and coupon use. Response includes `payment` with destination snapshot and submissions. Customer transfers **after** order creation and submits the bank/wallet reference. Idempotency-Key behavior is unchanged. Disabled/unconfigured method returns 503 without reserving stock. The customer checkout and Account → Payments use these APIs; Admin → Payments manages accounts and reviews references.
+
+**Fulfillment and refunds:** Vendor accept is blocked until the platform verifies a prepaid payment (409). Prepaid delivery still requires the customer PIN, but cashCollectedMinor must be 0 (or omitted); COD deliveries still require the exact shipment amount. The legacy cashReceived field means centrally reconciled payment for both COD and prepaid orders. Unverified orders cannot be settled. Verified, delivered orders can be included in the normal vendor settlement without a rider remittance. If a prepaid shipment is CANCELLED or RETURNED, its refund must be the full remaining shipment total including allocated delivery charges. Use the existing finance refund endpoint after externally returning money. The payment is REFUND_DUE until cancelled-shipment liabilities are recorded; fully refunded parent payments become REFUNDED. Delivered customer returns still refund product net only. Online transfers do not increase rider COD balances.
+
+Admin reports now additionally return `transfersReceivedMinor` (gross verified bank/wallet transfers) and `platformCollectedMinor` (gross verified transfers plus COD remittances). Refund and payout totals remain separate; gross receipts are not the available bank balance.

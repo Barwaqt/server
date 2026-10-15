@@ -39,10 +39,127 @@ export async function createStaff(actor, input) {
 }
 export const vendors = (q) =>
   db.vendor.findMany({
+    where: {
+      ...(q.search
+        ? { name: { contains: q.search, mode: "insensitive" } }
+        : {}),
+      ...(q.status ? { status: q.status } : {}),
+      ...(q.city ? { city: { equals: q.city, mode: "insensitive" } } : {}),
+      ...(q.zone ? { zone: { equals: q.zone, mode: "insensitive" } } : {}),
+    },
     include: { owner: { select: publicUser } },
     ...pagination(q),
     orderBy: { createdAt: "desc" },
   });
+export async function vendor(id) {
+  const result = await db.vendor.findUnique({
+    where: { id },
+    include: { owner: { select: publicUser } },
+  });
+  assert(result, 404, "Vendor not found");
+  return result;
+}
+export async function products(q) {
+  const where = {
+    ...(q.vendorId ? { vendorId: q.vendorId } : {}),
+    ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+    ...(q.active ? { active: q.active === "true" } : {}),
+    ...(q.search ? { name: { contains: q.search, mode: "insensitive" } } : {}),
+  };
+  const [items, total] = await Promise.all([
+    db.product.findMany({
+      where,
+      ...pagination(q),
+      include: {
+        category: true,
+        vendor: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            zone: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.product.count({ where }),
+  ]);
+  return { items, total, page: q.page, limit: q.limit };
+}
+export async function updateProduct(actor, id, input) {
+  const owned = await db.product.findUnique({ where: { id } });
+  assert(owned, 404, "Product not found");
+  return transaction(async (tx) => {
+    const result = await tx.product.update({
+      where: { id },
+      data: {
+        ...input,
+        ...(input.categoryId && input.categoryId !== owned.categoryId
+          ? { catalogCategories: { set: [] } }
+          : {}),
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "PRODUCT_UPDATED",
+        entityId: id,
+        metadata: input,
+      },
+    });
+    return result;
+  });
+}
+export async function staff(q) {
+  const where = {
+    role: q.role ? q.role : { in: ["RIDER", "DISPATCHER", "FINANCE"] },
+    ...(q.search
+      ? {
+          OR: [
+            { firstName: { contains: q.search, mode: "insensitive" } },
+            { lastName: { contains: q.search, mode: "insensitive" } },
+            { email: { contains: q.search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+  const [items, total] = await Promise.all([
+    db.user.findMany({
+      where,
+      select: publicUser,
+      ...pagination(q),
+      orderBy: { createdAt: "desc" },
+    }),
+    db.user.count({ where }),
+  ]);
+  return { items, total, page: q.page, limit: q.limit };
+}
+export async function updateStaff(actor, id, input) {
+  const user = await db.user.findUnique({ where: { id } });
+  assert(
+    user && ["RIDER", "DISPATCHER", "FINANCE"].includes(user.role),
+    404,
+    "Staff account not found",
+  );
+  return transaction(async (tx) => {
+    const result = await tx.user.update({
+      where: { id },
+      data: input,
+      select: publicUser,
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "STAFF_UPDATED",
+        entityId: id,
+        metadata: input,
+      },
+    });
+    return result;
+  });
+}
 export async function updateVendor(actor, id, input) {
   return transaction(async (tx) => {
     const vendor = await tx.vendor.update({ where: { id }, data: input });
@@ -58,27 +175,32 @@ export async function updateVendor(actor, id, input) {
   });
 }
 export async function report() {
-  const [orders, delivered, cash, payouts, refunds] = await Promise.all([
-    db.order.aggregate({ _sum: { totalMinor: true }, _count: true }),
-    db.vendorOrder.aggregate({
-      where: { status: "DELIVERED" },
-      _sum: {
-        subtotalMinor: true,
-        discountMinor: true,
-        commissionMinor: true,
-        deliveryMinor: true,
-        payableMinor: true,
-        codCollectedMinor: true,
-      },
-      _count: true,
-    }),
-    db.remittance.aggregate({ _sum: { amountMinor: true } }),
-    db.settlement.aggregate({
-      where: { status: "PAID" },
-      _sum: { amountMinor: true },
-    }),
-    db.refund.aggregate({ _sum: { amountMinor: true } }),
-  ]);
+  const [orders, delivered, cash, payouts, refunds, transfers] =
+    await Promise.all([
+      db.order.aggregate({ _sum: { totalMinor: true }, _count: true }),
+      db.vendorOrder.aggregate({
+        where: { status: "DELIVERED" },
+        _sum: {
+          subtotalMinor: true,
+          discountMinor: true,
+          commissionMinor: true,
+          deliveryMinor: true,
+          payableMinor: true,
+          codCollectedMinor: true,
+        },
+        _count: true,
+      }),
+      db.remittance.aggregate({ _sum: { amountMinor: true } }),
+      db.settlement.aggregate({
+        where: { status: "PAID" },
+        _sum: { amountMinor: true },
+      }),
+      db.refund.aggregate({ _sum: { amountMinor: true } }),
+      db.payment.aggregate({
+        where: { verifiedAt: { not: null } },
+        _sum: { amountMinor: true },
+      }),
+    ]);
   return {
     currency: "PKR",
     orders,
@@ -88,5 +210,8 @@ export async function report() {
       (delivered._sum.codCollectedMinor || 0) - (cash._sum.amountMinor || 0),
     settlementsPaidMinor: payouts._sum.amountMinor || 0,
     refundsMinor: refunds._sum.amountMinor || 0,
+    transfersReceivedMinor: transfers._sum.amountMinor || 0,
+    platformCollectedMinor:
+      (cash._sum.amountMinor || 0) + (transfers._sum.amountMinor || 0),
   };
 }

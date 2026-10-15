@@ -8,6 +8,20 @@ export const createStaff = async (req, res) =>
   res.status(201).json({ data: await s.createStaff(req.user, req.input.body) });
 export const vendors = async (req, res) =>
   res.json({ data: await s.vendors(req.input.query) });
+export const vendor = async (req, res) =>
+  res.json({ data: await s.vendor(req.params.id) });
+export const products = async (req, res) =>
+  res.json({ data: await s.products(req.input.query) });
+export const updateProduct = async (req, res) =>
+  res.json({
+    data: await s.updateProduct(req.user, req.params.id, req.input.body),
+  });
+export const staff = async (req, res) =>
+  res.json({ data: await s.staff(req.input.query) });
+export const updateStaff = async (req, res) =>
+  res.json({
+    data: await s.updateStaff(req.user, req.params.id, req.input.body),
+  });
 export const updateVendor = async (req, res) =>
   res.json({
     data: await s.updateVendor(req.user, req.params.id, req.input.body),

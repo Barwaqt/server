@@ -1,3 +1,7 @@
+import { paymentRouter } from "./routes/payment.routes.js";
+import { uploadRouter } from "./routes/upload.routes.js";
+import { deliveryRouter } from "./routes/delivery.routes.js";
+import { returnRouter } from "./routes/return.routes.js";
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -42,7 +46,6 @@ app.use(
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),
 );
-app.use(express.json({ limit: "256kb" }));
 app.use(
   rateLimit({
     windowMs: 60000,
@@ -51,6 +54,8 @@ app.use(
     legacyHeaders: false,
   }),
 );
+app.use("/api/v1/uploads", uploadRouter);
+app.use(express.json({ limit: "256kb" }));
 app.get(["/", "/api/v1"], (req, res) =>
   res.json({
     name: "Barwaqt API",
@@ -81,6 +86,9 @@ app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/vendor", vendorRouter);
 app.use("/api/v1/rider", riderRouter);
 app.use("/api/v1/finance", financeRouter);
+app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/notifications", notificationRouter);
+app.use("/api/v1/delivery", deliveryRouter);
+app.use("/api/v1/returns", returnRouter);
 app.use((req, res, next) => next(new ApiError(404, "Route not found")));
 app.use(errorHandler);

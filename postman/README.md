@@ -62,3 +62,9 @@ GET /orders/:id has separate customer-parent and staff/vendor-child examples. Ge
 - [Complete API contract](../complete_api.md)
 - [Authentication provider setup](../docs/AUTH_SETUP.md)
 - [Current implementation gaps](../docs/IMPLEMENTATION_AUDIT.md)
+
+## Operations requests
+
+The “Marketplace and operations additions” folder covers new management, scheduling, returns and uploads. Set `resourceId` to the resource UUID required by the request path (category, coupon, slot, return or upload). Copy IDs from successful creation responses. Replace illustrative UUIDs in JSON bodies with real records. The main API reference explains which IDs belong to parent orders versus vendor shipments.
+
+For scheduled checkout, add the same `deliverySlotId` to quote and checkout. For returns, create as CUSTOMER, approve/receive as ADMIN or DISPATCHER, and record the completed external refund as ADMIN or FINANCE. Upload data is base64 without a data URL prefix. Binary image download is public; PDF download needs the owner's/admin bearer token. Finance requests record externally completed payments; they do not transfer money.

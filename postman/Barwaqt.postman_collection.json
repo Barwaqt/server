@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Barwaqt API \u2014 complete integration reference",
-    "description": "All 65 implemented Node API endpoints, plus action variants. Read server/complete_api.md and postman/README.md. Select a role-specific environment. Do not Run All: requests mutate real data. Examples require real IDs and provider credentials.",
+    "description": "Barwaqt API integration reference, including management, delivery slots, returns and uploads. Read server/complete_api.md and postman/README.md. Choose requests deliberately; mutations record real operations. No real credentials are bundled.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -1603,7 +1603,7 @@
                 "checkout"
               ]
             },
-            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"addressId\": \"11111111-1111-4111-8111-111111111111\",\n  \"couponCode\": \"WELCOME10\",\n  \"paymentMethod\": \"COD\"\n}\n```\n\n**Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.\n\nRequired header: `Idempotency-Key: checkout-20261012-001` (8\u2013100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1\u2013100 product UUIDs from the authenticated customer\u2019s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. CARD/JAZZCASH/EASYPAISA validate but return 503 because online payment is not configured. Uses the server cart (1\u2013100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.",
+            "description": "**Access:** CUSTOMER.\n\n**Example JSON body:**\n\n```json\n{\n  \"addressId\": \"11111111-1111-4111-8111-111111111111\",\n  \"couponCode\": \"WELCOME10\",\n  \"paymentMethod\": \"COD\"\n}\n```\n\n**Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.\n\nRequired header: `Idempotency-Key: checkout-20261012-001` (8\u2013100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1\u2013100 product UUIDs from the authenticated customer\u2019s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. BANK_TRANSFER/JAZZCASH/EASYPAISA use configured active platform transfer accounts and require admin verification; disabled methods and CARD return 503. See Central platform payments. Uses the server cart (1\u2013100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"addressId\": \"{{addressId}}\",\n  \"paymentMethod\": \"COD\"\n}",
@@ -3697,7 +3697,7 @@
                 "settlements"
               ]
             },
-            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"vendorId\": \"11111111-1111-4111-8111-111111111111\"\n}\n```\n\n**Success:** 201; `data: Settlement`, status PENDING.\n\nvendorId required UUID. Collects that vendor\u2019s DELIVERED, cashReceived, unsettled children. Sum payableMinor must be positive. Once attached to a settlement, those orders cannot receive refunds through the refund route.",
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"vendorId\": \"11111111-1111-4111-8111-111111111111\"\n}\n```\n\n**Success:** 201; `data: Settlement`, status PENDING.\n\nvendorId required UUID. Collects that vendor\u2019s DELIVERED, cashReceived, unsettled children. Sum payableMinor must be positive. Post-settlement refunds create negative adjustments applied to future payouts.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"vendorId\": \"{{vendorId}}\"\n}",
@@ -3813,7 +3813,7 @@
                 "refunds"
               ]
             },
-            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"amountMinor\": 25000,\n  \"reason\": \"Damaged item adjustment\",\n  \"reference\": \"REFUND-20261012-001\"\n}\n```\n\n**Success:** 201; `data: Refund`.\n\nid is child VendorOrder UUID. All fields required: positive amountMinor, reason text, reference unique text. Requires DELIVERED, cashReceived=true and no settlementId. Cumulative refunds cannot exceed subtotalMinor\u2212discountMinor; delivery fee is not refundable here. Adjusts payable and proportionally reverses commission. Records an externally handled refund; no payment gateway transfer is executed.",
+            "description": "**Access:** ADMIN, FINANCE.\n\n**Example JSON body:**\n\n```json\n{\n  \"amountMinor\": 25000,\n  \"reason\": \"Damaged item adjustment\",\n  \"reference\": \"REFUND-20261012-001\"\n}\n```\n\n**Success:** 201; `data: Refund`.\n\nid is child VendorOrder UUID. All fields required: positive amountMinor, reason text, reference unique text. Requires DELIVERED, cashReceived=true and reconciled payment. Cumulative refunds cannot exceed subtotalMinor\u2212discountMinor; delivery fee is not refundable here. Adjusts payable and proportionally reverses commission. Records an externally handled refund; no payment gateway transfer is executed.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amountMinor\": 25000,\n  \"reason\": \"Damaged item adjustment\",\n  \"reference\": \"REFUND-20261012-001\"\n}",
@@ -3982,6 +3982,779 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Marketplace and operations additions",
+      "item": [
+        {
+          "name": "GET /api/v1/admin/vendors/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/vendors/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "vendors",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Body:** None.\n\n**Success:** 200; `data: Vendor`, including owner PublicUser.\n\nid is vendor UUID. Unlike the public `/catalog/vendors/:id`, this returns suspended vendors too and includes the owner account and commission. Missing vendors return 404."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/admin/staff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/staff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "staff"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Query:** page, limit; optional role RIDER/DISPATCHER/FINANCE, search (name or email contains, case-insensitive). String filters max 100.\n\n**Body:** None.\n\n**Success:** 200; `data: {items: PublicUser[], total, page, limit}`, newest first.\n\nLists staff accounts. Omitting role returns all RIDER, DISPATCHER and FINANCE accounts. ADMIN and other roles are never listed."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/admin/staff/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/staff/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "staff",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"active\": false,\n  \"role\": \"DISPATCHER\"\n}\n```\n\n**Success:** 200; `data: PublicUser`.\n\nid is a staff user UUID. Both fields optional (at least one required): active boolean, role RIDER/DISPATCHER/FINANCE. Only existing RIDER/DISPATCHER/FINANCE accounts can be updated; other or missing ids return 404. Changes are audited as STAFF_UPDATED.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false,\n  \"role\": \"DISPATCHER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/admin/products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "products"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Query:** page, limit; optional search (name contains, case-insensitive), vendorId UUID, categoryId UUID, active true/false. String filters max 100.\n\n**Body:** None.\n\n**Success:** 200; `data: {items: Product[], total, page, limit}`.\n\nLists products from every vendor regardless of vendor status, including inactive products; each item includes category and vendor `{id,name,city,zone,status}`. Newest first. This is the administrative counterpart to the public `/catalog/products`, which only shows active products from approved vendors."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/admin/products/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/products/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "products",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"active\": false,\n  \"priceMinor\": 120000,\n  \"stock\": 40\n}\n```\n\n**Success:** 200; `data: Product`.\n\nid is product UUID; the product may belong to any vendor. Same fields/rules as the vendor product routes, all optional. Supplied stock is absolute; supplied images/attributes replace those values; setting a new categoryId resets explicit category memberships. Changes are audited as PRODUCT_UPDATED. Missing products return 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false,\n  \"priceMinor\": 120000,\n  \"stock\": 40\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/admin/categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "categories"
+              ]
+            },
+            "description": "**Access:** ADMIN. Query: page, limit, search (name, case-insensitive).\n**Success:** 200; paginated categories including image, parentSlug, productIds (explicit collection memberships) and `_count: {products,catalogProducts}`."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/admin/categories/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/categories/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "categories",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN. The same optional fields are also supported by POST `/admin/categories` (name and slug required on create).\n\n```json\n{\"name\":\"Home essentials\",\"slug\":\"home-essentials\",\"image\":\"/api/media/11111111-1111-4111-8111-111111111111\",\"parentSlug\":null,\"productIds\":[\"22222222-2222-4222-8222-222222222222\"]}\n```\n\nAt least one field on PATCH. Name 1\u2013200 trimmed characters; slug/parentSlug lowercase letters, digits, hyphens, max 180. Image is null, empty, HTTPS URL or single-leading-slash path (max 2,000). Parent must exist; cycles rejected. Renaming a slug updates child parentSlug references. `productIds` optionally replaces the collection membership (max 500 existing product UUIDs); `[]` clears it. Omission preserves memberships. Primary product categories remain controlled by product management. Success: 200 Category (POST 201).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Home essentials\",\n  \"slug\": \"home-essentials\",\n  \"image\": \"/api/media/11111111-1111-4111-8111-111111111111\",\n  \"parentSlug\": null,\n  \"productIds\": [\n    \"22222222-2222-4222-8222-222222222222\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/admin/categories/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/categories/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "categories",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN. Success: 204. Returns 409 if products, collection memberships, or child categories remain. Reassign/clear these before deletion. Changes are audited."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/admin/coupons",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/coupons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "coupons"
+              ]
+            },
+            "description": "**Access:** ADMIN. Query: page, limit, search (code). Success: 200 paginated Coupon records, including used and active."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/admin/coupons/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/coupons/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "coupons",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n```json\n{\"active\":false,\"percentBps\":1500,\"maxDiscountMinor\":25000,\"minSubtotalMinor\":100000,\"maxUses\":500,\"expiresAt\":\"2027-12-31T18:59:59.000Z\"}\n```\n\nAny nonempty subset of POST coupon fields plus active boolean. `code` may also be changed. Field validation matches creation; maxUses cannot be below used. Success: 200 Coupon. Deactivating does not change existing orders.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false,\n  \"percentBps\": 1500,\n  \"maxDiscountMinor\": 25000,\n  \"minSubtotalMinor\": 100000,\n  \"maxUses\": 500,\n  \"expiresAt\": \"2027-12-31T18:59:59.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/admin/coupons/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/coupons/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "coupons",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN. Success: 204. Used coupons or coupons referenced by orders return 409; deactivate instead."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/finance/remittances",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/remittances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "remittances"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE. Query: page, limit. Success: 200 paginated `{id,riderId,amountMinor,reference,receivedBy,createdAt}` records, newest first."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/finance/refunds",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/finance/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "finance",
+                "refunds"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE. Query: page, limit. Success: 200 paginated `{id,vendorOrderId,amountMinor,reason,reference,createdBy,createdAt}` records, newest first.\n\n**Updated settlement/refund rules:** Creating a settlement excludes orders with open return requests and includes unsettled negative vendor adjustments. A refund on an already-settled order leaves the original settlement amount unchanged and creates a negative adjustment applied to a future payout. If the resulting payout is not positive, settlement creation returns 409. Vendor pending payable includes unsettled orders, PENDING/PROCESSED settlements, and unapplied adjustments, and can be negative. Settlement responses include adjustments. Refund reference retries with the same shipment, amount and reason return the existing refund; conflicting reference reuse returns 409. These endpoints record external cash/bank operations and do not send money."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/delivery/slots",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/delivery/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "delivery",
+                "slots"
+              ]
+            },
+            "description": "**Access:** CUSTOMER, ADMIN, DISPATCHER. Query: page, limit, city, zone (case-insensitive exact matches). Customers only see active, future slots; admins/dispatchers see all matching slots.\n\n**Success:** 200; paginated `{id,city,zone,startsAt,endsAt,capacity,reserved,available,active,createdAt}`. available is max(0,capacity\u2212reserved)."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/delivery/slots",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/delivery/slots",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "delivery",
+                "slots"
+              ]
+            },
+            "description": "**Access:** ADMIN, DISPATCHER.\n\n```json\n{\"city\":\"Lahore\",\"zone\":\"Gulberg\",\"startsAt\":\"2027-01-20T04:00:00.000Z\",\"endsAt\":\"2027-01-20T08:00:00.000Z\",\"capacity\":20,\"active\":true}\n```\n\nAll except active required (defaults true). Times are ISO UTC, start must be future and end after start. Capacity integer 1\u201310,000. City/zone trimmed text 1\u2013200. Success: 201 DeliverySlot.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"startsAt\": \"2027-01-20T04:00:00.000Z\",\n  \"endsAt\": \"2027-01-20T08:00:00.000Z\",\n  \"capacity\": 20,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/v1/delivery/slots/:id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/delivery/slots/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "delivery",
+                "slots",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** ADMIN, DISPATCHER.\n\n```json\n{\"capacity\":25,\"active\":false}\n```\n\nNonempty subset of create fields. Capacity cannot drop below reservations. City/zone/start/end cannot change once reserved. Omit unchanged timestamps; disabling a slot keeps existing bookings intact. Success: 200 DeliverySlot.\n\n**Scheduled checkout:** Add `deliverySlotId` to both quote and checkout:\n\n```json\n{\"addressId\":\"11111111-1111-4111-8111-111111111111\",\"deliverySlotId\":\"22222222-2222-4222-8222-222222222222\",\"paymentMethod\":\"COD\"}\n```\n\nThe selected slot must match the address city/zone, be active and future, and have capacity. Quote includes `deliverySlot` and does not reserve capacity. Checkout reserves one capacity unit per parent order atomically with stock and coupon use. Idempotent retries do not reserve again. If every child shipment is cancelled, capacity is released. Persisted orders contain deliverySlotId and a historical `deliveryWindow:{startsAt,endsAt,city,zone}` snapshot; operational child order responses include the parent deliveryWindow. No slot ID means normal vendor delivery. Availability may change between quote and checkout (409 full, 422 unavailable/mismatched).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"capacity\": 25,\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/returns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/returns",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "returns"
+              ]
+            },
+            "description": "**Access:** CUSTOMER (own requests), approved VENDOR (own shipments), ADMIN, FINANCE, DISPATCHER (all).\n**Query:** page, limit. Success: 200 paginated ReturnRequest records including vendorOrder with items, subtotalMinor, discountMinor, refunds and order address/paymentMethod. Return record fields: id,vendorOrderId,customerId,reason,status,note,restocked,refundId,createdAt,updatedAt."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/returns",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/returns",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "returns"
+              ]
+            },
+            "description": "**Access:** CUSTOMER.\n\n```json\n{\"vendorOrderId\":\"11111111-1111-4111-8111-111111111111\",\"reason\":\"The delivered item is damaged\"}\n```\n\nReason trimmed 5\u20131,000 characters. Full-shipment returns only: customer must own a delivered shipment, request within RETURN_WINDOW_DAYS (default 14) after deliveredAt, and not already have a return or full refund. One request per shipment. Success: 201, status REQUESTED. A return request does not change order status, stock or money. Other customer's shipments return 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendorOrderId\": \"11111111-1111-4111-8111-111111111111\",\n  \"reason\": \"The delivered item is damaged\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/returns/:id/actions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/returns/{{resourceId}}/actions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "returns",
+                "{{resourceId}}",
+                "actions"
+              ]
+            },
+            "description": "**Access:** ADMIN, DISPATCHER.\n\n```json\n{\"action\":\"approve\",\"note\":\"Collection arranged with customer\"}\n```\n\n```json\n{\"action\":\"reject\",\"note\":\"Return window has expired\"}\n```\n\n```json\n{\"action\":\"receive\",\"note\":\"All items inspected and resalable\",\"restock\":true}\n```\n\nTransitions: REQUESTED\u2192APPROVED or REJECTED; APPROVED\u2192RECEIVED. Rejection requires note min 3; note max 1,000, defaults empty; restock defaults false. Receive optionally restores each item's quantity exactly once. Repeated/invalid actions return 409. Success: 200 ReturnRequest. All transitions audited and customer notified. Collection itself is coordinated operationally; this does not assign a reverse-logistics rider.\n\nFor a RECEIVED request, use existing `POST /finance/orders/:vendorOrderId/refunds` with amountMinor equal to the remaining full product net (subtotal\u2212discount\u2212previous refunds), reason and actual external refund reference. The shipment must have reconciled payment. Delivery fees excluded. Successful recording marks the return REFUNDED. The refund API rejects open returns before receipt. Approval/receipt never automatically sends money.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"note\": \"Collection arranged with customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/uploads",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/uploads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads"
+              ]
+            },
+            "description": "**Access:** ADMIN, approved VENDOR. JSON endpoint; no multipart form.\n\n```json\n{\"filename\":\"product.png\",\"kind\":\"IMAGE\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=\"}\n```\n\nfilename 1\u2013200 chars; kind IMAGE (default) or DOCUMENT. data is raw base64 without a data URL prefix. Max decoded size 5 MB; this route has a 7 MB JSON limit. Images: PNG/JPEG/WebP; documents: PDF only. File signature checked, server-generated UUID filenames; SVG/HTML rejected. Invalid format 422, size 413.\n\n**Success:** 201; `data:{id,ownerId,kind,filename,mimeType,size,createdAt,url}`. url is `/api/media/<id>`, supported by all three Next.js frontends. Save this URL in product images/category image separately. For a mobile/native client, fetch binary content directly from `<API base>/uploads/<id>/content`; the relative media URL is a frontend proxy, not a Node API endpoint.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"filename\": \"product.png\",\n  \"kind\": \"IMAGE\",\n  \"data\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/uploads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/uploads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads"
+              ]
+            },
+            "description": "**Access:** ADMIN, approved VENDOR. Body/query: none. Success: 200, array of own latest 100 upload metadata records, each with url. Does not list another account's private documents."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/uploads/:id/content",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/uploads/{{resourceId}}/content",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "{{resourceId}}",
+                "content"
+              ]
+            },
+            "description": "**Access:** Public for IMAGE; owner or ADMIN bearer token for DOCUMENT. Success: 200 binary body with correct Content-Type and X-Content-Type-Options:nosniff. PDFs are attachment/private/no-store. No JSON envelope on success. Missing metadata/file 404. Private files require authenticated owner/admin (401/403).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/v1/uploads/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/uploads/{{resourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "{{resourceId}}"
+              ]
+            },
+            "description": "**Access:** Owner (approved VENDOR) or ADMIN. Success: 204. Rejects 409 if image is referenced by a product, category or historical order item. Rejects 403 for another owner's file. Removes metadata and disk file.\n\n**Storage:** Set UPLOAD_DIR to a persistent directory (default server/uploads). Keep it backed up with PostgreSQL. Shared/replicated deployments need a shared persistent volume; disk uploads are not S3 replication. Migrations: run `npm run db:generate` and `npm run db:migrate`, then restart the API. RETURN_WINDOW_DAYS controls new customer return eligibility. No provider credentials are needed for these operations. Online payment processing remains disabled pending selection/configuration of a payment provider."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/payments/accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "accounts"
+              ]
+            },
+            "description": "**Access:** CUSTOMER, ADMIN, FINANCE. **Body:** None.\n**Success:** 200; array of `{id,method,accountTitle,accountNumber,bankName,instructions,active,updatedAt}`. ADMIN sees inactive accounts too; customers/finance see active accounts. These are platform-owned account details intended for customers to send transfers."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/v1/payments/accounts",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "accounts"
+              ]
+            },
+            "description": "**Access:** ADMIN.\n\n```json\n{\"method\":\"BANK_TRANSFER\",\"accountTitle\":\"Barwaqt platform account\",\"accountNumber\":\"REPLACE-WITH-PLATFORM-IBAN\",\"bankName\":\"Your bank\",\"instructions\":\"Transfer the exact order total and submit your transaction reference.\",\"active\":false}\n```\n\nMethod is BANK_TRANSFER, JAZZCASH or EASYPAISA; one account per method. accountTitle trimmed 1\u2013200; accountNumber trimmed 5\u2013100; bankName max 200 defaults empty; instructions max 1,000 defaults empty; active defaults false. Use the real platform wallet number for wallet methods. Full upsert payload; audited. Success: 200 PaymentAccount. Existing orders retain an immutable snapshot of their original destination, even if this configuration changes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"BANK_TRANSFER\",\n  \"accountTitle\": \"Barwaqt platform account\",\n  \"accountNumber\": \"REPLACE-WITH-PLATFORM-IBAN\",\n  \"bankName\": \"Your bank\",\n  \"instructions\": \"Transfer the exact order total and submit your transaction reference.\",\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments"
+              ]
+            },
+            "description": "**Access:** CUSTOMER (own orders), ADMIN/FINANCE (all). **Body:** None.\nQuery: page (default 1), limit (default 20, max 100), optional status AWAITING_TRANSFER/UNDER_REVIEW/REJECTED/PAID/REFUND_DUE/REFUNDED/CANCELLED.\n**Success:** 200 `{items,total,page,limit}`. Each item: `{id,orderId,method,amountMinor,status,accountSnapshot,verifiedAt,verifiedBy,createdAt,updatedAt,submissions,order}`. Submissions include id,reference,method,status,note,reviewedBy,reviewedAt,createdAt. Order summary includes id,customerId,address and vendorOrders (id,status,totalMinor,refunds). No COD rows: COD reconciliation is tracked through rider collections/remittances."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/payments/orders/:id/submissions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/orders/{{resourceId}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "orders",
+                "{{resourceId}}",
+                "submissions"
+              ]
+            },
+            "description": "**Access:** CUSTOMER. **id:** parent Order UUID (not a vendor shipment).\n\n```json\n{\"reference\":\"BANK-OR-WALLET-TRANSACTION-123\"}\n```\n\nReference trimmed 3\u2013100 characters, normalized uppercase, unique across all submissions for that method. Requires an owned, unverified prepaid order with at least one NEW shipment. Only one reference may await review at a time. Rejected references remain recorded; customers may submit a different corrected reference. Repeating an existing reference on the same payment returns its existing submission; reuse on another payment returns 409. Submitted references never mark money as received. Success: 201 PaymentSubmission; payment moves to UNDER_REVIEW. Ownership failure 404; already verified/cancelled/pending review 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"BANK-OR-WALLET-TRANSACTION-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/v1/payments/submissions/:id/review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/submissions/{{resourceId}}/review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "submissions",
+                "{{resourceId}}",
+                "review"
+              ]
+            },
+            "description": "**Access:** ADMIN, FINANCE. **id:** PaymentSubmission UUID.\n\n```json\n{\"action\":\"verify\",\"note\":\"Exact order amount matched to the platform bank statement\"}\n```\n\n```json\n{\"action\":\"reject\",\"note\":\"Reference not found in the platform statement\"}\n```\n\nAction verify/reject; note trimmed 3\u20131,000 required. Verify must only be used after checking that the exact payment.amountMinor was received in the configured platform account. It records verifiedAt/verifiedBy, sets payment PAID (or REFUND_DUE for already cancelled shipments), sets child cashReceived=true and notifies vendors/customer. It does not execute or query a bank/wallet transfer. A verified submission can be retried idempotently; another submission cannot verify an already paid order. A rejected submission can later be verified by finance if the transfer is actually located; it cannot be rejected twice. Rejection leaves the order reserved and marks REJECTED; the customer can correct the reference, or admin/customer can cancel NEW shipments to release stock and scheduled capacity. Success: 200 PaymentSubmission; audited.\n\n**Updated quote/checkout contract:** paymentMethod additionally accepts BANK_TRANSFER. Quote advertises COD plus configured active methods. For a prepaid checkout, a Payment in AWAITING_TRANSFER is created atomically with orders, stock reservation and coupon use. Response includes `payment` with destination snapshot and submissions. Customer transfers **after** order creation and submits the bank/wallet reference. Idempotency-Key behavior is unchanged. Disabled/unconfigured method returns 503 without reserving stock. The customer checkout and Account \u2192 Payments use these APIs; Admin \u2192 Payments manages accounts and reviews references.\n\n**Fulfillment and refunds:** Vendor accept is blocked until the platform verifies a prepaid payment (409). Prepaid delivery still requires the customer PIN, but cashCollectedMinor must be 0 (or omitted); COD deliveries still require the exact shipment amount. The legacy cashReceived field means centrally reconciled payment for both COD and prepaid orders. Unverified orders cannot be settled. Verified, delivered orders can be included in the normal vendor settlement without a rider remittance. If a prepaid shipment is CANCELLED or RETURNED, its refund must be the full remaining shipment total including allocated delivery charges. Use the existing finance refund endpoint after externally returning money. The payment is REFUND_DUE until cancelled-shipment liabilities are recorded; fully refunded parent payments become REFUNDED. Delivered customer returns still refund product net only. Online transfers do not increase rider COD balances.\n\nAdmin reports now additionally return `transfersReceivedMinor` (gross verified bank/wallet transfers) and `platformCollectedMinor` (gross verified transfers plus COD remittances). Refund and payout totals remain separate; gross receipts are not the available bank balance.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"verify\",\n  \"note\": \"Exact order amount matched to the platform bank statement\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     }

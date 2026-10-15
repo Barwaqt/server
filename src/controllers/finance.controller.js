@@ -17,3 +17,8 @@ export const settlements = async (req, res) =>
   res.json({ data: await s.settlements(req.user) });
 export const summary = async (req, res) =>
   res.json({ data: await s.vendorSummary(req.user) });
+
+export const remittances = async (req, res) =>
+  res.json({ data: await s.records("remittances", req.input.query) });
+export const refunds = async (req, res) =>
+  res.json({ data: await s.records("refunds", req.input.query) });

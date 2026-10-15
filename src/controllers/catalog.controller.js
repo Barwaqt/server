@@ -19,4 +19,4 @@ export const update = async (req, res) =>
 export const vendors = async (req, res) =>
   res.json({ data: await s.vendors(req.input.query) });
 export const vendor = async (req, res) =>
-  res.json({ data: await s.vendor(req.params.id) });
+  res.json({ data: await s.vendor(req.params.vendorId) });

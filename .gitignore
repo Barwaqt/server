@@ -7,3 +7,5 @@ coverage/
 Dockerfile
 
 .seed-vendor.local.json
+
+uploads/

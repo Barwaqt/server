@@ -166,9 +166,12 @@ export async function vendors(q) {
   ]);
   return { items, total, page: q.page, limit: q.limit };
 }
-export async function vendor(id) {
+export async function vendor(identifier) {
   const result = await db.vendor.findFirst({
-    where: { id, status: "APPROVED" },
+    where: {
+      status: "APPROVED",
+      OR: [{ id: identifier }, { slug: identifier }],
+    },
     select: publicVendor,
   });
   assert(result, 404, "Vendor not found");

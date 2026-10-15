@@ -1,4 +1,5 @@
 export const orderInclude = {
+  payment: { include: { submissions: { orderBy: { createdAt: "desc" } } } },
   vendorOrders: {
     include: { items: true, events: { orderBy: { createdAt: "asc" } } },
   },

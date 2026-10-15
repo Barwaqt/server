@@ -1,3 +1,5 @@
+import { createPayment, syncPayment } from "./payment.service.js";
+import { reserveSlot, releaseCancelledSlot } from "./delivery.service.js";
 import bcrypt from "bcryptjs";
 import { randomInt } from "node:crypto";
 import { db, transaction } from "../config/database.js";
@@ -31,6 +33,12 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       "A selected product is no longer in your cart",
     );
   assert(cart.length <= 100, 422, "Cart cannot exceed 100 distinct products");
+  const deliverySlot = await reserveSlot(
+    tx,
+    input.deliverySlotId,
+    address,
+    reserve,
+  );
   const grouped = new Map();
   for (const item of cart) {
     const p = item.product;
@@ -91,6 +99,7 @@ async function prepareCheckout(tx, user, input, reserve = false) {
   const discounts = allocate(discount, subtotals),
     fees = allocate(env.DELIVERY_FEE_MINOR, subtotals);
   return {
+    deliverySlot,
     address,
     groups,
     subtotals,
@@ -106,8 +115,17 @@ export async function quote(user, input) {
     const p = await prepareCheckout(tx, user, input);
     return {
       currency: "PKR",
-      paymentMethods: ["COD"],
+      paymentMethods: [
+        "COD",
+        ...(
+          await tx.paymentAccount.findMany({
+            where: { active: true },
+            select: { method: true },
+          })
+        ).map((a) => a.method),
+      ],
       addressId: p.address.id,
+      deliverySlot: p.deliverySlot,
       subtotalMinor: p.subtotal,
       discountMinor: p.discount,
       deliveryMinor: env.DELIVERY_FEE_MINOR,
@@ -138,9 +156,9 @@ export async function checkout(user, input, key) {
     "Provide an Idempotency-Key header (8–100 letters, digits, - or _)",
   );
   assert(
-    input.paymentMethod === "COD",
+    input.paymentMethod !== "CARD",
     503,
-    "Online payments are not configured; use COD",
+    "Card processing is not configured",
   );
   const requestHash = hashToken(JSON.stringify(input));
   return transaction(async (tx) => {
@@ -159,6 +177,7 @@ export async function checkout(user, input, key) {
       return sanitizeOrder(previous);
     }
     const {
+      deliverySlot,
       address,
       groups,
       subtotals,
@@ -172,9 +191,19 @@ export async function checkout(user, input, key) {
     const parent = await tx.order.create({
       data: {
         customerId: user.id,
+        paymentMethod: input.paymentMethod,
         idempotencyKey: key,
         requestHash,
         address: snapshot,
+        deliverySlotId: deliverySlot?.id,
+        deliveryWindow: deliverySlot
+          ? {
+              startsAt: deliverySlot.startsAt.toISOString(),
+              endsAt: deliverySlot.endsAt.toISOString(),
+              city: deliverySlot.city,
+              zone: deliverySlot.zone,
+            }
+          : undefined,
         subtotalMinor: subtotal,
         discountMinor: discount,
         deliveryMinor: env.DELIVERY_FEE_MINOR,
@@ -182,6 +211,7 @@ export async function checkout(user, input, key) {
         couponId: coupon?.id,
       },
     });
+    await createPayment(tx, parent, input.paymentMethod);
     for (let i = 0; i < groups.length; i++) {
       const items = groups[i];
       const vendor = items[0].product.vendor;
@@ -221,7 +251,9 @@ export async function checkout(user, input, key) {
         tx,
         vendor.ownerId,
         "New order",
-        `Order ${child.id} is waiting for acceptance.`,
+        input.paymentMethod === "COD"
+          ? `Order ${child.id} is waiting for acceptance.`
+          : `Order ${child.id} is awaiting platform payment verification.`,
       );
     }
     await tx.cartItem.deleteMany({
@@ -266,7 +298,12 @@ export async function list(user, q) {
       include: {
         items: true,
         order: {
-          select: { address: true, currency: true, paymentMethod: true },
+          select: {
+            address: true,
+            currency: true,
+            paymentMethod: true,
+            deliveryWindow: true,
+          },
         },
         events: { orderBy: { createdAt: "asc" } },
       },
@@ -295,7 +332,14 @@ export async function get(user, id) {
     include: {
       items: true,
       events: true,
-      order: { select: { address: true, currency: true, paymentMethod: true } },
+      order: {
+        select: {
+          address: true,
+          currency: true,
+          paymentMethod: true,
+          deliveryWindow: true,
+        },
+      },
     },
   });
   assert(order, 404, "Order not found");
@@ -371,6 +415,11 @@ export async function transition(actor, id, input) {
       case "accept":
         assert(ownVendor, 403, "Vendor ownership required");
         assert(order.status === "NEW", 409, "Order is not new");
+        assert(
+          order.order.paymentMethod === "COD" || order.cashReceived,
+          409,
+          "Payment must be verified by the platform before acceptance",
+        );
         status = "PREPARING";
         break;
       case "reject":
@@ -411,9 +460,12 @@ export async function transition(actor, id, input) {
           "PIN attempts exhausted; contact dispatch",
         );
         assert(
-          input.pin && input.cashCollectedMinor === order.totalMinor,
+          input.pin &&
+            (order.order.paymentMethod === "COD"
+              ? input.cashCollectedMinor === order.totalMinor
+              : order.cashReceived && (input.cashCollectedMinor ?? 0) === 0),
           422,
-          "Delivery PIN and exact COD amount required",
+          "Delivery PIN and correct cash amount required (zero for prepaid orders)",
         );
         if (!(await bcrypt.compare(input.pin, order.pinHash))) {
           await tx.vendorOrder.update({
@@ -469,12 +521,19 @@ export async function transition(actor, id, input) {
       data: {
         status,
         ...(status === "DELIVERED"
-          ? { codCollectedMinor: order.totalMinor, deliveredAt: new Date() }
+          ? {
+              codCollectedMinor:
+                order.order.paymentMethod === "COD" ? order.totalMinor : 0,
+              deliveredAt: new Date(),
+            }
           : {}),
         ...(status === "FAILED" ? { failureReason: input.reason } : {}),
         events: { create: { actorId: actor.id, status, note: input.reason } },
       },
     });
+    if (status === "CANCELLED") await releaseCancelledSlot(tx, order.orderId);
+    if (["CANCELLED", "RETURNED"].includes(status))
+      await syncPayment(tx, order.orderId);
     if (ended.includes(status)) await releaseRider(tx, order.riderId);
     await notify(
       tx,

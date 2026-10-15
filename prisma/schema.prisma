@@ -74,6 +74,7 @@ model Session {
  createdAt DateTime @default(now())
 }
 model Vendor {
+ adjustments VendorAdjustment[]
  id String @id @default(uuid())
  ownerId String @unique
  owner User @relation(fields:[ownerId],references:[id])
@@ -171,6 +172,10 @@ model Coupon {
  orders Order[]
 }
 model Order {
+ payment Payment?
+ deliverySlotId String?
+ deliverySlot DeliverySlot? @relation(fields:[deliverySlotId],references:[id])
+ deliveryWindow Json?
  id String @id @default(uuid())
  customerId String
  customer User @relation(fields:[customerId],references:[id])
@@ -191,6 +196,7 @@ model Order {
  @@index([customerId,createdAt])
 }
 model VendorOrder {
+ returnRequest ReturnRequest?
  id String @id @default(uuid())
  orderId String
  order Order @relation(fields:[orderId],references:[id])
@@ -265,6 +271,7 @@ model Remittance {
  createdAt DateTime @default(now())
 }
 model Settlement {
+ adjustments VendorAdjustment[]
  id String @id @default(uuid())
  vendorId String
  vendor Vendor @relation(fields:[vendorId],references:[id])
@@ -328,4 +335,92 @@ model AuthChallenge {
  tokenHash String @unique
  provider String
  expiresAt DateTime
+}
+
+model DeliverySlot {
+ id String @id @default(uuid())
+ city String
+ zone String
+ startsAt DateTime
+ endsAt DateTime
+ capacity Int
+ reserved Int @default(0)
+ active Boolean @default(true)
+ orders Order[]
+ createdAt DateTime @default(now())
+ @@index([city,zone,startsAt])
+}
+model ReturnRequest {
+ id String @id @default(uuid())
+ vendorOrderId String @unique
+ vendorOrder VendorOrder @relation(fields:[vendorOrderId],references:[id])
+ customerId String
+ reason String
+ status String @default("REQUESTED")
+ note String @default("")
+ restocked Boolean @default(false)
+ refundId String? @unique
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@index([customerId,createdAt])
+}
+model VendorAdjustment {
+ id String @id @default(uuid())
+ vendorId String
+ vendor Vendor @relation(fields:[vendorId],references:[id])
+ refundId String @unique
+ amountMinor Int
+ settlementId String?
+ settlement Settlement? @relation(fields:[settlementId],references:[id])
+ createdAt DateTime @default(now())
+ @@index([vendorId,settlementId])
+}
+model Upload {
+ id String @id @default(uuid())
+ ownerId String
+ kind String
+ filename String
+ mimeType String
+ size Int
+ createdAt DateTime @default(now())
+ @@index([ownerId,createdAt])
+}
+
+model PaymentAccount {
+ id String @id @default(uuid())
+ method String @unique
+ accountTitle String
+ accountNumber String
+ bankName String @default("")
+ instructions String @default("")
+ active Boolean @default(false)
+ updatedAt DateTime @updatedAt
+}
+model Payment {
+ id String @id @default(uuid())
+ orderId String @unique
+ order Order @relation(fields:[orderId],references:[id])
+ method String
+ amountMinor Int
+ status String @default("AWAITING_TRANSFER")
+ accountSnapshot Json
+ verifiedAt DateTime?
+ verifiedBy String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ submissions PaymentSubmission[]
+ @@index([status,createdAt])
+}
+model PaymentSubmission {
+ id String @id @default(uuid())
+ paymentId String
+ payment Payment @relation(fields:[paymentId],references:[id])
+ method String
+ reference String
+ status String @default("SUBMITTED")
+ note String @default("")
+ reviewedBy String?
+ reviewedAt DateTime?
+ createdAt DateTime @default(now())
+ @@unique([method,reference])
 }
