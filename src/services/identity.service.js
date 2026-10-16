@@ -6,7 +6,12 @@ import { env } from "../config/env.js";
 import { assert, ApiError } from "../utils/error.js";
 import { token, hashToken } from "../utils/security.js";
 import { sessionFor } from "./auth.service.js";
-import { mailReady, sendResetEmail } from "./mail.service.js";
+import {
+  mailReady,
+  sendPasswordChangedEmail,
+  sendResetEmail,
+} from "./mail.service.js";
+export { resendVerification, verifyEmail } from "./verification.service.js";
 const google = new OAuth2Client();
 const appleKeys = createRemoteJWKSet(
   new URL("https://appleid.apple.com/auth/keys"),
@@ -46,7 +51,9 @@ export async function forgotPassword({ email, portal }) {
     );
     url.hash = `token=${raw}`;
     try {
-      await sendResetEmail(user.email, url.toString());
+      await sendResetEmail(user.email, url.toString(), {
+        name: user.firstName,
+      });
     } catch {
       await db.passwordReset.deleteMany({ where: { id: reset.id } });
       throw new ApiError(
@@ -59,6 +66,7 @@ export async function forgotPassword({ email, portal }) {
 }
 export async function resetPassword({ token: raw, newPassword }) {
   const passwordHash = await bcrypt.hash(newPassword, 12);
+  let changed;
   await transaction(async (tx) => {
     const reset = await tx.passwordReset.findUnique({
       where: { tokenHash: hashToken(raw) },
@@ -75,7 +83,19 @@ export async function resetPassword({ token: raw, newPassword }) {
     });
     await tx.passwordReset.deleteMany({ where: { userId: reset.userId } });
     await tx.session.deleteMany({ where: { userId: reset.userId } });
+    changed = reset.user;
   });
+  // Security notice only: the password is already changed, so a delivery failure
+  // must never turn a completed reset into an error for the customer.
+  if (mailReady()) {
+    try {
+      await sendPasswordChangedEmail(changed.email, {
+        name: changed.firstName,
+      });
+    } catch {
+      // Intentionally ignored; the reset already succeeded.
+    }
+  }
   return {
     message: "Your password has been changed. Sign in with your new password.",
   };
@@ -202,6 +222,8 @@ export async function social(input, linkUser) {
         firstName: String(claims.given_name || "Customer").slice(0, 100),
         lastName: String(claims.family_name || "").slice(0, 100),
         [field]: String(claims.sub),
+        // The provider already proved ownership of this email address.
+        emailVerifiedAt: new Date(),
       },
     });
   });

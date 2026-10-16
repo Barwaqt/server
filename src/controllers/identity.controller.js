@@ -4,6 +4,10 @@ export const forgotPassword = async (req, res) =>
   res.json({ data: await service.forgotPassword(req.input.body) });
 export const resetPassword = async (req, res) =>
   res.json({ data: await service.resetPassword(req.input.body) });
+export const verifyEmail = async (req, res) =>
+  res.json({ data: await service.verifyEmail(req.input.body) });
+export const resendVerification = async (req, res) =>
+  res.json({ data: await service.resendVerification(req.input.body) });
 export const challenge = async (req, res) =>
   res.json({ data: await service.challenge(req.input.body.provider) });
 export const social = async (req, res) =>

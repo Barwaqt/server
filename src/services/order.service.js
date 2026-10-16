@@ -51,7 +51,7 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       p.vendor.city.toLowerCase() === address.city.toLowerCase() &&
         p.vendor.zone.toLowerCase() === address.zone.toLowerCase(),
       422,
-      `${p.vendor.name} does not serve this address`,
+      `${p.vendor.name} delivers to ${p.vendor.zone}, ${p.vendor.city}. Your selected address is ${address.zone}, ${address.city}. Edit the address if its city or area is incorrect, or choose a vendor serving your location.`,
     );
     assert(p.stock >= item.quantity, 409, `${p.name} has insufficient stock`);
     if (reserve) {
@@ -297,9 +297,13 @@ export async function list(user, q) {
       ...pagination(q),
       include: {
         items: true,
+        vendor: { select: { name: true, address: true, city: true, zone: true } },
+        rider: { select: { firstName: true, lastName: true, phone: true } },
         order: {
           select: {
             address: true,
+            customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
+            payment: { select: { status: true } },
             currency: true,
             paymentMethod: true,
             deliveryWindow: true,
@@ -331,10 +335,14 @@ export async function get(user, id) {
     },
     include: {
       items: true,
+        vendor: { select: { name: true, address: true, city: true, zone: true } },
+        rider: { select: { firstName: true, lastName: true, phone: true } },
       events: true,
       order: {
         select: {
           address: true,
+            customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
+            payment: { select: { status: true } },
           currency: true,
           paymentMethod: true,
           deliveryWindow: true,

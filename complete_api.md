@@ -839,18 +839,31 @@ id is vendor UUID. Unlike the public `/catalog/vendors/:id`, this returns suspen
 
 **Access:** ADMIN.
 
+All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset/verification tokens. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Commission is an integer from 0 to 10,000 basis points. Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters.
+
 **Example JSON body:**
 
 ```json
 {
-  "status": "SUSPENDED",
-  "commissionBps": 1200
+  "name": "Gulberg Market",
+  "slug": "gulberg-market",
+  "businessType": "Grocery",
+  "description": "Local groceries",
+  "city": "Lahore",
+  "zone": "Gulberg",
+  "address": "Main Boulevard",
+  "status": "APPROVED",
+  "commissionBps": 1000,
+  "owner": {
+    "firstName": "Sara",
+    "lastName": "Ahmed",
+    "email": "vendor@example.com",
+    "phone": "+923001234568"
+  }
 }
 ```
 
-**Success:** 200; `data: Vendor`.
-
-id is vendor UUID, not owner user UUID. Both fields optional: status APPROVED/SUSPENDED; commissionBps integer 0–10,000. Commission changes apply to future checkouts, not existing order snapshots.
+**Success:** 200; `data: Vendor` with public `owner` information. Password hashes are never returned or audited. Existing order snapshots are unchanged.
 
 ### POST /api/v1/admin/staff
 
@@ -1479,3 +1492,9 @@ Action verify/reject; note trimmed 3–1,000 required. Verify must only be used 
 **Fulfillment and refunds:** Vendor accept is blocked until the platform verifies a prepaid payment (409). Prepaid delivery still requires the customer PIN, but cashCollectedMinor must be 0 (or omitted); COD deliveries still require the exact shipment amount. The legacy cashReceived field means centrally reconciled payment for both COD and prepaid orders. Unverified orders cannot be settled. Verified, delivered orders can be included in the normal vendor settlement without a rider remittance. If a prepaid shipment is CANCELLED or RETURNED, its refund must be the full remaining shipment total including allocated delivery charges. Use the existing finance refund endpoint after externally returning money. The payment is REFUND_DUE until cancelled-shipment liabilities are recorded; fully refunded parent payments become REFUNDED. Delivered customer returns still refund product net only. Online transfers do not increase rider COD balances.
 
 Admin reports now additionally return `transfersReceivedMinor` (gross verified bank/wallet transfers) and `platformCollectedMinor` (gross verified transfers plus COD remittances). Refund and payout totals remain separate; gross receipts are not the available bank balance.
+
+### Vendor order contact and delivery details
+
+For authorized vendor-order responses from `GET /api/v1/orders` and `GET /api/v1/orders/:id`, `order.customer` contains only `firstName`, `lastName`, `email`, and `phone`; `rider` contains the assigned rider's `firstName`, `lastName`, and `phone`, or null. `order.payment` contains only `status`, or null for COD. Vendor access remains restricted to that vendor's own child orders.
+
+`order.address` is the checkout snapshot: recipient name/phone, kind, apartment, building, street, zone, city, directions and optional latitude/longitude. Customer account contact information is current; the delivery recipient may differ. Item snapshots include productId, name, image, quantity, and unitPriceMinor. Child-order totals include subtotalMinor, discountMinor, deliveryMinor, totalMinor, commissionMinor and payableMinor. Monetary fields are in minor currency units. Events contain status, createdAt and optional note; deliveryWindow, deliveredAt and failureReason describe delivery scheduling and progress where available. Passwords and delivery PIN hashes are not returned.

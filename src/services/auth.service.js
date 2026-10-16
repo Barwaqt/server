@@ -5,6 +5,10 @@ import { env } from "../config/env.js";
 import { findIdentity, publicUser } from "../models/user.model.js";
 import { hashToken, token } from "../utils/security.js";
 import { assert } from "../utils/error.js";
+import {
+  issueVerification,
+  verificationRequired,
+} from "./verification.service.js";
 const dummy = await bcrypt.hash(
   "constant-dummy-password-to-balance-login-time",
   12,
@@ -46,7 +50,32 @@ export async function register(input) {
       role: "CUSTOMER",
     },
   });
-  return sessionFor(user);
+  // Without a configured mail server nobody could ever verify, so the account is
+  // activated straight away instead of locking the customer out of their own signup.
+  if (!verificationRequired()) {
+    await db.user.update({
+      where: { id: user.id },
+      data: { emailVerifiedAt: new Date() },
+    });
+    return {
+      message: "Account created. You can sign in now.",
+      email: user.email,
+      verificationSent: false,
+    };
+  }
+  try {
+    await issueVerification(user);
+  } catch (error) {
+    // No link means no account: remove it so the customer can simply try again.
+    await db.user.delete({ where: { id: user.id } });
+    throw error;
+  }
+  return {
+    message:
+      "Account created. Check your inbox and verify your email to sign in.",
+    email: user.email,
+    verificationSent: true,
+  };
 }
 export async function login(input) {
   const user = await findIdentity(input.identity);
@@ -55,6 +84,11 @@ export async function login(input) {
     user?.passwordHash || dummy,
   );
   assert(valid && user?.active, 401, "Invalid credentials");
+  assert(
+    user.emailVerifiedAt,
+    403,
+    "Verify your email address before signing in. Request a new verification link if it expired.",
+  );
   return sessionFor(user);
 }
 export async function refresh(value) {

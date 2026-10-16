@@ -20,6 +20,7 @@ const schema = z.object({
   SMTP_USER: z.string().default(""),
   SMTP_PASS: z.string().default(""),
   SMTP_FROM: z.string().default(""),
+  EMAIL_LOGO_URL: z.string().default(""),
   WEB_URL: z.url().default("http://localhost:3000"),
   VENDOR_WEB_URL: z.url().default("http://localhost:3001"),
   NODE_ENV: z
@@ -31,6 +32,7 @@ const schema = z.object({
   CORS_ORIGINS: z
     .string()
     .default("http://localhost:3000,http://localhost:3001"),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100000).default(30),
   ACCESS_TOKEN_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
   REFRESH_TOKEN_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   DELIVERY_FEE_MINOR: z.coerce

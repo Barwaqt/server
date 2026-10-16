@@ -24,6 +24,10 @@ export const forgotPassword = z
 export const resetPassword = z
   .object({ token: z.string().min(32).max(200), newPassword: password })
   .strict();
+export const verifyEmail = z
+  .object({ token: z.string().min(32).max(200) })
+  .strict();
+export const resendVerification = z.object({ email }).strict();
 export const social = z
   .object({
     provider: z.enum(["google", "apple"]),

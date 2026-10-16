@@ -8,7 +8,16 @@ export async function createVendor(actor, input) {
   const passwordHash = await bcrypt.hash(password, 12);
   return transaction(async (tx) => {
     const owner = await tx.user.create({
-      data: { email, passwordHash, phone, firstName, lastName, role: "VENDOR" },
+      data: {
+        email,
+        passwordHash,
+        phone,
+        firstName,
+        lastName,
+        role: "VENDOR",
+        // Provisioned by an administrator, so the account can sign in immediately.
+        emailVerifiedAt: new Date(),
+      },
     });
     const result = await tx.vendor.create({
       data: { ...vendor, ownerId: owner.id },
@@ -28,7 +37,12 @@ export async function createStaff(actor, input) {
   const passwordHash = await bcrypt.hash(password, 12);
   return transaction(async (tx) => {
     const user = await tx.user.create({
-      data: { ...rest, passwordHash },
+      data: {
+        ...rest,
+        passwordHash,
+        // Provisioned by an administrator, so the account can sign in immediately.
+        emailVerifiedAt: new Date(),
+      },
       select: publicUser,
     });
     await tx.auditLog.create({
@@ -161,17 +175,27 @@ export async function updateStaff(actor, id, input) {
   });
 }
 export async function updateVendor(actor, id, input) {
+  const { owner, ...fields } = input;
+  const { password, ...ownerFields } = owner || {};
+  const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
   return transaction(async (tx) => {
-    const vendor = await tx.vendor.update({ where: { id }, data: input });
-    await tx.auditLog.create({
-      data: {
-        actorId: actor.id,
-        action: "VENDOR_UPDATED",
-        entityId: id,
-        metadata: input,
-      },
-    });
-    return vendor;
+    const current = await tx.vendor.findUnique({ where: { id }, include: { owner: true } });
+    assert(current, 404, "Vendor not found");
+    if (owner) {
+      await tx.user.update({ where: { id: current.ownerId }, data: {
+        ...ownerFields, ...(passwordHash ? { passwordHash } : {}),
+      } });
+      if (passwordHash || (ownerFields.email && ownerFields.email !== current.owner.email)) {
+        await tx.session.deleteMany({ where: { userId: current.ownerId } });
+        await tx.passwordReset.deleteMany({ where: { userId: current.ownerId } });
+        await tx.emailVerification.deleteMany({ where: { userId: current.ownerId } });
+      }
+    }
+    const result = await tx.vendor.update({ where: { id }, data: fields, include: { owner: { select: publicUser } } });
+    await tx.auditLog.create({ data: { actorId: actor.id, action: "VENDOR_UPDATED", entityId: id,
+      metadata: { ...fields, ...(owner ? { owner: ownerFields, passwordChanged: !!passwordHash } : {}) },
+    } });
+    return result;
   });
 }
 export async function report() {

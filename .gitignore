@@ -9,3 +9,5 @@ Dockerfile
 .seed-vendor.local.json
 
 uploads/
+
+.email-preview/

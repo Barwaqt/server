@@ -1,3 +1,4 @@
+import { get as homepage } from "../controllers/homepage.controller.js";
 import { z } from "zod";
 import { Router } from "express";
 import * as c from "../controllers/catalog.controller.js";
@@ -13,6 +14,7 @@ catalogRouter.param("vendorId", (req, res, next, value) => {
   z.union([z.uuid(), slug]).parse(value);
   next();
 });
+catalogRouter.get("/homepage", homepage);
 catalogRouter.get("/categories", c.categories);
 catalogRouter.get("/products", validate(page, "query"), c.products);
 catalogRouter.get("/products/:id", c.product);

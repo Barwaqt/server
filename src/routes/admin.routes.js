@@ -1,3 +1,5 @@
+import * as homepage from "../controllers/homepage.controller.js";
+import { publishHomepage } from "../validators/homepage.validator.js";
 import * as m from "../controllers/management.controller.js";
 import {
   category,
@@ -13,35 +15,24 @@ import { validate } from "../middlewares/validate.middleware.js";
 import { vendor, staff, coupon } from "../validators/commerce.validator.js";
 import {
   vendorQuery,
+  vendorUpdate,
   productQuery,
   staffQuery,
   productUpdate,
   staffUpdate,
 } from "../validators/admin.validator.js";
-import { text } from "../validators/common.validator.js";
 export const adminRouter = Router();
 adminRouter.param("id", (req, res, next, value) => {
   z.uuid().parse(value);
   next();
 });
 adminRouter.use(authenticate, roles("ADMIN"));
+adminRouter.get("/homepage", homepage.get);
+adminRouter.put("/homepage", validate(publishHomepage), homepage.publish);
 adminRouter.post("/vendors", validate(vendor), c.createVendor);
 adminRouter.get("/vendors", validate(vendorQuery, "query"), c.vendors);
 adminRouter.get("/vendors/:id", c.vendor);
-adminRouter.patch(
-  "/vendors/:id",
-  validate(
-    z
-      .object({
-        status: z.enum(["APPROVED", "SUSPENDED"]).optional(),
-        commissionBps: z.number().int().min(0).max(10000).optional(),
-        city: text.optional(),
-        zone: text.optional(),
-      })
-      .strict(),
-  ),
-  c.updateVendor,
-);
+adminRouter.patch("/vendors/:id", validate(vendorUpdate), c.updateVendor);
 adminRouter.get("/products", validate(productQuery, "query"), c.products);
 adminRouter.patch("/products/:id", validate(productUpdate), c.updateProduct);
 adminRouter.get("/staff", validate(staffQuery, "query"), c.staff);

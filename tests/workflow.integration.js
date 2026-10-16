@@ -32,17 +32,23 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
         passwordHash: await bcrypt.hash(password, 12),
         role: "ADMIN",
         firstName: "Admin",
+        emailVerifiedAt: new Date(),
       },
     }),
     at = (await login(admin.email)).accessToken;
-  const customer = await ok(
+  const customerEmail = `customer-${suffix}@test.local`,
+    signup = await ok(
       call("post", "/auth/register", null, {
-        email: `customer-${suffix}@test.local`,
+        email: customerEmail,
         password,
         firstName: "Customer",
       }),
     ),
+    // Without a configured mail server signup activates the account immediately, so the
+    // customer signs in with the credentials they registered instead of getting a session.
+    customer = await login(customerEmail),
     ct = customer.accessToken;
+  assert.equal(signup.verificationSent, false);
   assert.equal((await call("post", "/admin/staff", ct, {})).status, 403);
   assert.equal(
     (
@@ -371,13 +377,15 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
     ),
     racers = [];
   for (let i = 0; i < 2; i++) {
-    const c = await ok(
+    const raceEmail = `race-${i}-${suffix}@test.local`;
+    await ok(
       call("post", "/auth/register", null, {
-        email: `race-${i}-${suffix}@test.local`,
+        email: raceEmail,
         password,
         firstName: "Customer",
       }),
     );
+    const c = await login(raceEmail);
     const a = await ok(
       call("post", "/customer/addresses", c.accessToken, addressBody),
     );

@@ -8,6 +8,7 @@ export const publicUser = {
   lastName: true,
   profile: true,
   active: true,
+  emailVerifiedAt: true,
   createdAt: true,
 };
 export const findIdentity = (identity) =>
