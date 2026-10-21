@@ -805,13 +805,19 @@ Own settlements only, newest first, max 100; no pagination query.
   "city": "Lahore",
   "zone": "Gulberg",
   "address": "Main Boulevard",
-  "commissionBps": 1000
+  "categoryId": "<category-uuid>",
+  "bankDetails": {
+    "method": "BANK_TRANSFER",
+    "accountTitle": "Vendor Business",
+    "accountNumber": "00123456789",
+    "bankName": "Example Bank"
+  }
 }
 ```
 
 **Success:** 201; `data: Vendor` (not a session).
 
-Required: email, password, phone, firstName, name, slug, businessType, city, zone, address. Optional: lastName text, description max 5,000, commissionBps integer 0–10,000 (default 1000). Creates owner role VENDOR and vendor status APPROVED. Owner signs in using assigned credentials. No public vendor registration.
+Required: email, password, phone, firstName, name, slug, businessType, city, zone, address, categoryId (existing category UUID), and bankDetails. Optional: lastName text and description max 5,000. Commission is derived server-side from the selected category; a commissionBps override is rejected. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. Owner signs in using assigned credentials. No public vendor registration.
 
 ### GET /api/v1/admin/vendors
 
@@ -839,7 +845,7 @@ id is vendor UUID. Unlike the public `/catalog/vendors/:id`, this returns suspen
 
 **Access:** ADMIN.
 
-All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset/verification tokens. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Commission is an integer from 0 to 10,000 basis points. Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters.
+All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset/verification tokens. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Optional categoryId assigns a category and adopts its commission. Optional bankDetails replaces the payout account using the creation rules. Categorized vendors cannot override commissionBps; change the rate under Categories. Legacy vendors without an assigned category retain their rate until assigned, and can still use commissionBps (integer 0–10,000). Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters.
 
 **Example JSON body:**
 
@@ -853,7 +859,7 @@ All fields are optional; provide at least one. Owner fields are nested under `ow
   "zone": "Gulberg",
   "address": "Main Boulevard",
   "status": "APPROVED",
-  "commissionBps": 1000,
+  "categoryId": "<category-uuid>",
   "owner": {
     "firstName": "Sara",
     "lastName": "Ahmed",
@@ -960,7 +966,7 @@ id is product UUID; the product may belong to any vendor. Same fields/rules as t
 
 **Success:** 201; `data: Category`.
 
-Both required: name text, slug. Slug unique. See Operations additions for image, hierarchy, collection membership and update/delete routes.
+Both required: name text, slug. Slug unique. Optional commissionBps is an integer from 0 to 10,000 (1000 = 10%), defaulting to 1000. Each category has its own rate, editable through PATCH /admin/categories/:id. A rate change synchronizes linked vendors atomically and affects future checkouts only; existing order commission amounts are unchanged. Categories assigned to vendors cannot be deleted. See Operations additions for image, hierarchy, collection membership and update/delete routes.
 
 ### POST /api/v1/admin/coupons
 
@@ -1140,8 +1146,8 @@ These are scalar response fields, not additional writable fields. Relations appe
 
 | Record | Scalar fields |
 |---|---|
-| Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `commissionBps: Int`, `bankDetails: Json`, `createdAt: DateTime` |
-| Category | `id: String`, `name: String`, `slug: String` |
+| Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `categoryId: String?`, `commissionBps: Int`, `bankDetails: Json`, `createdAt: DateTime` |
+| Category | `id: String`, `name: String`, `slug: String`, `commissionBps: Int` |
 | Product | `id: String`, `vendorId: String`, `categoryId: String`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `images: String[]`, `attributes: Json`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | Address | `id: String`, `userId: String`, `kind: String`, `firstName: String`, `lastName: String`, `phone: String`, `city: String`, `zone: String`, `street: String`, `building: String`, `apartment: String`, `directions: String`, `latitude: Float?`, `longitude: Float?`, `createdAt: DateTime` |
 | CartItem | `userId: String`, `productId: String`, `quantity: Int` |
@@ -1498,3 +1504,13 @@ Admin reports now additionally return `transfersReceivedMinor` (gross verified b
 For authorized vendor-order responses from `GET /api/v1/orders` and `GET /api/v1/orders/:id`, `order.customer` contains only `firstName`, `lastName`, `email`, and `phone`; `rider` contains the assigned rider's `firstName`, `lastName`, and `phone`, or null. `order.payment` contains only `status`, or null for COD. Vendor access remains restricted to that vendor's own child orders.
 
 `order.address` is the checkout snapshot: recipient name/phone, kind, apartment, building, street, zone, city, directions and optional latitude/longitude. Customer account contact information is current; the delivery recipient may differ. Item snapshots include productId, name, image, quantity, and unitPriceMinor. Child-order totals include subtotalMinor, discountMinor, deliveryMinor, totalMinor, commissionMinor and payableMinor. Monetary fields are in minor currency units. Events contain status, createdAt and optional note; deliveryWindow, deliveredAt and failureReason describe delivery scheduling and progress where available. Passwords and delivery PIN hashes are not returned.
+
+Settlement creation, processing and paid transitions create in-app notifications for the vendor owner. Settlement amount is fixed when created; later refunds may change linked order payable values and create deductions for a future settlement. UI breakdowns distinguish current order values from the fixed settlement amount. Recording PAID requires an external payment reference and does not initiate a bank or wallet transfer.
+
+### GET /api/v1/finance/settlement-preview?vendorId=<vendor UUID>
+
+ADMIN or FINANCE. No body. Returns `data: {eligibleCount, awaitingPaymentCount, heldForReturnCount, adjustmentsMinor, amountMinor}` for unbatched delivered orders. Return and payment blocker counts can overlap. Amount is eligible order payable plus unbatched adjustments and may be non-positive. Preview is advisory; settlement creation rechecks eligibility transactionally.
+
+### GET /api/v1/finance/rider-balances
+
+ADMIN or FINANCE. No body. Returns `data: [{id, firstName, lastName, collectedMinor, receivedMinor, outstandingMinor}]`. Amounts are minor PKR units; outstanding is collected COD minus recorded remittances, across all vendors. Recording a partial remittance does not unlock individual orders: existing reconciliation rules unlock delivered orders once the rider’s outstanding balance is fully received. A delivery is not proof of platform receipt; administrators must record only money actually received.

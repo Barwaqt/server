@@ -2906,7 +2906,7 @@
             "description": "**Access:** ADMIN.\n\n**Example JSON body:**\n\n```json\n{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"VendorPass123!\",\n  \"phone\": \"+923001234568\",\n  \"firstName\": \"Sara\",\n  \"lastName\": \"Ahmed\",\n  \"name\": \"Gulberg Market\",\n  \"slug\": \"gulberg-market\",\n  \"businessType\": \"Grocery\",\n  \"description\": \"Local groceries\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"address\": \"Main Boulevard\",\n  \"commissionBps\": 1000\n}\n```\n\n**Success:** 201; `data: Vendor` (not a session).\n\nRequired: email, password, phone, firstName, name, slug, businessType, city, zone, address. Optional: lastName text, description max 5,000, commissionBps integer 0\u201310,000 (default 1000). Creates owner role VENDOR and vendor status APPROVED. Owner signs in using assigned credentials. No public vendor registration.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"VendorPass123!\",\n  \"phone\": \"+923001234568\",\n  \"firstName\": \"Sara\",\n  \"lastName\": \"Ahmed\",\n  \"name\": \"Gulberg Market\",\n  \"slug\": \"gulberg-market\",\n  \"businessType\": \"Grocery\",\n  \"description\": \"Local groceries\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"address\": \"Main Boulevard\",\n  \"commissionBps\": 1000\n}",
+              "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"VendorPass123!\",\n  \"phone\": \"+923001234568\",\n  \"firstName\": \"Sara\",\n  \"lastName\": \"Ahmed\",\n  \"name\": \"Gulberg Market\",\n  \"slug\": \"gulberg-market\",\n  \"businessType\": \"Grocery\",\n  \"description\": \"Local groceries\",\n  \"city\": \"Lahore\",\n  \"zone\": \"Gulberg\",\n  \"address\": \"Main Boulevard\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"bankDetails\": {\n    \"method\": \"BANK_TRANSFER\",\n    \"accountTitle\": \"Vendor Business\",\n    \"accountNumber\": \"00123456789\",\n    \"bankName\": \"Example Bank\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4755,6 +4755,49 @@
             }
           },
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "Settlement eligibility and COD balances",
+      "item": [
+        {
+          "name": "Settlement preview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/finance/settlement-preview?vendorId={{vendorId}}",
+            "description": "ADMIN or FINANCE. No body. Preview eligible payable and payment/return blockers.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rider outstanding COD",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/finance/rider-balances",
+            "description": "ADMIN or FINANCE. No body. Lists collected, received and outstanding rider cash in minor PKR units.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
         }
       ]
     }

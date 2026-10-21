@@ -366,7 +366,7 @@ async function releaseRider(tx, riderId) {
 }
 export async function assign(actor, id, riderId) {
   return transaction(async (tx) => {
-    const order = await tx.vendorOrder.findUnique({ where: { id } });
+    const order = await tx.vendorOrder.findUnique({ where: { id }, include: { vendor: { select: { ownerId: true } } } });
     assert(order?.status === "READY", 409, "Only ready orders can be assigned");
     const rider = await tx.user.findFirst({
       where: { id: riderId, role: "RIDER", active: true },
@@ -394,6 +394,7 @@ export async function assign(actor, id, riderId) {
       "Delivery assigned",
       `Collect vendor order ${id}.`,
     );
+    await notify(tx, order.vendor.ownerId, "Rider assigned", `Order ${id}: a rider has been assigned for pickup.`);
     await tx.auditLog.create({
       data: {
         actorId: actor.id,
@@ -549,6 +550,13 @@ export async function transition(actor, id, input) {
       "Order updated",
       `Order ${id}: ${status}.`,
     );
+    if (actor.id !== order.vendor.ownerId) {
+      await notify(tx, order.vendor.ownerId, "Order updated", `Order ${id}: ${status}.`);
+    }
+    if (["DELIVERED", "FAILED", "RETURNED"].includes(status)) {
+      const admins = await tx.user.findMany({where:{role:"ADMIN",active:true},select:{id:true}});
+      if(admins.length) await tx.notification.createMany({data:admins.map(admin=>({userId:admin.id,title:"Order updated",body:`Order ${id}: ${status}.${status === "DELIVERED" && order.order.paymentMethod === "COD" ? " COD collected by rider; record cash receipt in Finance before settlement." : ""}`}))});
+    }
     await tx.auditLog.create({
       data: { actorId: actor.id, action: `ORDER_${status}`, entityId: id },
     });

@@ -1,3 +1,4 @@
+import {preview,riderBalances} from '../services/reconciliation.service.js';
 import { Router } from "express";
 import { z } from "zod";
 import * as c from "../controllers/finance.controller.js";
@@ -20,6 +21,8 @@ financeRouter.post(
   c.remittance,
 );
 financeRouter.get("/settlements", c.settlements);
+financeRouter.get("/settlement-preview", validate(z.object({vendorId:id}), "query"), async(req,res)=>res.json({data:await preview(req.input.query.vendorId)}));
+financeRouter.get("/rider-balances", async(req,res)=>res.json({data:await riderBalances()}));
 financeRouter.get("/remittances", validate(page, "query"), c.remittances);
 financeRouter.get("/refunds", validate(page, "query"), c.refunds);
 financeRouter.post(

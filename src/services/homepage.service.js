@@ -1,3 +1,4 @@
+import { heroCarousel } from "../validators/homepage.validator.js";
 import { db, transaction } from "../config/database.js";
 import { assert } from "../utils/error.js";
 export async function get() {
@@ -10,7 +11,11 @@ export async function get() {
     "Homepage content is unavailable; apply database migrations",
   );
   return {
-    content: row.content,
+    content: {
+      ...row.content,
+      heroMain: heroCarousel.parse(row.content.heroMain),
+      heroSide: heroCarousel.parse(row.content.heroSide),
+    },
     version: row.version,
     updatedAt: row.updatedAt,
   };
@@ -68,7 +73,11 @@ export async function publish(user, input) {
       where: { key: "homepage" },
     });
     return {
-      content: row.content,
+      content: {
+        ...row.content,
+        heroMain: heroCarousel.parse(row.content.heroMain),
+        heroSide: heroCarousel.parse(row.content.heroSide),
+      },
       version: row.version,
       updatedAt: row.updatedAt,
     };

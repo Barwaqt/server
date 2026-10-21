@@ -27,6 +27,8 @@ City/zone must match a customer's address to quote or buy these products. Seed s
 ## Preservation rules
 
 - Repeat runs create only missing products; never overwrite vendor price/stock/content/publishing edits, reset credentials, or delete products.
+- Every newly seeded category starts with a 10% commission (1000 basis points). The category-commission migration initializes all existing categories at 10%; repeat seed runs preserve individually edited rates.
+- Existing vendors retain their current commission until an administrator assigns their vendor category; no category or bank account is guessed for existing vendors.
 - Existing category names are preserved. Missing category image/parent metadata is filled from the source snapshot.
 - Products keep their original category collection memberships. Parent-category browsing also includes newly created vendor products assigned to descendant categories. Changing a seeded product's primary category through the vendor API clears its imported collection memberships so it does not remain in obsolete categories.
 - All original product image files exist. URLs are stored in the database; the unchanged files remain in `web/public` and missing copies are mirrored into `vendor_web/public` at the same paths. Run this seed from the full repository so those source assets exist. Deploy both apps with their public directories. No new images are generated.

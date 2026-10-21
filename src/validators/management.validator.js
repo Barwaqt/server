@@ -4,6 +4,7 @@ import { coupon } from "./commerce.validator.js";
 export const category = z
   .object({
     name: text,
+    commissionBps: z.number().int().min(0).max(10000).optional(),
     slug: z
       .string()
       .regex(/^[a-z0-9-]+$/)

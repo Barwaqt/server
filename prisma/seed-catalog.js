@@ -112,6 +112,7 @@ export async function seedCatalog() {
           where: { slug: c.slug },
           create: {
             name: c.title,
+            commissionBps: 1000,
             slug: c.slug,
             image,
             parentSlug: c.parent || null,

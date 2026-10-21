@@ -34,6 +34,10 @@ const panel = z
     ...link,
   })
   .strict();
+export const heroCarousel = z.union([
+  z.object({ enabled: z.boolean(), slides: z.array(panel).max(12) }).strict(),
+  panel.transform((value) => ({ enabled: value.enabled, slides: [value] })),
+]);
 const card = z
   .object({ title: text, description, image, alt: text, ...link })
   .strict();
@@ -63,8 +67,8 @@ const row = z
   .strict();
 export const homepageContent = z
   .object({
-    heroMain: panel,
-    heroSide: panel,
+    heroMain: heroCarousel,
+    heroSide: heroCarousel,
     topCategories: categories,
     featured: z
       .object({

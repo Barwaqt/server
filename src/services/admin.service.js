@@ -7,6 +7,10 @@ export async function createVendor(actor, input) {
   const { email, password, phone, firstName, lastName, ...vendor } = input;
   const passwordHash = await bcrypt.hash(password, 12);
   return transaction(async (tx) => {
+    const category = await tx.category.findUnique({
+      where: { id: vendor.categoryId },
+    });
+    assert(category, 422, "Select an existing vendor category");
     const owner = await tx.user.create({
       data: {
         email,
@@ -20,7 +24,12 @@ export async function createVendor(actor, input) {
       },
     });
     const result = await tx.vendor.create({
-      data: { ...vendor, ownerId: owner.id },
+      data: {
+        ...vendor,
+        commissionBps: category.commissionBps,
+        ownerId: owner.id,
+      },
+      include: { category: true },
     });
     await tx.auditLog.create({
       data: {
@@ -61,14 +70,14 @@ export const vendors = (q) =>
       ...(q.city ? { city: { equals: q.city, mode: "insensitive" } } : {}),
       ...(q.zone ? { zone: { equals: q.zone, mode: "insensitive" } } : {}),
     },
-    include: { owner: { select: publicUser } },
+    include: { owner: { select: publicUser }, category: true },
     ...pagination(q),
     orderBy: { createdAt: "desc" },
   });
 export async function vendor(id) {
   const result = await db.vendor.findUnique({
     where: { id },
-    include: { owner: { select: publicUser } },
+    include: { owner: { select: publicUser }, category: true },
   });
   assert(result, 404, "Vendor not found");
   return result;
@@ -179,22 +188,66 @@ export async function updateVendor(actor, id, input) {
   const { password, ...ownerFields } = owner || {};
   const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
   return transaction(async (tx) => {
-    const current = await tx.vendor.findUnique({ where: { id }, include: { owner: true } });
+    const current = await tx.vendor.findUnique({
+      where: { id },
+      include: { owner: true },
+    });
     assert(current, 404, "Vendor not found");
+    const categoryId = fields.categoryId ?? current.categoryId;
+    if (categoryId) {
+      const category = await tx.category.findUnique({
+        where: { id: categoryId },
+      });
+      assert(category, 422, "Select an existing vendor category");
+      assert(
+        fields.commissionBps === undefined ||
+          fields.commissionBps === category.commissionBps,
+        422,
+        "Change the commission in Categories; this vendor uses its category rate",
+      );
+      fields.commissionBps = category.commissionBps;
+    }
     if (owner) {
-      await tx.user.update({ where: { id: current.ownerId }, data: {
-        ...ownerFields, ...(passwordHash ? { passwordHash } : {}),
-      } });
-      if (passwordHash || (ownerFields.email && ownerFields.email !== current.owner.email)) {
+      await tx.user.update({
+        where: { id: current.ownerId },
+        data: {
+          ...ownerFields,
+          ...(passwordHash ? { passwordHash } : {}),
+        },
+      });
+      if (
+        passwordHash ||
+        (ownerFields.email && ownerFields.email !== current.owner.email)
+      ) {
         await tx.session.deleteMany({ where: { userId: current.ownerId } });
-        await tx.passwordReset.deleteMany({ where: { userId: current.ownerId } });
-        await tx.emailVerification.deleteMany({ where: { userId: current.ownerId } });
+        await tx.passwordReset.deleteMany({
+          where: { userId: current.ownerId },
+        });
+        await tx.emailVerification.deleteMany({
+          where: { userId: current.ownerId },
+        });
       }
     }
-    const result = await tx.vendor.update({ where: { id }, data: fields, include: { owner: { select: publicUser } } });
-    await tx.auditLog.create({ data: { actorId: actor.id, action: "VENDOR_UPDATED", entityId: id,
-      metadata: { ...fields, ...(owner ? { owner: ownerFields, passwordChanged: !!passwordHash } : {}) },
-    } });
+    const result = await tx.vendor.update({
+      where: { id },
+      data: fields,
+      include: { owner: { select: publicUser }, category: true },
+    });
+    const { bankDetails, ...auditFields } = fields;
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "VENDOR_UPDATED",
+        entityId: id,
+        metadata: {
+          ...auditFields,
+          ...(bankDetails ? { bankDetailsChanged: true } : {}),
+          ...(owner
+            ? { owner: ownerFields, passwordChanged: !!passwordHash }
+            : {}),
+        },
+      },
+    });
     return result;
   });
 }

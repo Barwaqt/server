@@ -23,7 +23,7 @@ Register/login return `{accessToken,refreshToken,expiresIn,user}`. Passwords req
 |---|---|---|
 | POST | /admin/vendors | Creates VENDOR user and approved vendor atomically |
 | GET | /admin/vendors | Paginated vendor/owner list |
-| PATCH | /admin/vendors/:id | `{status?:"APPROVED"|"SUSPENDED",commissionBps?:1000}` |
+| PATCH | /admin/vendors/:id | `{status?:"APPROVED"|"SUSPENDED",categoryId?:"uuid",bankDetails?:{...}}` |
 | POST | /admin/staff | `{email,password,firstName,lastName?,phone?,role:"RIDER"|"DISPATCHER"|"FINANCE"}` |
 | POST | /admin/categories | `{name,slug}` |
 | POST | /admin/coupons | `{code,percentBps,maxDiscountMinor,minSubtotalMinor?,maxUses,expiresAt}` |
@@ -46,11 +46,17 @@ All these routes require ADMIN. Vendor creation example:
   "city": "Mardan",
   "zone": "Central",
   "address": "Main Market Road",
-  "commissionBps": 1000
+  "categoryId": "<category-uuid>",
+  "bankDetails": {
+    "method": "BANK_TRANSFER",
+    "accountTitle": "Vendor Business",
+    "accountNumber": "00123456789",
+    "bankName": "Example Bank"
+  }
 }
 ```
 
-1000 basis points = 10%. Vendor suspension removes products from public browsing/checkout and blocks management actions. Existing order history remains readable.
+Every category defaults to 1000 basis points (10%). New vendors require a category and payout account; their commission comes from the selected category. Editing the category commission updates linked vendors for future orders without changing existing order amounts. Payout methods are BANK_TRANSFER, EASYPAISA and JAZZCASH; bankName is required for bank transfers. Vendor suspension removes products from public browsing/checkout and blocks management actions. Existing order history remains readable.
 
 ## Catalog and vendor product management
 

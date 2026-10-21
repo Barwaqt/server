@@ -27,7 +27,7 @@ try {
   ])
     await db.category.upsert({
       where: { slug },
-      create: { name, slug },
+      create: { name, slug, commissionBps: 1000 },
       update: {},
     });
   console.log(

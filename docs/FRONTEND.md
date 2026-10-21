@@ -60,3 +60,10 @@ The authentication proxy also preserves HTTP 429 responses with an actionable me
 The customer storefront uses the original homepage, navigation, category, product, wishlist, checkout and account layouts. `CatalogProvider` adapts API catalog data to those existing components; prices, availability, vendor ownership, cart and wishlist remain server-backed. Original product and category assets are retained. The vendor portal keeps its original sidebar, header, dashboard columns, chart and order table with database metrics and API-backed editors.
 
 Checkout address forms persist to the customer account. Quotes and order placement use the same optional `productIds` selection, so unchecked cart items remain. Only COD is currently enabled; online payment options remain visibly unavailable until backend payment integrations are configured.
+
+
+## Homepage hero carousels
+
+`heroMain` and `heroSide` accept `{ enabled, slides }`. Each ordered `slides` array supports up to 12 panels with `enabled`, `eyebrow`, `title`, `highlight`, `description`, `image`, `alt`, `linkLabel`, and `href`. Disabled slides are omitted from the storefront; an empty array hides that panel. Existing single-panel content is normalized to a one-slide carousel on read and publish, so no database migration is required. The upgrade banner remains a single panel.
+
+In admin, choose either hero section, upload multiple images as new slides or use **Add item**, edit their copy and links, reorder them, then **Publish homepage**. Each hero navigates independently using arrows, dots, keyboard arrows, or touch swipes. A single slide has no navigation controls. Existing homepage version checks and refresh behavior still apply.

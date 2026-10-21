@@ -83,7 +83,12 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
         city: "Mardan",
         zone: "Central",
         address: "Market Road",
-        commissionBps: 1000,
+        categoryId: category.id,
+        bankDetails: {
+          method: "EASYPAISA",
+          accountTitle: "Test vendor",
+          accountNumber: "03001234567",
+        },
       }),
     );
     v.token = (await login(email)).accessToken;

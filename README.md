@@ -28,6 +28,8 @@ API: `http://localhost:4000/api/v1`. Health: `/health`; database readiness: `/re
 
 ## Architecture
 
+See the [backend architecture diagrams](docs/ARCHITECTURE.md) for application layers, integrations, route responsibilities, and the order/payment flow.
+
 - `prisma/schema.prisma`: relational models and enums (the Prisma equivalent of ORM model definitions).
 - `prisma/migrations`: versioned SQL migrations, including stock/amount constraints and one-open-shift uniqueness.
 - `src/models`: reusable persistence projections and queries.

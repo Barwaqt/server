@@ -88,14 +88,19 @@ model Vendor {
  zone String
  address String
  status VendorStatus @default(APPROVED)
+ categoryId String?
+ category Category? @relation(fields:[categoryId],references:[id],onDelete:Restrict)
  commissionBps Int @default(1000)
  bankDetails Json @default("{}")
  createdAt DateTime @default(now())
  products Product[]
  orders VendorOrder[]
  settlements Settlement[]
+ @@index([categoryId])
 }
 model Category {
+ commissionBps Int @default(1000)
+ vendors Vendor[]
  image String?
  parentSlug String?
  catalogProducts Product[] @relation("CatalogCategories")

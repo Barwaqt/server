@@ -80,6 +80,11 @@ export async function saveCategory(user, id, input) {
               : {}),
           },
         });
+    if (current && current.commissionBps !== row.commissionBps)
+      await tx.vendor.updateMany({
+        where: { categoryId: row.id },
+        data: { commissionBps: row.commissionBps },
+      });
     if (current && current.slug !== row.slug)
       await tx.category.updateMany({
         where: { parentSlug: current.slug },
@@ -101,9 +106,10 @@ export async function deleteCategory(user, id) {
     assert(
       !c._count.products &&
         !c._count.catalogProducts &&
+        !(await tx.vendor.count({ where: { categoryId: id } })) &&
         !(await tx.category.count({ where: { parentSlug: c.slug } })),
       409,
-      "Reassign products, remove collection memberships and move child categories before deleting",
+      "Reassign vendors and products, remove collection memberships and move child categories before deleting",
     );
     await tx.category.delete({ where: { id } });
     await audit(tx, user, "CATEGORY_DELETED", id);

@@ -1,3 +1,4 @@
+import { vendorPayout } from "./vendor-payout.validator.js";
 import { z } from "zod";
 import { text, minor, id, phone, email, password } from "./common.validator.js";
 export const address = z
@@ -57,7 +58,8 @@ export const vendor = z
     city: text,
     zone: text,
     address: text,
-    commissionBps: z.number().int().min(0).max(10000).default(1000),
+    categoryId: id,
+    bankDetails: vendorPayout,
   })
   .strict();
 export const staff = z
