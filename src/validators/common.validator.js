@@ -5,6 +5,8 @@ export const password = z.string().min(12).max(72);
 export const email = z.email().toLowerCase();
 export const minor = z.number().int().min(0).max(100000000);
 export const id = z.uuid();
+// Orders and vendor shipments use short customer-facing numbers.
+export const orderId = z.string().regex(/^barwaqt-\d{6}$/, "Invalid order ID");
 export const page = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

@@ -608,7 +608,7 @@ Customer sees own parent orders with children/items/events. Vendor sees own chil
 
 **Success:** 200; `data: Order` for CUSTOMER; `data: VendorOrder` for other roles, with relations as in the list.
 
-CUSTOMER supplies parent Order.id. All other roles supply child VendorOrder.id. Ownership restrictions match the list. Parent orders do not have a single status: inspect vendorOrders[].status.
+CUSTOMER supplies parent Order.id. All other roles supply child VendorOrder.id. Order and vendor-order IDs are customer-facing numbers (`barwaqt-` plus six digits, e.g. `barwaqt-482913`), unique across both tables; they are not UUIDs. Ownership restrictions match the list. Parent orders do not have a single status: inspect vendorOrders[].status.
 
 ### POST /api/v1/orders/:id/actions
 
@@ -630,7 +630,7 @@ Always supply child VendorOrder.id, including customer cancellation. Required ac
 
 ### Order action payloads and transitions
 
-Every row uses `POST /api/v1/orders/:id/actions` with the child order UUID.
+Every row uses `POST /api/v1/orders/:id/actions` with the child order number (`barwaqt-######`).
 
 | Action | Allowed actor | Required current status | Next status | JSON payload |
 |---|---|---|---|---|
@@ -670,7 +670,7 @@ id is child UUID. Order must be READY. riderId required UUID for active RIDER on
 
 **Success:** 200; `data: {message: "New PIN sent to customer notifications"}`.
 
-id is child UUID. Cannot reset DELIVERED/CANCELLED/RETURNED orders. Resets attempts and sends a new customer notification; does not return the PIN.
+id is the child order number (`barwaqt-######`). Cannot reset DELIVERED/CANCELLED/RETURNED orders. Resets attempts and sends a new customer notification; does not return the PIN.
 
 ### PATCH /api/v1/orders/:id/location
 
@@ -1153,8 +1153,8 @@ These are scalar response fields, not additional writable fields. Relations appe
 | CartItem | `userId: String`, `productId: String`, `quantity: Int` |
 | WishlistItem | `userId: String`, `productId: String` |
 | Coupon | `id: String`, `code: String`, `percentBps: Int`, `maxDiscountMinor: Int`, `minSubtotalMinor: Int`, `maxUses: Int`, `used: Int`, `active: Boolean`, `expiresAt: DateTime` |
-| Order | `id: String`, `customerId: String`, `idempotencyKey: String`, `requestHash: String`, `address: Json`, `currency: String`, `paymentMethod: String`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `couponId: String?`, `createdAt: DateTime` |
-| VendorOrder | `id: String`, `orderId: String`, `vendorId: String`, `status: OrderStatus`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `commissionMinor: Int`, `payableMinor: Int`, `riderId: String?`, `codCollectedMinor: Int`, `cashReceived: Boolean`, `deliveredAt: DateTime?`, `failureReason: String?`, `latitude: Float?`, `longitude: Float?`, `locationAt: DateTime?`, `settlementId: String?`, `createdAt: DateTime`, `updatedAt: DateTime` |
+| Order | `id: String (barwaqt-######)`, `customerId: String`, `idempotencyKey: String`, `requestHash: String`, `address: Json`, `currency: String`, `paymentMethod: String`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `couponId: String?`, `createdAt: DateTime` |
+| VendorOrder | `id: String (barwaqt-######)`, `orderId: String (barwaqt-######)`, `vendorId: String`, `status: OrderStatus`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `commissionMinor: Int`, `payableMinor: Int`, `riderId: String?`, `codCollectedMinor: Int`, `cashReceived: Boolean`, `deliveredAt: DateTime?`, `failureReason: String?`, `latitude: Float?`, `longitude: Float?`, `locationAt: DateTime?`, `settlementId: String?`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | OrderItem | `id: String`, `vendorOrderId: String`, `productId: String`, `name: String`, `unitPriceMinor: Int`, `quantity: Int`, `image: String?` |
 | OrderEvent | `id: String`, `vendorOrderId: String`, `actorId: String`, `status: OrderStatus`, `note: String?`, `createdAt: DateTime` |
 | Shift | `id: String`, `riderId: String`, `status: ShiftStatus`, `startedAt: DateTime`, `endedAt: DateTime?`, `breakStartedAt: DateTime?`, `breakSeconds: Int` |
@@ -1172,7 +1172,7 @@ PublicUser contains only `id, email, phone, role, firstName, lastName, profile, 
 1. ADMIN logs in, creates category and vendor, and creates RIDER/DISPATCHER/FINANCE accounts as required. Keep each returned resource ID.
 2. VENDOR logs in and creates products with the category UUID and integer prices.
 3. CUSTOMER registers/logs in, browses catalog, creates an address matching vendor city/zone, and sets cart quantities with product UUIDs.
-4. CUSTOMER posts checkout with addressId and a fresh Idempotency-Key. Save parent `data.id` and each `data.vendorOrders[].id` separately. Retry network failures with the same key and payload.
+4. CUSTOMER posts checkout with addressId and a fresh Idempotency-Key. Save parent `data.id` and each `data.vendorOrders[].id` separately (both are `barwaqt-######` numbers). Retry network failures with the same key and payload.
 5. VENDOR reads `/orders`, accepts each child, then marks it ready. RIDER starts a shift. ADMIN/DISPATCHER assigns an available rider to a ready child.
 6. RIDER marks pickup, updates location as needed, then delivers using the PIN shown in the CUSTOMER’s notifications and exact child totalMinor. For failed deliveries, dispatch retries or returns the child.
 7. FINANCE records COD remittance. Refunds after settlement are carried into future payouts as negative adjustments. Process the settlement, then mark it paid with the actual payment reference. Rider can end the shift after active deliveries and outstanding COD are cleared.

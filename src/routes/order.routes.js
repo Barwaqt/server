@@ -3,11 +3,11 @@ import { z } from "zod";
 import * as c from "../controllers/order.controller.js";
 import { authenticate, roles } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
-import { page } from "../validators/common.validator.js";
+import { page, orderId } from "../validators/common.validator.js";
 import { checkout, action, assign } from "../validators/commerce.validator.js";
 export const orderRouter = Router();
 orderRouter.param("id", (req, res, next, value) => {
-  z.uuid().parse(value);
+  orderId.parse(value);
   next();
 });
 orderRouter.use(authenticate);

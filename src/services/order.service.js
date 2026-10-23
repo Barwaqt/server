@@ -8,6 +8,7 @@ import { assert, ApiError } from "../utils/error.js";
 import { hashToken } from "../utils/security.js";
 import { allocate, percentage } from "../utils/money.js";
 import { orderInclude, sanitizeOrder } from "../models/order.model.js";
+import { allocateOrderNumber } from "../utils/order-number.js";
 import { pagination } from "../validators/common.validator.js";
 const ended = ["DELIVERED", "CANCELLED", "RETURNED"];
 async function notify(tx, userId, title, body) {
@@ -161,114 +162,134 @@ export async function checkout(user, input, key) {
     "Card processing is not configured",
   );
   const requestHash = hashToken(JSON.stringify(input));
-  return transaction(async (tx) => {
-    const previous = await tx.order.findUnique({
-      where: {
-        customerId_idempotencyKey: { customerId: user.id, idempotencyKey: key },
-      },
-      include: orderInclude,
-    });
-    if (previous) {
-      assert(
-        previous.requestHash === requestHash,
-        409,
-        "Idempotency key was used with a different request",
-      );
-      return sanitizeOrder(previous);
-    }
-    const {
-      deliverySlot,
-      address,
-      groups,
-      subtotals,
-      subtotal,
-      discount,
-      coupon,
-      discounts,
-      fees,
-    } = await prepareCheckout(tx, user, input, true);
-    const { userId, ...snapshot } = address;
-    const parent = await tx.order.create({
-      data: {
-        customerId: user.id,
-        paymentMethod: input.paymentMethod,
-        idempotencyKey: key,
-        requestHash,
-        address: snapshot,
-        deliverySlotId: deliverySlot?.id,
-        deliveryWindow: deliverySlot
-          ? {
-              startsAt: deliverySlot.startsAt.toISOString(),
-              endsAt: deliverySlot.endsAt.toISOString(),
-              city: deliverySlot.city,
-              zone: deliverySlot.zone,
-            }
-          : undefined,
-        subtotalMinor: subtotal,
-        discountMinor: discount,
-        deliveryMinor: env.DELIVERY_FEE_MINOR,
-        totalMinor: subtotal - discount + env.DELIVERY_FEE_MINOR,
-        couponId: coupon?.id,
-      },
-    });
-    await createPayment(tx, parent, input.paymentMethod);
-    for (let i = 0; i < groups.length; i++) {
-      const items = groups[i];
-      const vendor = items[0].product.vendor;
-      const net = subtotals[i] - discounts[i];
-      const commission = percentage(net, vendor.commissionBps);
-      const pin = String(randomInt(100000, 1000000));
-      const child = await tx.vendorOrder.create({
-        data: {
-          orderId: parent.id,
-          vendorId: vendor.id,
-          subtotalMinor: subtotals[i],
-          discountMinor: discounts[i],
-          deliveryMinor: fees[i],
-          totalMinor: net + fees[i],
-          commissionMinor: commission,
-          payableMinor: net - commission,
-          pinHash: await bcrypt.hash(pin, 8),
-          items: {
-            create: items.map((item) => ({
-              productId: item.productId,
-              name: item.product.name,
-              unitPriceMinor: item.product.priceMinor,
-              quantity: item.quantity,
-              image: item.product.images[0],
-            })),
+  // A six-digit ID can collide under load; the unique constraint rolls the
+  // transaction back, so retry with fresh numbers.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await transaction(async (tx) => {
+        const previous = await tx.order.findUnique({
+          where: {
+            customerId_idempotencyKey: {
+              customerId: user.id,
+              idempotencyKey: key,
+            },
           },
-          events: { create: { actorId: user.id, status: "NEW" } },
-        },
+          include: orderInclude,
+        });
+        if (previous) {
+          assert(
+            previous.requestHash === requestHash,
+            409,
+            "Idempotency key was used with a different request",
+          );
+          return sanitizeOrder(previous);
+        }
+        const {
+          deliverySlot,
+          address,
+          groups,
+          subtotals,
+          subtotal,
+          discount,
+          coupon,
+          discounts,
+          fees,
+        } = await prepareCheckout(tx, user, input, true);
+        const { userId, ...snapshot } = address;
+        const reserved = new Set();
+        const parent = await tx.order.create({
+          data: {
+            id: await allocateOrderNumber(tx, reserved),
+            customerId: user.id,
+            paymentMethod: input.paymentMethod,
+            idempotencyKey: key,
+            requestHash,
+            address: snapshot,
+            deliverySlotId: deliverySlot?.id,
+            deliveryWindow: deliverySlot
+              ? {
+                  startsAt: deliverySlot.startsAt.toISOString(),
+                  endsAt: deliverySlot.endsAt.toISOString(),
+                  city: deliverySlot.city,
+                  zone: deliverySlot.zone,
+                }
+              : undefined,
+            subtotalMinor: subtotal,
+            discountMinor: discount,
+            deliveryMinor: env.DELIVERY_FEE_MINOR,
+            totalMinor: subtotal - discount + env.DELIVERY_FEE_MINOR,
+            couponId: coupon?.id,
+          },
+        });
+        await createPayment(tx, parent, input.paymentMethod);
+        for (let i = 0; i < groups.length; i++) {
+          const items = groups[i];
+          const vendor = items[0].product.vendor;
+          const net = subtotals[i] - discounts[i];
+          const commission = percentage(net, vendor.commissionBps);
+          const pin = String(randomInt(100000, 1000000));
+          const child = await tx.vendorOrder.create({
+            data: {
+              id: await allocateOrderNumber(tx, reserved),
+              orderId: parent.id,
+              vendorId: vendor.id,
+              subtotalMinor: subtotals[i],
+              discountMinor: discounts[i],
+              deliveryMinor: fees[i],
+              totalMinor: net + fees[i],
+              commissionMinor: commission,
+              payableMinor: net - commission,
+              pinHash: await bcrypt.hash(pin, 8),
+              items: {
+                create: items.map((item) => ({
+                  productId: item.productId,
+                  name: item.product.name,
+                  unitPriceMinor: item.product.priceMinor,
+                  quantity: item.quantity,
+                  image: item.product.images[0],
+                })),
+              },
+              events: { create: { actorId: user.id, status: "NEW" } },
+            },
+          });
+          await notify(
+            tx,
+            user.id,
+            "Delivery PIN",
+            `Order ${child.id}: your delivery PIN is ${pin}. Share it only when receiving your order.`,
+          );
+          await notify(
+            tx,
+            vendor.ownerId,
+            "New order",
+            input.paymentMethod === "COD"
+              ? `Order ${child.id} is waiting for acceptance.`
+              : `Order ${child.id} is awaiting platform payment verification.`,
+          );
+        }
+        await tx.cartItem.deleteMany({
+          where: {
+            userId: user.id,
+            ...(input.productIds
+              ? { productId: { in: input.productIds } }
+              : {}),
+          },
+        });
+        return sanitizeOrder(
+          await tx.order.findUnique({
+            where: { id: parent.id },
+            include: orderInclude,
+          }),
+        );
       });
-      await notify(
-        tx,
-        user.id,
-        "Delivery PIN",
-        `Order ${child.id}: your delivery PIN is ${pin}. Share it only when receiving your order.`,
-      );
-      await notify(
-        tx,
-        vendor.ownerId,
-        "New order",
-        input.paymentMethod === "COD"
-          ? `Order ${child.id} is waiting for acceptance.`
-          : `Order ${child.id} is awaiting platform payment verification.`,
-      );
+    } catch (error) {
+      if (error.code !== "P2002") throw error;
     }
-    await tx.cartItem.deleteMany({
-      where: {
-        userId: user.id,
-        ...(input.productIds ? { productId: { in: input.productIds } } : {}),
-      },
-    });
-    return sanitizeOrder(
-      await tx.order.findUnique({
-        where: { id: parent.id },
-        include: orderInclude,
-      }),
-    );
-  });
+  }
+  throw new ApiError(
+    503,
+    "Could not allocate a unique order number. Please retry.",
+  );
 }
 export async function list(user, q) {
   if (user.role === "CUSTOMER")
@@ -297,12 +318,22 @@ export async function list(user, q) {
       ...pagination(q),
       include: {
         items: true,
-        vendor: { select: { name: true, address: true, city: true, zone: true } },
+        vendor: {
+          select: { name: true, address: true, city: true, zone: true },
+        },
         rider: { select: { firstName: true, lastName: true, phone: true } },
         order: {
           select: {
+            id: true,
             address: true,
-            customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
+            customer: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+              },
+            },
             payment: { select: { status: true } },
             currency: true,
             paymentMethod: true,
@@ -335,14 +366,22 @@ export async function get(user, id) {
     },
     include: {
       items: true,
-        vendor: { select: { name: true, address: true, city: true, zone: true } },
-        rider: { select: { firstName: true, lastName: true, phone: true } },
+      vendor: { select: { name: true, address: true, city: true, zone: true } },
+      rider: { select: { firstName: true, lastName: true, phone: true } },
       events: true,
       order: {
         select: {
+          id: true,
           address: true,
-            customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
-            payment: { select: { status: true } },
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
+          },
+          payment: { select: { status: true } },
           currency: true,
           paymentMethod: true,
           deliveryWindow: true,
@@ -366,7 +405,10 @@ async function releaseRider(tx, riderId) {
 }
 export async function assign(actor, id, riderId) {
   return transaction(async (tx) => {
-    const order = await tx.vendorOrder.findUnique({ where: { id }, include: { vendor: { select: { ownerId: true } } } });
+    const order = await tx.vendorOrder.findUnique({
+      where: { id },
+      include: { vendor: { select: { ownerId: true } } },
+    });
     assert(order?.status === "READY", 409, "Only ready orders can be assigned");
     const rider = await tx.user.findFirst({
       where: { id: riderId, role: "RIDER", active: true },
@@ -394,7 +436,12 @@ export async function assign(actor, id, riderId) {
       "Delivery assigned",
       `Collect vendor order ${id}.`,
     );
-    await notify(tx, order.vendor.ownerId, "Rider assigned", `Order ${id}: a rider has been assigned for pickup.`);
+    await notify(
+      tx,
+      order.vendor.ownerId,
+      "Rider assigned",
+      `Order ${id}: a rider has been assigned for pickup.`,
+    );
     await tx.auditLog.create({
       data: {
         actorId: actor.id,
@@ -551,11 +598,26 @@ export async function transition(actor, id, input) {
       `Order ${id}: ${status}.`,
     );
     if (actor.id !== order.vendor.ownerId) {
-      await notify(tx, order.vendor.ownerId, "Order updated", `Order ${id}: ${status}.`);
+      await notify(
+        tx,
+        order.vendor.ownerId,
+        "Order updated",
+        `Order ${id}: ${status}.`,
+      );
     }
     if (["DELIVERED", "FAILED", "RETURNED"].includes(status)) {
-      const admins = await tx.user.findMany({where:{role:"ADMIN",active:true},select:{id:true}});
-      if(admins.length) await tx.notification.createMany({data:admins.map(admin=>({userId:admin.id,title:"Order updated",body:`Order ${id}: ${status}.${status === "DELIVERED" && order.order.paymentMethod === "COD" ? " COD collected by rider; record cash receipt in Finance before settlement." : ""}`}))});
+      const admins = await tx.user.findMany({
+        where: { role: "ADMIN", active: true },
+        select: { id: true },
+      });
+      if (admins.length)
+        await tx.notification.createMany({
+          data: admins.map((admin) => ({
+            userId: admin.id,
+            title: "Order updated",
+            body: `Order ${id}: ${status}.${status === "DELIVERED" && order.order.paymentMethod === "COD" ? " COD collected by rider; record cash receipt in Finance before settlement." : ""}`,
+          })),
+        });
     }
     await tx.auditLog.create({
       data: { actorId: actor.id, action: `ORDER_${status}`, entityId: id },

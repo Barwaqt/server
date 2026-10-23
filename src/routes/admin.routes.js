@@ -1,3 +1,4 @@
+import * as customers from "../services/admin-customer.service.js";
 import * as homepage from "../controllers/homepage.controller.js";
 import { publishHomepage } from "../validators/homepage.validator.js";
 import * as m from "../controllers/management.controller.js";
@@ -27,6 +28,8 @@ adminRouter.param("id", (req, res, next, value) => {
   next();
 });
 adminRouter.use(authenticate, roles("ADMIN"));
+adminRouter.get('/customers', validate(page, 'query'), async (req,res)=>res.json({data:await customers.customers(req.input.query)}));
+adminRouter.get('/customers/:id', validate(page, 'query'), async (req,res)=>res.json({data:await customers.customer(req.params.id,req.input.query)}));
 adminRouter.get("/homepage", homepage.get);
 adminRouter.put("/homepage", validate(publishHomepage), homepage.publish);
 adminRouter.post("/vendors", validate(vendor), c.createVendor);

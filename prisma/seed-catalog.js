@@ -40,12 +40,14 @@ export async function seedCatalog() {
       throw Error(`Unsafe asset path: ${image}`);
     const source = new URL("web/public" + image, root);
     await access(source);
-    const target = new URL("vendor_web/public" + image, root);
-    await mkdir(new URL(".", target), { recursive: true });
-    try {
-      await access(target);
-    } catch {
-      await copyFile(source, target);
+    for (const portal of ["vendor_web", "admin"]) {
+      const target = new URL(`${portal}/public${image}`, root);
+      await mkdir(new URL(".", target), { recursive: true });
+      try {
+        await access(target);
+      } catch {
+        await copyFile(source, target);
+      }
     }
   }
   let user = await db.user.findUnique({

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { id, text } from "./common.validator.js";
+import { id, orderId, text } from "./common.validator.js";
 import { coupon } from "./commerce.validator.js";
 export const category = z
   .object({
@@ -46,7 +46,10 @@ export const slotUpdate = slot
   .partial()
   .refine((v) => Object.keys(v).length > 0, "Provide at least one field");
 export const returnCreate = z
-  .object({ vendorOrderId: id, reason: z.string().trim().min(5).max(1000) })
+  .object({
+    vendorOrderId: orderId,
+    reason: z.string().trim().min(5).max(1000),
+  })
   .strict();
 export const returnAction = z
   .object({

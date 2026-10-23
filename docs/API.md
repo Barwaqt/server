@@ -111,6 +111,8 @@ Omit couponCode if none; coupons must first be created by an administrator. Retu
 | POST | /orders/:vendorOrderId/reset-pin | ADMIN/DISPATCHER; customer receives new PIN notification |
 | PATCH | /orders/:vendorOrderId/location | Assigned RIDER; `{latitude,longitude}` while assigned/in transit |
 
+Order and vendor-order IDs are customer-facing numbers: `barwaqt-` followed by six digits (for example `barwaqt-482913`). They are not UUIDs, and a number is unique across both parent orders and vendor orders.
+
 Actions:
 
 | Action | Actor | From → To |
@@ -142,3 +144,10 @@ Delivery PIN attempts are persisted even when verification fails. After five wro
 | PATCH | /notifications/:id/read | Any role, own notification only |
 
 Settlements and refunds require reconciled cash. These record externally completed financial operations and do not connect to banking APIs. PIN notification content is visible only to the order's customer.
+
+### Admin customer directory
+
+- `GET /api/v1/admin/customers?page=1&limit=20&search=...` — ADMIN only; paginated customer accounts (including inactive accounts and customers without orders). Search matches name, email and phone. Returns `items`, `total`, `page`, `limit`.
+- `GET /api/v1/admin/customers/:id?page=1&limit=20` — ADMIN only; customer profile and paginated `orders`, with vendor shipments and purchase-time item snapshots. Each shipment ID can be opened with the existing order-details endpoint.
+
+Both responses include `totalOrders` (all checkouts) and `totalSpentMinor` (delivered shipment totals less recorded refunds on those shipments, in PKR paisa). Cancelled, returned and pending shipments are excluded from spending. Profiles expose only contact information, account status and creation date; credentials are never included.

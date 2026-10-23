@@ -183,7 +183,7 @@ model Order {
  deliverySlotId String?
  deliverySlot DeliverySlot? @relation(fields:[deliverySlotId],references:[id])
  deliveryWindow Json?
- id String @id @default(uuid())
+ id String @id
  customerId String
  customer User @relation(fields:[customerId],references:[id])
  idempotencyKey String
@@ -204,7 +204,7 @@ model Order {
 }
 model VendorOrder {
  returnRequest ReturnRequest?
- id String @id @default(uuid())
+ id String @id
  orderId String
  order Order @relation(fields:[orderId],references:[id])
  vendorId String
