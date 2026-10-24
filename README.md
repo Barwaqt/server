@@ -2,7 +2,7 @@
 
 Node.js (ES modules), Express 5, PostgreSQL, Prisma 7. Based on the supplied Barwaqt Workflow PDF and the customer/vendor frontend domains. Application files use names such as `auth.controller.js`, `auth.routes.js`, `auth.service.js`, and `auth.middleware.js`.
 
-## Run locally test...
+## Run locally testing...
 
 Requires Node 22.12+ (tested on Node 24) and PostgreSQL 16+.
 
