@@ -7,6 +7,8 @@ import {
   chmod,
 } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { db } from "../src/config/database.js";
@@ -28,6 +30,25 @@ export async function seedCatalog() {
   ).toLowerCase();
   const city = process.env.SEED_VENDOR_CITY || "Lahore",
     zone = process.env.SEED_VENDOR_ZONE || "Gulberg";
+  const localPublic = fileURLToPath(new URL("web/public", root));
+  const deployedPublic = fileURLToPath(new URL("barwaqt.com/public", root));
+  const publicDir = process.env.SEED_PUBLIC_DIR
+    ? resolve(process.env.SEED_PUBLIC_DIR)
+    : existsSync(deployedPublic)
+      ? deployedPublic
+      : localPublic;
+  // Only the local layout mirrors assets by default. Deployed portals can opt in.
+  const mirrorDirs =
+    process.env.SEED_MIRROR_PUBLIC_DIRS !== undefined
+      ? process.env.SEED_MIRROR_PUBLIC_DIRS.split(",")
+        .map((path) => path.trim())
+        .filter(Boolean)
+        .map((path) => resolve(path))
+      : publicDir === localPublic
+        ? ["vendor_web/public", "admin/public"].map((path) =>
+          fileURLToPath(new URL(path, root)),
+        )
+        : [];
   // Check every source image before writing database records. Mirror only missing assets.
   const images = new Set(
     [
@@ -38,11 +59,18 @@ export async function seedCatalog() {
   for (const image of images) {
     if (!/^\/(shop|product|category)\/[a-zA-Z0-9_.-]+$/.test(image))
       throw Error(`Unsafe asset path: ${image}`);
-    const source = new URL("web/public" + image, root);
-    await access(source);
-    for (const portal of ["vendor_web", "admin"]) {
-      const target = new URL(`${portal}/public${image}`, root);
-      await mkdir(new URL(".", target), { recursive: true });
+    const source = join(publicDir, image.slice(1));
+    try {
+      await access(source);
+    } catch (error) {
+      throw new Error(
+        `Cannot read catalog image: ${source}. Set SEED_PUBLIC_DIR to the storefront public directory.`,
+        { cause: error },
+      );
+    }
+    for (const mirrorDir of mirrorDirs) {
+      const target = join(mirrorDir, image.slice(1));
+      await mkdir(dirname(target), { recursive: true });
       try {
         await access(target);
       } catch {
@@ -187,6 +215,8 @@ export async function seedCatalog() {
         message:
           "Catalog seed complete; existing vendor products/stock/passwords preserved",
         ...counts,
+        publicDir,
+        mirrorDirs,
         vendorEmail: email,
         vendorId: user.vendor.id,
         city: user.vendor.city,
