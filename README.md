@@ -95,3 +95,7 @@ Framework references: [Prisma PostgreSQL adapter](https://www.prisma.io/docs/orm
 ## Import existing storefront catalog
 
 Run `npm run db:seed:catalog` after migrations to import the original 218 products and 171 category entries, assigned to a manageable vendor. See [catalog seed instructions](prisma/CATALOG_SEED.md) for images, login credentials, stock, price conventions and repeat-run behavior.
+
+## CI/CD
+
+GitHub Actions runs backend tests with PostgreSQL on pushes and pull requests to `main`. Manual deployment runs publish tested code to the VPS through SSH and restart PM2. See [deployment setup](docs/DEPLOYMENT.md) for secrets, prerequisites and migration handling.
