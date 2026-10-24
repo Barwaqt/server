@@ -2,7 +2,7 @@
 
 The backend is its own repository (`Barwaqt/server`); these workflow paths are relative to that repository, not the parent folder containing the frontends.
 
-Pushes and pull requests to `main` run syntax checks, unit tests, migrations and integration tests against disposable PostgreSQL 16. Deployments are manual: **Actions → Server CI and deployment → Run workflow → main → enable deploy**. All tests must pass before deployment. Configure branch protection to require the `test` job.
+Pushes and pull requests to `main` run syntax checks, unit tests, migrations and integration tests against disposable PostgreSQL 16. Pushes to `main` automatically deploy after tests pass. Pull requests only run tests. To redeploy manually, use **Actions → Server CI and deployment → Run workflow → main → enable deploy**. No server-side `git pull` is needed. All tests must pass before deployment. Configure branch protection to require the `test` job.
 
 ## VPS prerequisites
 
@@ -19,7 +19,7 @@ ssh-copy-id -i ~/.ssh/barwaqt_deploy.pub DEPLOY_USER@VPS_IP
 
 ## GitHub secrets
 
-In **Settings → Environments**, create `production`, restrict its deployment branches to `main`, and add:
+In **Settings → Environments**, create `production`, restrict its deployment branches to `main`, and add the secrets below. For unattended deployment, do not enable required reviewers or wait timers on this environment; existing protection rules can pause the job.
 
 | Secret | Value |
 | --- | --- |
@@ -38,10 +38,10 @@ See [GitHub's environment configuration documentation](https://docs.github.com/e
 
 The workflow uploads the tested Git revision, installs production dependencies in a temporary folder, generates Prisma, and checks migration status. If migrations are pending, deployment stops before changing live application files. Otherwise it copies files, restarts PM2, saves its process list, and checks local and public `/ready`.
 
-Production migrations and seeds are not automatic. For a revision with migrations, review and back up the database, upload that revision's migration files to the VPS, run `npm run db:migrate` from the backend directory, then rerun deployment. Migrations must remain compatible with the currently running application. Catalog seeding still requires frontend images under `/var/www/web/public`; this backend-only workflow does not upload those assets.
+Production migrations and seeds are not automatic. For a revision with migrations, review and back up the database, upload that revision's migration files to the VPS, run `npm run db:migrate` from the backend directory, then rerun deployment. Migrations must remain compatible with the currently running application. Catalog seeding still requires frontend images under `/var/www/barwaqt.com/public`; this backend-only workflow does not upload those assets.
 
 `.env`, `.env.*`, `.git`, uploads and the local vendor credentials file are excluded from synchronization. No destination files are deleted. Consequently, removed source files and obsolete dependencies can remain on the VPS; review and remove stale files separately when needed. Store custom runtime files outside source directories to avoid name collisions.
 
 Deployment is in place with a brief restart, not zero downtime. There is no automatic rollback. On failure, inspect Actions and `pm2 logs barwaqt-api --lines 80 --nostream`; fix forward or deploy a reviewed revert from main. Code rollback does not reverse database migrations.
 
-Commit and push the workflow, deployment script and this guide to the backend repository. Configure secrets and prerequisites before requesting deployment. Local creation of these files does not activate GitHub Actions or change the VPS.
+Commit and push the workflow, deployment script and this guide to the backend repository. Configure secrets and prerequisites before pushing: each push to `main` triggers deployment. Check that both `test` and `deploy` finish successfully in Actions. Deployment copies files without updating the VPS Git metadata, so `git log` on the VPS is not a deployment status check.

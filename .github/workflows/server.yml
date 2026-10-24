@@ -52,7 +52,7 @@ jobs:
 
   deploy:
     needs: test
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production

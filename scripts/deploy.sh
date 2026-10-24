@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run only through the manually requested production deployment job.
+# Run through the production deployment job after CI succeeds.
 set -euo pipefail
 umask 077
 archive=${1:?Expected deployment archive path}
