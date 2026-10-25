@@ -19,7 +19,8 @@
     "email:preview": "node scripts/email-preview.js",
     "format": "prettier --write \"src/**/*.js\" \"prisma/*.js\" \"tests/*.js\" \"scripts/*.js\"",
     "format:check": "prettier --check \"src/**/*.js\" \"prisma/*.js\" \"tests/*.js\" \"scripts/*.js\"",
-    "db:seed:catalog": "node prisma/seed-catalog.js"
+    "db:seed:catalog": "node prisma/seed-catalog.js",
+    "emails:verify-staff": "node scripts/verify-staff-emails.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.0",

@@ -105,6 +105,8 @@ export async function seedCatalog() {
         firstName: "Catalog",
         lastName: "Vendor",
         role: "VENDOR",
+        // Provisioned by this seed, so sign-in must not wait for customer email verification.
+        emailVerifiedAt: new Date(),
         vendor: {
           create: {
             name: "Barwaqt Catalog Store",

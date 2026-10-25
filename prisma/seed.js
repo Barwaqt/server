@@ -15,8 +15,10 @@ try {
       role: "ADMIN",
       firstName: "Barwaqt",
       lastName: "Admin",
+      // The administrator is provisioned out of band, not through customer signup.
+      emailVerifiedAt: new Date(),
     },
-    update: {},
+    update: { emailVerifiedAt: new Date() },
   });
   for (const [name, slug] of [
     ["Electronics", "electronics"],
