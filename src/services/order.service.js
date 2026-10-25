@@ -44,7 +44,9 @@ async function prepareCheckout(tx, user, input, reserve = false) {
   for (const item of cart) {
     const p = item.product;
     assert(
-      p.active && p.vendor.status === "APPROVED",
+      p.active &&
+        p.reviewStatus === "APPROVED" &&
+        p.vendor.status === "APPROVED",
       409,
       `${p.name} is unavailable`,
     );
@@ -57,7 +59,12 @@ async function prepareCheckout(tx, user, input, reserve = false) {
     assert(p.stock >= item.quantity, 409, `${p.name} has insufficient stock`);
     if (reserve) {
       const stock = await tx.product.updateMany({
-        where: { id: p.id, stock: { gte: item.quantity }, active: true },
+        where: {
+          id: p.id,
+          stock: { gte: item.quantity },
+          active: true,
+          reviewStatus: "APPROVED",
+        },
         data: { stock: { decrement: item.quantity } },
       });
       assert(stock.count, 409, `${p.name} has insufficient stock`);

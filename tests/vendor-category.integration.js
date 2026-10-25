@@ -106,6 +106,7 @@ test("category commission is inherited, synchronized, and snapshotted; payout da
   assert.equal(publicVendor.bankDetails, undefined);
   const product = await db.product.create({
     data: {
+      reviewStatus: "APPROVED",
       vendorId: v.id,
       categoryId: b.id,
       name: "Test product",

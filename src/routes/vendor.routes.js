@@ -36,7 +36,16 @@ vendorRouter.patch(
   vendor.updateProfile,
 );
 vendorRouter.get("/dashboard", finance.summary);
-vendorRouter.get("/products", validate(page, "query"), c.vendorProducts);
+vendorRouter.get(
+  "/products",
+  validate(
+    page.extend({
+      reviewStatus: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+    }),
+    "query",
+  ),
+  c.vendorProducts,
+);
 vendorRouter.post("/products", validate(product), c.create);
 vendorRouter.patch("/products/:id", validate(product.partial()), c.update);
 vendorRouter.get("/settlements", finance.settlements);

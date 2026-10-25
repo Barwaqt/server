@@ -20,7 +20,14 @@ export const deleteAddress = (user, id) =>
   db.address.deleteMany({ where: { id, userId: user.id } });
 export const cart = (user) =>
   db.cartItem.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      product: {
+        active: true,
+        reviewStatus: "APPROVED",
+        vendor: { status: "APPROVED" },
+      },
+    },
     include: {
       product: {
         include: {
@@ -41,7 +48,12 @@ export async function updateCart(user, productId, quantity) {
   if (!quantity)
     return db.cartItem.deleteMany({ where: { userId: user.id, productId } });
   const product = await db.product.findFirst({
-    where: { id: productId, active: true, vendor: { status: "APPROVED" } },
+    where: {
+      id: productId,
+      active: true,
+      reviewStatus: "APPROVED",
+      vendor: { status: "APPROVED" },
+    },
   });
   assert(product, 404, "Product not found");
   assert(product.stock >= quantity, 409, "Insufficient stock");
@@ -53,13 +65,25 @@ export async function updateCart(user, productId, quantity) {
 }
 export const wishlist = (user) =>
   db.wishlistItem.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      product: {
+        active: true,
+        reviewStatus: "APPROVED",
+        vendor: { status: "APPROVED" },
+      },
+    },
     include: { product: true },
   });
 export async function saveWishlist(user, productId) {
   assert(
     await db.product.findFirst({
-      where: { id: productId, active: true, vendor: { status: "APPROVED" } },
+      where: {
+        id: productId,
+        active: true,
+        reviewStatus: "APPROVED",
+        vendor: { status: "APPROVED" },
+      },
     }),
     404,
     "Product not found",

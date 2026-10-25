@@ -73,6 +73,7 @@ test("central collection, payment verification, prepaid delivery and cancellatio
   });
   const product = await db.product.create({
     data: {
+      reviewStatus: "APPROVED",
       vendorId: vendor.id,
       categoryId: category.id,
       name: "Central item",

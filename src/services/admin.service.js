@@ -1,3 +1,4 @@
+import { reviewReset } from "../utils/product-review.js";
 import bcrypt from "bcryptjs";
 import { db, transaction } from "../config/database.js";
 import { publicUser } from "../models/user.model.js";
@@ -86,6 +87,7 @@ export async function products(q) {
   const where = {
     ...(q.vendorId ? { vendorId: q.vendorId } : {}),
     ...(q.categoryId ? { categoryId: q.categoryId } : {}),
+    ...(q.reviewStatus ? { reviewStatus: q.reviewStatus } : {}),
     ...(q.active ? { active: q.active === "true" } : {}),
     ...(q.search ? { name: { contains: q.search, mode: "insensitive" } } : {}),
   };
@@ -112,13 +114,15 @@ export async function products(q) {
   return { items, total, page: q.page, limit: q.limit };
 }
 export async function updateProduct(actor, id, input) {
-  const owned = await db.product.findUnique({ where: { id } });
-  assert(owned, 404, "Product not found");
   return transaction(async (tx) => {
+    const owned = await tx.product.findUnique({ where: { id } });
+    assert(owned, 404, "Product not found");
     const result = await tx.product.update({
       where: { id },
       data: {
         ...input,
+        ...reviewReset(owned, input),
+        reviewVersion: { increment: 1 },
         ...(input.categoryId && input.categoryId !== owned.categoryId
           ? { catalogCategories: { set: [] } }
           : {}),
@@ -291,4 +295,63 @@ export async function report() {
     platformCollectedMinor:
       (cash._sum.amountMinor || 0) + (transfers._sum.amountMinor || 0),
   };
+}
+
+export async function reviewProduct(actor, id, input) {
+  return transaction(async (tx) => {
+    const product = await tx.product.findUnique({
+      where: { id },
+      include: { vendor: true },
+    });
+    assert(product, 404, "Product not found");
+    assert(
+      product.reviewStatus === "PENDING",
+      409,
+      "Only pending products can be reviewed",
+    );
+    const result = await tx.product.updateMany({
+      where: {
+        id,
+        reviewStatus: "PENDING",
+        reviewVersion: input.reviewVersion,
+      },
+      data: {
+        reviewStatus: input.decision,
+        rejectionReason: input.decision === "REJECTED" ? input.reason : null,
+        reviewedAt: new Date(),
+        reviewedById: actor.id,
+        reviewVersion: { increment: 1 },
+      },
+    });
+    assert(
+      result.count,
+      409,
+      "This product changed while you were reviewing it. Reload and review the latest details.",
+    );
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "PRODUCT_" + input.decision,
+        entityId: id,
+        metadata: {
+          reviewVersion: input.reviewVersion,
+          ...(input.reason ? { reason: input.reason } : {}),
+        },
+      },
+    });
+    await tx.notification.create({
+      data: {
+        userId: product.vendor.ownerId,
+        title:
+          input.decision === "APPROVED"
+            ? "Product approved"
+            : "Product rejected",
+        body:
+          input.decision === "APPROVED"
+            ? `${product.name} was approved. It is visible to customers when enabled and your store is approved.`
+            : `${product.name}: ${input.reason}`,
+      },
+    });
+    return tx.product.findUnique({ where: { id } });
+  });
 }

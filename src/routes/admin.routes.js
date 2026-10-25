@@ -20,6 +20,7 @@ import {
   productQuery,
   staffQuery,
   productUpdate,
+  productReview,
   staffUpdate,
 } from "../validators/admin.validator.js";
 export const adminRouter = Router();
@@ -28,8 +29,12 @@ adminRouter.param("id", (req, res, next, value) => {
   next();
 });
 adminRouter.use(authenticate, roles("ADMIN"));
-adminRouter.get('/customers', validate(page, 'query'), async (req,res)=>res.json({data:await customers.customers(req.input.query)}));
-adminRouter.get('/customers/:id', validate(page, 'query'), async (req,res)=>res.json({data:await customers.customer(req.params.id,req.input.query)}));
+adminRouter.get("/customers", validate(page, "query"), async (req, res) =>
+  res.json({ data: await customers.customers(req.input.query) }),
+);
+adminRouter.get("/customers/:id", validate(page, "query"), async (req, res) =>
+  res.json({ data: await customers.customer(req.params.id, req.input.query) }),
+);
 adminRouter.get("/homepage", homepage.get);
 adminRouter.put("/homepage", validate(publishHomepage), homepage.publish);
 adminRouter.post("/vendors", validate(vendor), c.createVendor);
@@ -37,6 +42,11 @@ adminRouter.get("/vendors", validate(vendorQuery, "query"), c.vendors);
 adminRouter.get("/vendors/:id", c.vendor);
 adminRouter.patch("/vendors/:id", validate(vendorUpdate), c.updateVendor);
 adminRouter.get("/products", validate(productQuery, "query"), c.products);
+adminRouter.post(
+  "/products/:id/review",
+  validate(productReview),
+  c.reviewProduct,
+);
 adminRouter.patch("/products/:id", validate(productUpdate), c.updateProduct);
 adminRouter.get("/staff", validate(staffQuery, "query"), c.staff);
 adminRouter.patch("/staff/:id", validate(staffUpdate), c.updateStaff);

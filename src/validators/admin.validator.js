@@ -19,6 +19,7 @@ export const productQuery = list.extend({
   vendorId: id.optional(),
   categoryId: id.optional(),
   active: z.enum(["true", "false"]).optional(),
+  reviewStatus: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 
 export const staffQuery = list.extend({
@@ -69,3 +70,19 @@ export const vendorUpdate = z
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, "Provide at least one field");
+
+export const productReview = z.discriminatedUnion("decision", [
+  z
+    .object({
+      decision: z.literal("APPROVED"),
+      reviewVersion: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      decision: z.literal("REJECTED"),
+      reviewVersion: z.number().int().positive(),
+      reason: z.string().trim().min(3).max(2000),
+    })
+    .strict(),
+]);

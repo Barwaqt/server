@@ -177,6 +177,12 @@ test("management, uploads, scheduled checkout and returns after paid settlement"
     (await call("delete", "/uploads/" + upload.id, owner)).status,
     409,
   );
+  await ok(
+    call("post", `/admin/products/${product.id}/review`, admin, {
+      decision: "APPROVED",
+      reviewVersion: product.reviewVersion,
+    }),
+  );
   const slot = await ok(
     call("post", "/delivery/slots", admin, {
       city: "Lahore",

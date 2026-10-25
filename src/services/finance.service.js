@@ -86,8 +86,17 @@ export async function createSettlement(actor, vendorId) {
         entityId: settlement.id,
       },
     });
-    const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { ownerId: true } });
-    await tx.notification.create({ data: { userId: vendor.ownerId, title: "Settlement created", body: `Settlement ${settlement.id}: PKR ${(amountMinor / 100).toFixed(2)} is pending review.` } });
+    const vendor = await tx.vendor.findUnique({
+      where: { id: vendorId },
+      select: { ownerId: true },
+    });
+    await tx.notification.create({
+      data: {
+        userId: vendor.ownerId,
+        title: "Settlement created",
+        body: `Settlement ${settlement.id}: PKR ${(amountMinor / 100).toFixed(2)} is pending review.`,
+      },
+    });
     return settlement;
   });
 }
@@ -119,8 +128,18 @@ export async function updateSettlement(actor, id, input) {
         entityId: id,
       },
     });
-    const vendor = await tx.vendor.findUnique({ where: { id: existing.vendorId }, select: { ownerId: true } });
-    await tx.notification.create({ data: { userId: vendor.ownerId, title: input.status === "PAID" ? "Settlement paid" : "Settlement processed", body: `Settlement ${id}: PKR ${(row.amountMinor / 100).toFixed(2)}. ${input.status === "PAID" ? `Payment recorded. Reference: ${input.reference}` : "Approved and awaiting payment."}` } });
+    const vendor = await tx.vendor.findUnique({
+      where: { id: existing.vendorId },
+      select: { ownerId: true },
+    });
+    await tx.notification.create({
+      data: {
+        userId: vendor.ownerId,
+        title:
+          input.status === "PAID" ? "Settlement paid" : "Settlement processed",
+        body: `Settlement ${id}: PKR ${(row.amountMinor / 100).toFixed(2)}. ${input.status === "PAID" ? `Payment recorded. Reference: ${input.reference}` : "Approved and awaiting payment."}`,
+      },
+    });
     return row;
   });
 }
@@ -284,7 +303,9 @@ export async function vendorSummary(user) {
     unpaid,
     adjustments,
   ] = await Promise.all([
-    db.product.count({ where: { vendorId, active: true } }),
+    db.product.count({
+      where: { vendorId, active: true, reviewStatus: "APPROVED" },
+    }),
     db.product.count({ where: { vendorId, stock: 0 } }),
     db.vendorOrder.findMany({
       where: { vendorId, status: "DELIVERED", deliveredAt: { gte: start } },

@@ -109,7 +109,17 @@ model Category {
  slug String @unique
  products Product[]
 }
+enum ProductReviewStatus {
+ PENDING
+ APPROVED
+ REJECTED
+}
 model Product {
+ reviewStatus ProductReviewStatus @default(PENDING)
+ rejectionReason String?
+ reviewedAt DateTime?
+ reviewedById String?
+ reviewVersion Int @default(1)
  catalogCategories Category[] @relation("CatalogCategories")
  id String @id @default(uuid())
  vendorId String
@@ -130,6 +140,7 @@ model Product {
  wishlist WishlistItem[]
  items OrderItem[]
  reviews Review[]
+ @@index([reviewStatus,createdAt])
  @@index([vendorId,active])
  @@index([categoryId,active])
 }

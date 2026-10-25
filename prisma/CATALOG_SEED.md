@@ -58,3 +58,5 @@ configured paths resolve from the command's working directory.
 - The static product dataset contains names and promotional section labels, not detailed product specifications. Descriptions use the original product names. Original section labels, old prices, source IDs and reference ratings are retained as attributes for import provenance but hidden from customer specifications. Reference ratings are not fabricated customer reviews, and original coupon labels do not create active coupons.
 
 The original admin bootstrap remains `npm run db:seed` and requires ADMIN_EMAIL/ADMIN_PASSWORD; catalog seeding is a separate command and does not create or change an admin.
+
+New catalog products also start in PENDING review. An administrator must approve them from Products before they appear to customers. Existing imported products retain their review status on repeat seed runs.

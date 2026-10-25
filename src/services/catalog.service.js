@@ -1,4 +1,5 @@
-import { db } from "../config/database.js";
+import { reviewReset } from "../utils/product-review.js";
+import { db, transaction } from "../config/database.js";
 import { pagination } from "../validators/common.validator.js";
 import { assert } from "../utils/error.js";
 export async function categoryList() {
@@ -6,7 +7,11 @@ export async function categoryList() {
     orderBy: { name: "asc" },
     include: {
       catalogProducts: {
-        where: { active: true, vendor: { status: "APPROVED" } },
+        where: {
+          active: true,
+          reviewStatus: "APPROVED",
+          vendor: { status: "APPROVED" },
+        },
         select: { id: true },
       },
     },
@@ -45,6 +50,7 @@ export async function products(q) {
   }
   const where = {
     active: true,
+    reviewStatus: "APPROVED",
     ...(q.minPriceMinor !== undefined || q.maxPriceMinor !== undefined
       ? {
           priceMinor: {
@@ -93,7 +99,12 @@ export async function products(q) {
 }
 export async function product(id) {
   const result = await db.product.findFirst({
-    where: { id, active: true, vendor: { status: "APPROVED" } },
+    where: {
+      id,
+      active: true,
+      reviewStatus: "APPROVED",
+      vendor: { status: "APPROVED" },
+    },
     include: {
       category: true,
       vendor: { select: { id: true, name: true, city: true, zone: true } },
@@ -111,6 +122,7 @@ export async function vendorProducts(user, q) {
   return db.product.findMany({
     where: {
       vendorId: user.vendor.id,
+      ...(q.reviewStatus ? { reviewStatus: q.reviewStatus } : {}),
       ...(q.search
         ? { name: { contains: q.search, mode: "insensitive" } }
         : {}),
@@ -121,22 +133,27 @@ export async function vendorProducts(user, q) {
   });
 }
 export async function saveProduct(user, id, input) {
-  if (id) {
-    const owned = await db.product.findFirst({
+  if (!id)
+    return db.product.create({
+      data: { ...input, vendorId: user.vendor.id, reviewStatus: "PENDING" },
+    });
+  return transaction(async (tx) => {
+    const owned = await tx.product.findFirst({
       where: { id, vendorId: user.vendor.id },
     });
     assert(owned, 404, "Product not found");
-    return db.product.update({
+    return tx.product.update({
       where: { id },
       data: {
         ...input,
+        ...reviewReset(owned, input),
+        reviewVersion: { increment: 1 },
         ...(input.categoryId && input.categoryId !== owned.categoryId
           ? { catalogCategories: { set: [] } }
           : {}),
       },
     });
-  }
-  return db.product.create({ data: { ...input, vendorId: user.vendor.id } });
+  });
 }
 
 const publicVendor = {

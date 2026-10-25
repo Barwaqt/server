@@ -42,3 +42,8 @@ export const audits = async (req, res) =>
       take: 100,
     }),
   });
+
+export const reviewProduct = async (req, res) =>
+  res.json({
+    data: await s.reviewProduct(req.user, req.params.id, req.input.body),
+  });

@@ -106,6 +106,13 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
       ),
     );
   }
+  for (const product of products)
+    await ok(
+      call("post", `/admin/products/${product.id}/review`, at, {
+        decision: "APPROVED",
+        reviewVersion: product.reviewVersion,
+      }),
+    );
   assert.equal(
     (
       await call(
@@ -381,6 +388,12 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
       }),
     ),
     racers = [];
+  await ok(
+    call("post", `/admin/products/${p.id}/review`, at, {
+      decision: "APPROVED",
+      reviewVersion: p.reviewVersion,
+    }),
+  );
   for (let i = 0; i < 2; i++) {
     const raceEmail = `race-${i}-${suffix}@test.local`;
     await ok(

@@ -46,6 +46,7 @@ export async function publish(user, input) {
         where: {
           id: { in: [...products] },
           active: true,
+          reviewStatus: "APPROVED",
           vendor: { status: "APPROVED" },
         },
       })) === products.size,

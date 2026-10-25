@@ -1,3 +1,4 @@
+import { createIntegrationDocsRouter } from "./routes/integration-docs.routes.js";
 import { paymentRouter } from "./routes/payment.routes.js";
 import { uploadRouter } from "./routes/upload.routes.js";
 import { deliveryRouter } from "./routes/delivery.routes.js";
@@ -56,6 +57,7 @@ app.use(
     legacyHeaders: false,
   }),
 );
+app.use("/integerate/api", createIntegrationDocsRouter());
 app.use("/api/v1/uploads", uploadRouter);
 app.use(express.json({ limit: "256kb" }));
 app.get(["/", "/api/v1"], (req, res) =>

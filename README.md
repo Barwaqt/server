@@ -101,3 +101,11 @@ Run `npm run db:seed:catalog` after migrations to import the original 218 produc
 GitHub Actions runs backend tests with PostgreSQL on pushes and pull requests to `main`. Successful pushes to `main` automatically publish tested code to the VPS through SSH and restart PM2; no server-side `git pull` is needed. See [deployment setup](docs/DEPLOYMENT.md) for secrets, prerequisites and migration handling.
 
 The API trusts forwarded headers only from loopback peers for the same-host Nginx deployment. Remote peers are not trusted. See [Express proxy configuration](https://expressjs.com/en/guide/behind-proxies/).
+
+## Product approval
+
+New vendor products require admin review before publication. Vendors see rejection reasons and can resubmit corrected listings. See [product review API and rollout](docs/PRODUCT_REVIEW.md) for states, re-review rules and the required database migration.
+
+## Private developer API reference
+
+Open `https://api.barwaqt.com/integerate/api/complete_api.md` and enter the shared developer PIN. The server returns the current `complete_api.md` as readable plain text only after a correct form submission. Each access requires the PIN; no URL token or public static copy is created. Share the PIN separately. Responses disable caching and search indexing. Five failed attempts per IP within 15 minutes block further attempts until the window resets (in-memory limits reset on API restart). No new environment variables or database migrations are required for this route. Deploy the backend to make it available.

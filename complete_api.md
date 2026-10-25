@@ -2,35 +2,41 @@
 
 This document describes the endpoints implemented in `src/app.js` and `src/routes`, including service-level requirements. It describes the Node API directly; the Next.js authentication proxy has a different cookie-based interface.
 
+Last updated: 2026-10-25.
+
+**Release scope:** This documents the checked-out source, not a verification of the live deployment. Product moderation requires migration `20261025120000_product_moderation` and the corresponding backend release. See [rollout instructions](docs/PRODUCT_REVIEW.md). The moderation contract below is authoritative when using older Postman templates.
+
 ## Postman and mobile developer quick start
 
 Import [the complete Postman collection](postman/Barwaqt.postman_collection.json) and [the local environment template](postman/Barwaqt.local.postman_environment.json). The collection includes endpoint payloads and explicit order-action/shift/settlement examples. Every request includes its contract description, authentication configuration, and JSON payload where needed.
 
-Select an environment, set your account email/password, and run login. Login/refresh automatically save tokens; selected create requests capture resource IDs. Duplicate environments per role. Read [the Postman/mobile integration guide](postman/README.md) for setup, variables, workflow order and mobile token handling. Do not run the whole collection blindly: many requests mutate data.
+Select an environment, set `baseUrl` to `https://api.barwaqt.com` (without `/api/v1`; collection paths already include it), set your account email/password, and run login. Login/refresh automatically save tokens; selected create requests capture resource IDs. Duplicate environments per role. Read [the Postman/mobile integration guide](postman/README.md) for setup, variables, workflow order and mobile token handling. Do not run the whole collection blindly: many requests mutate data.
 
 This file is the human-readable contract; the collection is its importable request companion. Both describe implemented APIs, not unimplemented features. Marketplace and operations additions are included in the corresponding Postman folder; use resourceId for its path placeholders.
 
 ## Connection and conventions
 
-- Development origin: `http://localhost:4000`.
-- API base URL: `http://localhost:4000/api/v1`. Endpoint headings below include the full path.
+- Production origin: `https://api.barwaqt.com`.
+- API base URL: `https://api.barwaqt.com/api/v1`. Endpoint headings below include the full path.
 - Send `Content-Type: application/json` for JSON bodies. Protected endpoints require `Authorization: Bearer <accessToken>`.
 - `Public` means no token required. `Authenticated` means any active account with a valid session. Other access labels are exact uppercase roles.
-- All resource IDs are UUIDs. Replace example UUIDs with IDs returned by the API; frontend demo product IDs are not valid backend IDs.
+- Resource IDs are UUIDs unless an endpoint states otherwise. Parent Order and VendorOrder IDs are customer-facing numbers (`barwaqt-######`). Replace example values with IDs returned by the API; frontend demo product IDs are not valid backend IDs.
 - Amounts ending in `Minor` are integer PKR paisa: `125000` means PKR 1,250. Percentages ending in `Bps` use basis points: `1000` means 10%.
 - Datetimes are ISO 8601 strings; nullable database fields can be `null`.
 - Unless stated otherwise, success is `{ "data": ... }`. Arrays are not automatically paginated envelopes. `204` has no response body.
 - Request bodies use strict validation: unknown fields are rejected. Optional does not imply nullable. GET requests and endpoints marked **None** need no body.
-- Global rate limit: 300 requests/minute per IP. All `/auth` endpoints additionally share 30 requests/15 minutes per IP. Limit responses are HTTP 429 and may be plain text rather than the JSON error format.
+- Global rate limit: 300 requests/minute per IP. Each sensitive `/auth` POST action (register, login, forgot-password, reset-password, verify-email, resend-verification, challenge, social, link-provider, change-password) also has its own 30 requests/15 minutes per IP budget. Refresh, logout, me and providers use only the global limit. Limit responses are HTTP 429 and may be plain text rather than the JSON error format.
 - JSON body limit: 256 KB. Browser origins must be configured in `CORS_ORIGINS`.
 
 ### Authentication/session response
 
-Register, login, and social sign-in return:
+Login and social sign-in return:
 
 ```json
-{"data":{"accessToken":"<JWT>","refreshToken":"<opaque token>","expiresIn":900,"user":{"id":"11111111-1111-4111-8111-111111111111","email":"customer@example.com","phone":"+923001234567","role":"CUSTOMER","firstName":"Ali","lastName":"Khan","profile":{},"active":true,"createdAt":"2026-10-12T10:00:00.000Z"}}}
+{"data":{"accessToken":"<JWT>","refreshToken":"<opaque token>","expiresIn":900,"user":{"id":"11111111-1111-4111-8111-111111111111","email":"customer@example.com","phone":"+923001234567","role":"CUSTOMER","firstName":"Ali","lastName":"Khan","profile":{},"active":true,"emailVerifiedAt":"2026-10-12T10:00:00.000Z","createdAt":"2026-10-12T10:00:00.000Z"}}}
 ```
+
+Registration never returns tokens. It returns `{message, email, verificationSent}`; the account is activated immediately when email delivery is not configured, otherwise the customer must verify the emailed link. Login is refused with 403 until the address is verified.
 
 `expiresIn` is seconds and configurable (default 15 minutes). Refresh tokens default to 30 days. Refresh rotates the token: save both new tokens and never reuse the old refresh token. Refresh does not extend the original session expiry. Logout revokes the current session; password change/reset revokes every session. The direct Node API returns tokens in JSON and does not set authentication cookies. Existing Next.js `/api/auth/[action]` proxies store them in HttpOnly cookies; do not mix those endpoints with this API contract.
 
@@ -72,19 +78,20 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/auth/providers` | Public |
 | POST | `/api/v1/auth/forgot-password` | Public |
 | POST | `/api/v1/auth/reset-password` | Public |
+| POST | `/api/v1/auth/verify-email` | Public |
+| POST | `/api/v1/auth/resend-verification` | Public |
 | POST | `/api/v1/auth/challenge` | Public |
 | POST | `/api/v1/auth/social` | Public |
 | POST | `/api/v1/auth/link-provider` | Authenticated |
 | GET | `/api/v1/auth/me` | Authenticated |
 | POST | `/api/v1/auth/logout` | Authenticated |
 | POST | `/api/v1/auth/change-password` | Authenticated |
-| GET | `/api/v1/catalog/vendors` | Public |
-| GET | `/api/v1/catalog/vendors/:id` | Public |
-| POST | `/api/v1/orders/quote` | CUSTOMER |
-| PATCH | `/api/v1/vendor/profile` | Approved VENDOR |
+| GET | `/api/v1/catalog/homepage` | Public |
 | GET | `/api/v1/catalog/categories` | Public |
 | GET | `/api/v1/catalog/products` | Public |
 | GET | `/api/v1/catalog/products/:id` | Public |
+| GET | `/api/v1/catalog/vendors` | Public |
+| GET | `/api/v1/catalog/vendors/:vendorId` | Public |
 | PATCH | `/api/v1/customer/profile` | CUSTOMER |
 | GET | `/api/v1/customer/addresses` | CUSTOMER |
 | POST | `/api/v1/customer/addresses` | CUSTOMER |
@@ -96,6 +103,7 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | PUT | `/api/v1/customer/wishlist/:id` | CUSTOMER |
 | DELETE | `/api/v1/customer/wishlist/:id` | CUSTOMER |
 | PUT | `/api/v1/customer/reviews/:id` | CUSTOMER |
+| POST | `/api/v1/orders/quote` | CUSTOMER |
 | POST | `/api/v1/orders/checkout` | CUSTOMER |
 | GET | `/api/v1/orders` | CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE |
 | GET | `/api/v1/orders/:id` | CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE |
@@ -104,33 +112,64 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | POST | `/api/v1/orders/:id/reset-pin` | ADMIN, DISPATCHER |
 | PATCH | `/api/v1/orders/:id/location` | RIDER |
 | GET | `/api/v1/vendor/profile` | Approved VENDOR |
+| PATCH | `/api/v1/vendor/profile` | Approved VENDOR |
 | GET | `/api/v1/vendor/dashboard` | Approved VENDOR |
 | GET | `/api/v1/vendor/products` | Approved VENDOR |
 | POST | `/api/v1/vendor/products` | Approved VENDOR |
 | PATCH | `/api/v1/vendor/products/:id` | Approved VENDOR |
 | GET | `/api/v1/vendor/settlements` | Approved VENDOR |
+| GET | `/api/v1/admin/customers` | ADMIN |
+| GET | `/api/v1/admin/customers/:id` | ADMIN |
+| GET | `/api/v1/admin/homepage` | ADMIN |
+| PUT | `/api/v1/admin/homepage` | ADMIN |
 | POST | `/api/v1/admin/vendors` | ADMIN |
 | GET | `/api/v1/admin/vendors` | ADMIN |
 | GET | `/api/v1/admin/vendors/:id` | ADMIN |
 | PATCH | `/api/v1/admin/vendors/:id` | ADMIN |
 | GET | `/api/v1/admin/products` | ADMIN |
 | PATCH | `/api/v1/admin/products/:id` | ADMIN |
+| POST | `/api/v1/admin/products/:id/review` | ADMIN |
 | GET | `/api/v1/admin/staff` | ADMIN |
 | POST | `/api/v1/admin/staff` | ADMIN |
 | PATCH | `/api/v1/admin/staff/:id` | ADMIN |
+| GET | `/api/v1/admin/categories` | ADMIN |
 | POST | `/api/v1/admin/categories` | ADMIN |
+| PATCH | `/api/v1/admin/categories/:id` | ADMIN |
+| DELETE | `/api/v1/admin/categories/:id` | ADMIN |
+| GET | `/api/v1/admin/coupons` | ADMIN |
 | POST | `/api/v1/admin/coupons` | ADMIN |
+| PATCH | `/api/v1/admin/coupons/:id` | ADMIN |
+| DELETE | `/api/v1/admin/coupons/:id` | ADMIN |
 | GET | `/api/v1/admin/reports` | ADMIN |
 | GET | `/api/v1/admin/audit-logs` | ADMIN |
 | GET | `/api/v1/rider/shifts` | RIDER, ADMIN, DISPATCHER |
 | POST | `/api/v1/rider/shifts` | RIDER |
 | POST | `/api/v1/finance/remittances` | ADMIN, FINANCE |
+| GET | `/api/v1/finance/remittances` | ADMIN, FINANCE |
 | GET | `/api/v1/finance/settlements` | ADMIN, FINANCE |
+| GET | `/api/v1/finance/settlement-preview` | ADMIN, FINANCE |
+| GET | `/api/v1/finance/rider-balances` | ADMIN, FINANCE |
 | POST | `/api/v1/finance/settlements` | ADMIN, FINANCE |
 | PATCH | `/api/v1/finance/settlements/:id` | ADMIN, FINANCE |
+| GET | `/api/v1/finance/refunds` | ADMIN, FINANCE |
 | POST | `/api/v1/finance/orders/:id/refunds` | ADMIN, FINANCE |
 | GET | `/api/v1/notifications` | Authenticated |
 | PATCH | `/api/v1/notifications/:id/read` | Authenticated |
+| GET | `/api/v1/payments/accounts` | CUSTOMER, ADMIN, FINANCE |
+| PUT | `/api/v1/payments/accounts` | ADMIN |
+| GET | `/api/v1/payments` | CUSTOMER, ADMIN, FINANCE |
+| POST | `/api/v1/payments/orders/:id/submissions` | CUSTOMER |
+| POST | `/api/v1/payments/submissions/:id/review` | ADMIN, FINANCE |
+| GET | `/api/v1/delivery/slots` | CUSTOMER, ADMIN, DISPATCHER |
+| POST | `/api/v1/delivery/slots` | ADMIN, DISPATCHER |
+| PATCH | `/api/v1/delivery/slots/:id` | ADMIN, DISPATCHER |
+| GET | `/api/v1/returns` | CUSTOMER, VENDOR, ADMIN, FINANCE, DISPATCHER |
+| POST | `/api/v1/returns` | CUSTOMER |
+| POST | `/api/v1/returns/:id/actions` | ADMIN, DISPATCHER |
+| POST | `/api/v1/uploads` | ADMIN, Approved VENDOR |
+| GET | `/api/v1/uploads` | ADMIN, Approved VENDOR |
+| GET | `/api/v1/uploads/:id/content` | Public for IMAGE; owner or ADMIN for DOCUMENT |
+| DELETE | `/api/v1/uploads/:id` | Owner (Approved VENDOR) or ADMIN |
 
 ## System endpoints
 ### GET /
@@ -195,9 +234,9 @@ Runs a database query; database errors use the error handler.
 }
 ```
 
-**Success:** 201; session response including public user.
+**Success:** 201; `data: {message, email, verificationSent}`. No access or refresh tokens are returned. When email delivery is not configured, the account is already activated and `verificationSent` is `false`. When SMTP is configured (`SMTP_HOST` and `SMTP_FROM`), `verificationSent` is `true` and the customer must verify the email before signing in.
 
-Required: email, password, firstName. Optional: lastName (trimmed, max 200; empty allowed), phone. Always creates CUSTOMER. Vendors/staff are created by ADMIN; a `role` field is rejected.
+Required: email, password, firstName. Optional: lastName (trimmed, max 200; empty allowed), phone. Always creates CUSTOMER. Vendors/staff are created by ADMIN; a `role` field is rejected. The account is deleted if the verification email cannot be sent, so the customer can simply retry.
 
 ### POST /api/v1/auth/login
 
@@ -215,6 +254,8 @@ Required: email, password, firstName. Optional: lastName (trimmed, max 200; empt
 **Success:** 200; session response.
 
 Both fields required. identity is an email or exact phone string (text); password 1–72 characters. Supports all roles; check returned user.role to choose the portal. Password login itself does not enforce vendor approval; vendor routes do.
+
+If the account has not verified its email, login returns 403 with `Verify your email address before signing in. Request a new verification link if it expired.` Use `resend-verification` and then `verify-email`. Administrator-provisioned vendors and staff are created verified, so this normally affects only customer signups.
 
 ### POST /api/v1/auth/refresh
 
@@ -276,6 +317,38 @@ email required; portal customer/vendor, defaults customer. Only active matching-
 
 Both required. token 32–200 characters; newPassword 12–72. Single use; invalid/expired links return 422. Clears all reset tokens and sessions for the user.
 
+### POST /api/v1/auth/verify-email
+
+**Access:** Public.
+
+**Example JSON body:**
+
+```json
+{
+  "token": "<token extracted from the email URL fragment>"
+}
+```
+
+**Success:** 200; `data: {message: "Email verified. You can sign in now.", email: "customer@example.com"}`.
+
+token required, 32–200 characters. Verification links use `<WEB_URL>/verify-email#token=<raw>` for customers and `<VENDOR_WEB_URL>/verify-email#token=<raw>` for vendors. Tokens expire after 24 hours; issuing a new link invalidates the previous one. Verification is single use and removes every verification token for that account. Invalid/expired links return 422; disabled accounts return 403. Does not return a session. When email is configured, a welcome email is sent on a best-effort basis.
+
+### POST /api/v1/auth/resend-verification
+
+**Access:** Public.
+
+**Example JSON body:**
+
+```json
+{
+  "email": "customer@example.com"
+}
+```
+
+**Success:** 200; `data: {message: "If this account needs verification, a new verification link will be emailed shortly."}`.
+
+email required. The response is deliberately generic and does not reveal whether the account exists. A new 24-hour link is sent only for an active, unverified account when SMTP is configured; otherwise no email is sent. The link invalidates any previous verification link. This action has its own rate-limit budget, separate from login.
+
 ### POST /api/v1/auth/challenge
 
 **Access:** Public.
@@ -309,7 +382,7 @@ provider required: google/apple. Challenge expires after five minutes. Provider 
 
 **Success:** 200; session response.
 
-Required: provider google/apple, credential (20–10,000 characters), nonce (32–200). portal customer/vendor defaults customer. Use an ID token, not an OAuth access token or authorization code. Signature, issuer/audience, verified email and matching nonce are checked. Successful challenges are single use. New identities create CUSTOMER only. Existing email without provider link returns 409; sign in with password and link explicitly. Vendor identities must already be linked to an admin-created, approved vendor.
+Required: provider google/apple, credential (20–10,000 characters), nonce (32–200). portal customer/vendor defaults customer. Use an ID token, not an OAuth access token or authorization code. Signature, issuer/audience, verified email and matching nonce are checked. Successful challenges are single use. New identities create CUSTOMER only and are marked email-verified because the provider has verified the address. Existing email without provider link returns 409; sign in with password and link explicitly. Vendor identities must already be linked to an admin-created, approved vendor.
 
 ### POST /api/v1/auth/link-provider
 
@@ -367,6 +440,32 @@ Both required. currentPassword max 72; newPassword 12–72. Revokes all sessions
 
 ## Public catalog
 
+### GET /api/v1/catalog/homepage
+
+**Access:** Public.
+
+**Body/query:** None. The response is sent with `Cache-Control: no-store`.
+
+**Success:** 200; `data: {content, version, updatedAt}`. `version` is a positive integer that increments on every publish; `updatedAt` is the server publish time. Returns 503 when the homepage row is missing (apply migrations and publish homepage content).
+
+`content` is the complete homepage document. All nested objects are strict; unknown fields are rejected when publishing. `href` is always an internal path beginning `/` (never `//`, and without backslashes, spaces or control characters). `image` is an HTTPS URL or an internal path.
+
+| Field | Shape |
+|---|---|
+| `heroMain`, `heroSide` | `{enabled, slides:[panel]}`; up to 12 slides. A legacy single-panel value is normalized to this shape. |
+| `topCategories`, `popularCategories`, `moreCategories` | `{enabled, title, linkLabel, href, items:[{label, icon, categorySlug}]}`; up to 16 items. |
+| `featured` | `{enabled, title, badge, description, linkLabel, href, items:[card], promos:[{eyebrow, title, description, linkLabel, href}]}`; up to 8 cards and 2 promos. |
+| `flash`, each `productRows[]` | `{enabled, title, description, categorySlug, linkLabel, productIds}`; `productRows` max 20; `productIds` max 30 UUIDs. |
+| `banners` | `{enabled, items:[card]}`; up to 6 cards. |
+| `upgrade` | panel. |
+| `benefits` | `{enabled, items:[{icon, title, description}]}`; up to 8 items. |
+| `searches` | `{enabled, title, terms:[text]}`; up to 100 terms. |
+| `footer` | `{columns:[{title, links:[{label, href}]}], title, description, linkLabel, href, copyright, paymentLabel}`; up to 6 columns and 12 links per column. |
+
+`panel` is `{enabled, eyebrow, title, highlight, description, image, alt, linkLabel, href}`. `card` is `{title, description, image, alt, linkLabel, href}`. `icon` is 1–8 characters. Title, link label, alt and copyright are 1–160 characters; eyebrow is max 100; highlight is max 160; descriptions are max 1,000; featured badge is max 100; payment label is max 200; image URLs are max 2,000. `categorySlug` uses lowercase letters, digits and hyphens; `all-products` is accepted as a category sentinel.
+
+Publishing validates referenced category slugs and featured products. See `PUT /api/v1/admin/homepage`.
+
 ### GET /api/v1/catalog/categories
 
 **Access:** Public.
@@ -375,7 +474,7 @@ Both required. currentPassword max 72; newPassword 12–72. Revokes all sessions
 
 **Success:** 200; `data: Category[]`, sorted by name.
 
-No pagination or category hierarchy endpoint.
+No pagination or separate hierarchy endpoint. Nullable parentSlug describes the hierarchy. productIds contains published products explicitly assigned to the collection.
 
 ### GET /api/v1/catalog/products
 
@@ -387,7 +486,7 @@ No pagination or category hierarchy endpoint.
 
 **Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone}`.
 
-Only active products from APPROVED vendors, newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`.
+Only APPROVED, active products from APPROVED vendors are returned; default sorting is newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`.
 
 ### GET /api/v1/catalog/products/:id
 
@@ -397,7 +496,7 @@ Only active products from APPROVED vendors, newest first. Example: `/api/v1/cata
 
 **Success:** 200; `data: Product` with category, vendor `{id,name,city,zone}`, and up to 50 newest reviews `{rating,comment,createdAt}`.
 
-id is product UUID. Inactive products/suspended vendors return 404.
+id is product UUID. Pending, rejected or inactive products, and products from suspended vendors, return 404.
 
 ## Customer profile, addresses, cart, wishlist, reviews
 
@@ -660,7 +759,7 @@ Delivery requires cashCollectedMinor to equal the **child** totalMinor exactly. 
 
 **Success:** 200; `data: VendorOrder` scalar fields.
 
-id is child UUID. Order must be READY. riderId required UUID for active RIDER on an AVAILABLE open shift. Sets ASSIGNED and marks rider BUSY.
+id is the child order number (`barwaqt-######`). Order must be READY. riderId required UUID for active RIDER on an AVAILABLE open shift. Sets ASSIGNED and marks rider BUSY.
 
 ### POST /api/v1/orders/:id/reset-pin
 
@@ -687,7 +786,7 @@ id is the child order number (`barwaqt-######`). Cannot reset DELIVERED/CANCELLE
 
 **Success:** 200; `data: {updated: true}`.
 
-id is assigned child UUID in ASSIGNED or PICKED_UP state. Both coordinates required (latitude −90…90; longitude −180…180). Updates locationAt. No active matching assignment returns 404.
+id is the assigned child order number (`barwaqt-######`) in ASSIGNED or PICKED_UP state. Both coordinates required (latitude −90…90; longitude −180…180). Updates locationAt. No active matching assignment returns 404.
 
 ## Vendor portal
 
@@ -717,13 +816,13 @@ products is a count. orders is `[{status,_count}]`. delivered is `{_sum:{subtota
 
 **Access:** Approved VENDOR.
 
-**Query:** page, limit; optional search (case-insensitive name contains) and categoryId UUID.
+**Query:** page, limit; optional search (case-insensitive name contains), categoryId UUID and reviewStatus (`PENDING`, `APPROVED`, `REJECTED`).
 
 **Body:** None.
 
 **Success:** 200; `data: Product[]`, newest first, including inactive owned products.
 
-No total-count wrapper. Search and categoryId are supported; status is not a product filter.
+No total-count wrapper. All review states are included unless reviewStatus is supplied. Use reviewStatus, not status, to filter moderation.
 
 ### POST /api/v1/vendor/products
 
@@ -753,7 +852,7 @@ No total-count wrapper. Search and categoryId are supported; status is not a pro
 
 **Success:** 201; `data: Product`.
 
-Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), active boolean (default true). Owner vendorId is server assigned. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
+Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), active boolean (default true). Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
 
 ### PATCH /api/v1/vendor/products/:id
 
@@ -771,7 +870,7 @@ Required: name text, slug, categoryId UUID of existing category, positive priceM
 
 **Success:** 200; `data: Product`.
 
-id must belong to caller’s vendor. Same fields/rules as product creation, all optional. Supplied stock is absolute; supplied images/attributes replace those values. Set active false to unpublish; no product DELETE route.
+id must belong to caller’s vendor. Same fields/rules as product creation, all optional. Supplied stock is absolute; supplied images/attributes replace those values. Set active false to unpublish; no product DELETE route. Content changes reset approval as described in Product publication rules below.
 
 ### GET /api/v1/vendor/settlements
 
@@ -784,6 +883,65 @@ id must belong to caller’s vendor. Same fields/rules as product creation, all 
 Own settlements only, newest first, max 100; no pagination query.
 
 ## Administration
+
+### GET /api/v1/admin/customers
+
+**Access:** ADMIN.
+
+**Query:** page, limit, search. Search is split on whitespace; every term must match at least one of firstName, lastName, email or phone (case-insensitive contains).
+
+**Body:** None.
+
+**Success:** 200; `data: {items, total, page, limit}`, newest first. Each item contains `{id, firstName, lastName, email, phone, active, createdAt, totalOrders, totalSpentMinor}`. `totalOrders` counts parent orders; `totalSpentMinor` is delivered child-order sales minus recorded refunds, in PKR paisa. Only CUSTOMER accounts are returned.
+
+### GET /api/v1/admin/customers/:id
+
+**Access:** ADMIN.
+
+**Query:** page, limit (for the embedded order history).
+
+**Body:** None.
+
+**Success:** 200; the customer summary above plus `orders: {items, total, page, limit}`. Each order contains `{id, createdAt, totalMinor, paymentMethod, currency, vendorOrders}`; each vendor order contains `{id, status, totalMinor, vendor:{name}, items:[{id,productId,name,image,quantity,unitPriceMinor}]}`. Missing customers and non-CUSTOMER ids return 404.
+
+### GET /api/v1/admin/homepage
+
+**Access:** ADMIN.
+
+**Body:** None.
+
+**Success:** 200; same `{content, version, updatedAt}` shape as the public catalog homepage, with `Cache-Control: no-store`.
+
+### PUT /api/v1/admin/homepage
+
+**Access:** ADMIN.
+
+**Example JSON body:**
+
+```json
+{
+  "version": 3,
+  "content": {
+    "heroMain": {"enabled": true, "slides": []},
+    "heroSide": {"enabled": true, "slides": []},
+    "topCategories": {"enabled": true, "title": "Shop by category", "linkLabel": "View all", "href": "/categories", "items": []},
+    "featured": {"enabled": true, "title": "Featured", "badge": "", "description": "", "linkLabel": "View all", "href": "/products", "items": [], "promos": []},
+    "flash": {"enabled": false, "title": "Flash deals", "description": "", "categorySlug": "all-products", "linkLabel": "View all", "productIds": []},
+    "banners": {"enabled": false, "items": []},
+    "popularCategories": {"enabled": true, "title": "Popular", "linkLabel": "View all", "href": "/categories", "items": []},
+    "productRows": [],
+    "moreCategories": {"enabled": true, "title": "More", "linkLabel": "View all", "href": "/categories", "items": []},
+    "upgrade": {"enabled": false, "eyebrow": "", "title": "Upgrade", "highlight": "", "description": "", "image": "/brand/home.webp", "alt": "Upgrade", "linkLabel": "Learn more", "href": "/account"},
+    "benefits": {"enabled": true, "items": []},
+    "searches": {"enabled": false, "title": "Popular searches", "terms": []},
+    "footer": {"columns": [], "title": "Barwaqt", "description": "", "linkLabel": "Contact", "href": "/contact", "copyright": "Barwaqt", "paymentLabel": "Cash on delivery"}
+  }
+}
+```
+
+Requires the full homepage `content` object and the current positive integer `version`. Every publish increments the version and records a `HOMEPAGE_PUBLISHED` audit entry. Referenced category slugs must exist (except `all-products`), and featured products must be active and owned by an APPROVED vendor; otherwise 422. A stale `version` returns 409 with instructions to reload before publishing. Unknown fields, invalid internal links and invalid image paths are rejected. Missing homepage row returns 503; apply migrations before first use.
+
+**Success:** 200; `data: {content, version, updatedAt}` with the newly incremented version.
 
 ### POST /api/v1/admin/vendors
 
@@ -817,7 +975,7 @@ Own settlements only, newest first, max 100; no pagination query.
 
 **Success:** 201; `data: Vendor` (not a session).
 
-Required: email, password, phone, firstName, name, slug, businessType, city, zone, address, categoryId (existing category UUID), and bankDetails. Optional: lastName text and description max 5,000. Commission is derived server-side from the selected category; a commissionBps override is rejected. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. Owner signs in using assigned credentials. No public vendor registration.
+Required: email, password, phone, firstName, name, slug, businessType, city, zone, address, categoryId (existing category UUID), and bankDetails. Optional: lastName text and description max 5,000. Commission is derived server-side from the selected category; a commissionBps override is rejected. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. The owner account is created email-verified, so it can sign in immediately without the customer verification flow. Owner signs in using assigned credentials. No public vendor registration.
 
 ### GET /api/v1/admin/vendors
 
@@ -890,7 +1048,7 @@ All fields are optional; provide at least one. Owner fields are nested under `ow
 
 **Success:** 201; `data: PublicUser` (not a session).
 
-Required: email, password, firstName, role RIDER/DISPATCHER/FINANCE. Optional: phone, lastName text. ADMIN cannot be created through this route; initial admin uses seed setup.
+Required: email, password, firstName, role RIDER/DISPATCHER/FINANCE. Optional: phone, lastName text. The account is created email-verified and can sign in immediately. ADMIN cannot be created through this route; the initial administrator uses the verified seed setup.
 
 ### GET /api/v1/admin/staff
 
@@ -925,13 +1083,13 @@ id is a staff user UUID. Both fields optional (at least one required): active bo
 
 **Access:** ADMIN.
 
-**Query:** page, limit; optional search (name contains, case-insensitive), vendorId UUID, categoryId UUID, active true/false. String filters max 100.
+**Query:** page, limit; optional search (name contains, case-insensitive), vendorId UUID, categoryId UUID, active true/false, reviewStatus (`PENDING`, `APPROVED`, `REJECTED`). String filters max 100.
 
 **Body:** None.
 
 **Success:** 200; `data: {items: Product[], total, page, limit}`.
 
-Lists products from every vendor regardless of vendor status, including inactive products; each item includes category and vendor `{id,name,city,zone,status}`. Newest first. This is the administrative counterpart to the public `/catalog/products`, which only shows active products from approved vendors.
+Lists products from every vendor regardless of vendor status, including inactive products; each item includes category and vendor `{id,name,city,zone,status}`. Newest first. This is the administrative counterpart to the public `/catalog/products`, which only shows APPROVED, active products from approved vendors. The admin list includes all review states unless filtered.
 
 ### PATCH /api/v1/admin/products/:id
 
@@ -949,7 +1107,31 @@ Lists products from every vendor regardless of vendor status, including inactive
 
 **Success:** 200; `data: Product`.
 
-id is product UUID; the product may belong to any vendor. Same fields/rules as the vendor product routes, all optional. Supplied stock is absolute; supplied images/attributes replace those values; setting a new categoryId resets explicit category memberships. Changes are audited as PRODUCT_UPDATED. Missing products return 404.
+id is product UUID; the product may belong to any vendor. Same fields/rules as the vendor product routes, all optional. Supplied stock is absolute; supplied images/attributes replace those values; setting a new categoryId resets explicit category memberships. Changes are audited as PRODUCT_UPDATED. Missing products return 404. Content edits reset moderation as described below; active=true does not approve. Use the review endpoint to decide.
+
+### POST /api/v1/admin/products/:id/review
+
+**Access:** ADMIN. id is the product UUID. No query parameters.
+
+Fetch `GET /api/v1/admin/products?reviewStatus=PENDING`, review all product details/images, and retain that item's reviewVersion.
+
+**Approve JSON body:**
+
+```json
+{"decision":"APPROVED","reviewVersion":1}
+```
+
+**Reject JSON body:**
+
+```json
+{"decision":"REJECTED","reviewVersion":1,"reason":"Please replace the blurred product images."}
+```
+
+reviewVersion is a required positive integer from the reviewed product. reason is required for rejection, trimmed, 3–2000 characters. Unknown fields are rejected; do not include reason with APPROVED or product edits in this request.
+
+**Success:** 200; `{ "data": Product }` with resulting reviewStatus, rejectionReason (null for approval), reviewedAt, reviewedById and reviewVersion. Audit entries and vendor notifications are committed with the decision. Approval publishes only when active=true and the vendor is APPROVED.
+
+**Errors:** 404 missing product; 409 stale reviewVersion or product no longer PENDING; 422 invalid body; 401/403 authentication/role failure. On 409, reload and review the latest content before deciding again; do not blindly retry with a newer version.
 
 ### POST /api/v1/admin/categories
 
@@ -1116,7 +1298,7 @@ id is settlement UUID. status required PROCESSED/PAID. Only PENDING→PROCESSED�
 
 **Success:** 201; `data: Refund`.
 
-id is child VendorOrder UUID. All fields required: positive amountMinor, reason text, reference unique text. Requires DELIVERED and cashReceived=true. See Operations additions for return receipt and post-settlement adjustment rules. Cumulative refunds cannot exceed subtotalMinor−discountMinor; delivery fee is not refundable here. Adjusts payable and proportionally reverses commission. Records an externally handled refund; no payment gateway transfer is executed.
+id is the child order number (`barwaqt-######`). All fields required: positive amountMinor, reason text, reference unique text. Requires DELIVERED and cashReceived=true. See Operations additions for return receipt and post-settlement adjustment rules. Cumulative refunds cannot exceed subtotalMinor−discountMinor; delivery fee is not refundable here. Adjusts payable and proportionally reverses commission. Records an externally handled refund; no payment gateway transfer is executed.
 
 ## Notifications
 
@@ -1148,7 +1330,7 @@ These are scalar response fields, not additional writable fields. Relations appe
 |---|---|
 | Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `categoryId: String?`, `commissionBps: Int`, `bankDetails: Json`, `createdAt: DateTime` |
 | Category | `id: String`, `name: String`, `slug: String`, `commissionBps: Int` |
-| Product | `id: String`, `vendorId: String`, `categoryId: String`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `images: String[]`, `attributes: Json`, `createdAt: DateTime`, `updatedAt: DateTime` |
+| Product | `id: String`, `vendorId: String`, `categoryId: String`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `reviewStatus: PENDING | APPROVED | REJECTED`, `rejectionReason: String?`, `reviewedAt: DateTime?`, `reviewedById: String?`, `reviewVersion: Int`, `images: String[]`, `attributes: Json`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | Address | `id: String`, `userId: String`, `kind: String`, `firstName: String`, `lastName: String`, `phone: String`, `city: String`, `zone: String`, `street: String`, `building: String`, `apartment: String`, `directions: String`, `latitude: Float?`, `longitude: Float?`, `createdAt: DateTime` |
 | CartItem | `userId: String`, `productId: String`, `quantity: Int` |
 | WishlistItem | `userId: String`, `productId: String` |
@@ -1164,14 +1346,32 @@ These are scalar response fields, not additional writable fields. Relations appe
 | Notification | `id: String`, `userId: String`, `title: String`, `body: String`, `readAt: DateTime?`, `createdAt: DateTime` |
 | Review | `id: String`, `userId: String`, `productId: String`, `rating: Int`, `comment: String`, `createdAt: DateTime` |
 | AuditLog | `id: String`, `actorId: String`, `action: String`, `entityId: String`, `metadata: Json`, `createdAt: DateTime` |
+| StorefrontPage | `key: String`, `content: Json`, `version: Int`, `updatedAt: DateTime` |
+| DeliverySlot | `id: String`, `city: String`, `zone: String`, `startsAt: DateTime`, `endsAt: DateTime`, `capacity: Int`, `reserved: Int`, `active: Boolean`, `createdAt: DateTime` |
+| ReturnRequest | `id: String`, `vendorOrderId: String`, `customerId: String`, `reason: String`, `status: String`, `note: String`, `restocked: Boolean`, `refundId: String?`, `createdAt: DateTime`, `updatedAt: DateTime` |
+| Upload | `id: String`, `ownerId: String`, `kind: String`, `filename: String`, `mimeType: String`, `size: Int`, `createdAt: DateTime` |
+| PaymentAccount | `id: String`, `method: String`, `accountTitle: String`, `accountNumber: String`, `bankName: String`, `instructions: String`, `active: Boolean`, `updatedAt: DateTime` |
+| Payment | `id: String`, `orderId: String`, `method: String`, `amountMinor: Int`, `status: String`, `accountSnapshot: Json`, `verifiedAt: DateTime?`, `verifiedBy: String?`, `createdAt: DateTime`, `updatedAt: DateTime` |
+| PaymentSubmission | `id: String`, `paymentId: String`, `method: String`, `reference: String`, `status: String`, `note: String`, `reviewedBy: String?`, `reviewedAt: DateTime?`, `createdAt: DateTime` |
+| VendorAdjustment | `id: String`, `vendorId: String`, `refundId: String`, `amountMinor: Int`, `settlementId: String?`, `createdAt: DateTime` |
 
-PublicUser contains only `id, email, phone, role, firstName, lastName, profile, active, createdAt`; no password hashes, linked subject identifiers, or sessions. Category also returns nullable `image` (asset URL) and `parentSlug` (parent category slug). The public category list adds `productIds` for active approved-vendor products explicitly assigned to that collection; direct and descendant primary-category memberships are included when filtering catalog products. Category has no createdAt field. CartItem and WishlistItem have compound keys and no independent id. PIN hashes and attempt counts are stripped from all order responses. Parent Order responses currently include idempotencyKey and requestHash; integrations should treat these as internal metadata, not IDs. Address in Order is a checkout-time JSON snapshot (without userId), not a live relation.
+PublicUser contains only `id, email, phone, role, firstName, lastName, profile, active, emailVerifiedAt, createdAt`; no password hashes, linked subject identifiers, or sessions. `emailVerifiedAt` is null until the address is verified; administrator-provisioned vendors and staff are verified at creation. Category also returns nullable `image` (asset URL) and `parentSlug` (parent category slug). The public category list adds `productIds` for APPROVED, active approved-vendor products explicitly assigned to that collection; direct and descendant primary-category memberships are included when filtering catalog products. Category has no createdAt field. CartItem and WishlistItem have compound keys and no independent id. PIN hashes and attempt counts are stripped from all order responses. Parent Order responses currently include idempotencyKey and requestHash; integrations should treat these as internal metadata, not IDs. Address in Order is a checkout-time JSON snapshot (without userId), not a live relation.
+
+## Product publication rules for mobile clients
+
+Changing name, slug, categoryId, description, priceMinor, images or attributes via either vendor or admin PATCH resets reviewStatus to PENDING and clears rejectionReason/reviewedAt/reviewedById. Supplying any of these content fields for a REJECTED product resubmits it even if unchanged. Stock/active-only updates preserve review outcome. Every product update increments reviewVersion. active=true never bypasses approval.
+
+Vendor screens should display reviewStatus and rejectionReason for rejected listings. After resubmitting, refresh and show PENDING until an administrator decides. Product approval and vendor account approval are separate.
+
+Customer catalog, category productIds, cart and wishlist reads omit unpublished products. Adding unavailable products is rejected; quote/checkout revalidates availability, so a stale unavailable cart item can cause 409. Refresh the cart/catalog and resolve unavailable items. Historical orders remain readable.
+
+For native clients, resolve `/api/media/<upload UUID>` through `https://api.barwaqt.com/api/v1/uploads/<upload UUID>/content`. Relative storefront assets such as `/shop/...`, `/product/...` and `/category/...` use the storefront origin `https://barwaqt.com`, not the API origin. Preserve absolute HTTPS image URLs.
 
 ## Integration walkthrough
 
 1. ADMIN logs in, creates category and vendor, and creates RIDER/DISPATCHER/FINANCE accounts as required. Keep each returned resource ID.
-2. VENDOR logs in and creates products with the category UUID and integer prices.
-3. CUSTOMER registers/logs in, browses catalog, creates an address matching vendor city/zone, and sets cart quantities with product UUIDs.
+2. VENDOR logs in and creates products with the category UUID and integer prices. ADMIN reviews the PENDING queue and approves each product using its current reviewVersion before customers can buy it. Rejections include rejectionReason; the vendor corrects content and resubmits.
+3. CUSTOMER registers and, when SMTP is configured, verifies the emailed link before logging in. Then browse the catalog, create an address matching vendor city/zone, and set cart quantities with product UUIDs.
 4. CUSTOMER posts checkout with addressId and a fresh Idempotency-Key. Save parent `data.id` and each `data.vendorOrders[].id` separately (both are `barwaqt-######` numbers). Retry network failures with the same key and payload.
 5. VENDOR reads `/orders`, accepts each child, then marks it ready. RIDER starts a shift. ADMIN/DISPATCHER assigns an available rider to a ready child.
 6. RIDER marks pickup, updates location as needed, then delivers using the PIN shown in the CUSTOMER’s notifications and exact child totalMinor. For failed deliveries, dispatch retries or returns the child.
@@ -1181,15 +1381,15 @@ PublicUser contains only `id, email, phone, role, firstName, lastName, profile, 
 
 ```bash
 # Public catalog
-curl 'http://localhost:4000/api/v1/catalog/products?page=1&limit=20'
+curl 'https://api.barwaqt.com/api/v1/catalog/products?page=1&limit=20'
 
 # Login (example credentials only)
-curl -X POST 'http://localhost:4000/api/v1/auth/login' \
+curl -X POST 'https://api.barwaqt.com/api/v1/auth/login' \
   -H 'Content-Type: application/json' \
   -d '{"identity":"customer@example.com","password":"ExamplePass123!"}'
 
 # Use the returned access token and an actual saved address UUID
-curl -X POST 'http://localhost:4000/api/v1/orders/checkout' \
+curl -X POST 'https://api.barwaqt.com/api/v1/orders/checkout' \
   -H 'Authorization: Bearer <accessToken>' \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: checkout-20261012-001' \
@@ -1200,7 +1400,9 @@ curl -X POST 'http://localhost:4000/api/v1/orders/checkout' \
 
 - Only the endpoints listed here exist. There are no generic CRUD routes for every database model.
 - Automated online payment gateways, SMS/OTP endpoints, real-time tracking streams, public vendor signup, and automatic bank payouts are not implemented. COD and configured platform bank/wallet transfers are supported checkout methods.
-- Google/Apple sign-in and reset emails require server provider configuration. See [AUTH_SETUP.md](docs/AUTH_SETUP.md). Fetch `/auth/providers` before displaying enabled provider options.
+- Google/Apple sign-in and reset/verification emails require server provider configuration. See [AUTH_SETUP.md](docs/AUTH_SETUP.md). Fetch `/auth/providers` before displaying enabled provider options.
+- Customer email verification is enforced only when both `SMTP_HOST` and `SMTP_FROM` are configured; otherwise registration activates the account immediately. Admin-created vendors and staff, social sign-ups and seeded administrators are verified at creation. Existing vendor/staff accounts created before that provisioning rule can be repaired once with `npm run emails:verify-staff` from the backend directory (`--dry-run` previews the changes).
+- Homepage publishing requires the migrated `StorefrontPage` row. `GET /catalog/homepage` returns 503 until migrations are applied and content is published.
 - Product image URLs must resolve from your deployed frontend/CDN; storing a URL does not upload the image.
 - Lists capped at 100 without pagination cannot be made exhaustive by adding page/limit parameters.
 - Frontend sample data must be replaced with actual API resources and UUIDs. See [FRONTEND.md](docs/FRONTEND.md) and [README.md](README.md) for setup/context.
@@ -1216,7 +1418,7 @@ curl -X POST 'http://localhost:4000/api/v1/orders/checkout' \
 
 **Success:** 200; `data: {items, total, page, limit}`. Items have `{id,name,slug,description,businessType,city,zone}`. Only APPROVED vendors, sorted by name; owner/bank/commission fields are never included.
 
-### GET /api/v1/catalog/vendors/:id
+### GET /api/v1/catalog/vendors/:vendorId
 
 **Access:** Public. **Body:** None. The path value is the vendor UUID **or** its slug.
 
@@ -1414,7 +1616,7 @@ filename 1–200 chars; kind IMAGE (default) or DOCUMENT. data is raw base64 wit
 
 ### GET /api/v1/admin/products
 
-**Access:** ADMIN. Body: none. Query: page, limit, search, vendorId, categoryId, active (`true`/`false`). Success: 200 `{items,total,page,limit}` including inactive products and products of suspended vendors; each item includes vendor and category.
+**Access:** ADMIN. Body: none. Query: page, limit, search, vendorId, categoryId, active (`true`/`false`), reviewStatus (`PENDING`/`APPROVED`/`REJECTED`). Success: 200 `{items,total,page,limit}` including inactive products and products of suspended vendors; each item includes vendor and category.
 
 ### PATCH /api/v1/admin/products/:id
 
@@ -1424,7 +1626,7 @@ filename 1–200 chars; kind IMAGE (default) or DOCUMENT. data is raw base64 wit
 {"active":false}
 ```
 
-Accepts a subset of the vendor product creation fields (name, slug, categoryId, description, priceMinor, stock, images, attributes, active), with the same validation. Changes are audited. Success: 200 Product.
+Accepts a subset of the vendor product creation fields (name, slug, categoryId, description, priceMinor, stock, images, attributes, active), with the same validation. Changes are audited. Content edits reset moderation to PENDING; active=true does not approve. Success: 200 Product.
 
 ### GET /api/v1/admin/staff
 
@@ -1471,7 +1673,7 @@ Query: page (default 1), limit (default 20, max 100), optional status AWAITING_T
 
 ### POST /api/v1/payments/orders/:id/submissions
 
-**Access:** CUSTOMER. **id:** parent Order UUID (not a vendor shipment).
+**Access:** CUSTOMER. **id:** parent order number (`barwaqt-######`, not a vendor shipment).
 
 ```json
 {"reference":"BANK-OR-WALLET-TRANSACTION-123"}
@@ -1507,7 +1709,9 @@ For authorized vendor-order responses from `GET /api/v1/orders` and `GET /api/v1
 
 Settlement creation, processing and paid transitions create in-app notifications for the vendor owner. Settlement amount is fixed when created; later refunds may change linked order payable values and create deductions for a future settlement. UI breakdowns distinguish current order values from the fixed settlement amount. Recording PAID requires an external payment reference and does not initiate a bank or wallet transfer.
 
-### GET /api/v1/finance/settlement-preview?vendorId=<vendor UUID>
+### GET /api/v1/finance/settlement-preview
+
+**Query:** required vendorId UUID. Example: `/api/v1/finance/settlement-preview?vendorId=11111111-1111-4111-8111-111111111111`.
 
 ADMIN or FINANCE. No body. Returns `data: {eligibleCount, awaitingPaymentCount, heldForReturnCount, adjustmentsMinor, amountMinor}` for unbatched delivered orders. Return and payment blocker counts can overlap. Amount is eligible order payable plus unbatched adjustments and may be non-positive. Preview is advisory; settlement creation rechecks eligibility transactionally.
 

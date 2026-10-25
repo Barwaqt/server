@@ -78,6 +78,7 @@ test("admin customer search, totals, purchase snapshots and access restrictions"
   });
   const product = await db.product.create({
     data: {
+      reviewStatus: "APPROVED",
       vendorId: vendor.id,
       categoryId: category.id,
       name: "Current name",
