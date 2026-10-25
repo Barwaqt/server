@@ -99,3 +99,5 @@ Run `npm run db:seed:catalog` after migrations to import the original 218 produc
 ## CI/CD
 
 GitHub Actions runs backend tests with PostgreSQL on pushes and pull requests to `main`. Successful pushes to `main` automatically publish tested code to the VPS through SSH and restart PM2; no server-side `git pull` is needed. See [deployment setup](docs/DEPLOYMENT.md) for secrets, prerequisites and migration handling.
+
+The API trusts forwarded headers only from loopback peers for the same-host Nginx deployment. Remote peers are not trusted. See [Express proxy configuration](https://expressjs.com/en/guide/behind-proxies/).

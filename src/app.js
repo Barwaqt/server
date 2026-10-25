@@ -23,6 +23,8 @@ import { financeRouter } from "./routes/finance.routes.js";
 import { notificationRouter } from "./routes/notification.routes.js";
 export const app = express();
 app.disable("x-powered-by");
+// Nginx connects locally; do not trust forwarded headers from remote peers.
+app.set("trust proxy", "loopback");
 app.use(helmet());
 app.use(
   pinoHttp({
