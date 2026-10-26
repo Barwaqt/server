@@ -24,8 +24,9 @@ cd "$stage"
 unset DATABASE_URL
 npm ci --omit=dev
 npm run db:generate
-# Fail before changing live files when migrations need an operator's attention.
-npx prisma migrate status
+# Apply this tested release's migrations before updating live application files.
+# set -e stops deployment without copying files or restarting PM2 if migration fails.
+npm run db:migrate
 # No deletion: preserve server-owned files and existing uploaded assets.
 rsync -a \
   --exclude='.git/' --exclude='.env' --exclude='.env.*' \

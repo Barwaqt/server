@@ -36,9 +36,9 @@ See [GitHub's environment configuration documentation](https://docs.github.com/e
 
 ## What deployment does
 
-The workflow uploads the tested Git revision, installs production dependencies in a temporary folder, generates Prisma, and checks migration status. If migrations are pending, deployment stops before changing live application files. Otherwise it copies files, restarts PM2, saves its process list, and checks local and public `/ready`.
+The workflow uploads the tested Git revision, installs production dependencies in a temporary folder, generates Prisma, and runs `npm run db:migrate` (`prisma migrate deploy`) against production. Pending migrations are applied automatically from the tested revision. If migration fails, deployment stops before copying live files or restarting PM2. On success it copies files, restarts PM2, saves its process list, and checks local and public `/ready`.
 
-Production migrations and seeds are not automatic. For a revision with migrations, review and back up the database, upload that revision's migration files to the VPS, run `npm run db:migrate` from the backend directory, then rerun deployment. Migrations must remain compatible with the currently running application. Catalog seeding still requires frontend images under `/var/www/barwaqt.com/public`; this backend-only workflow does not upload those assets.
+Production migrations are automatic; seeds are not. No manual `git pull` or migration command is needed for normal deployment. Review migrations before merging and maintain database backups. Migrations must remain compatible with the currently running application, which continues serving while migrations run. A failed migration may need operator repair before redeploying; the pipeline never resets the database or marks failed migrations as resolved. Catalog seeding still requires frontend images under `/var/www/barwaqt.com/public`; this backend-only workflow does not upload those assets.
 
 `.env`, `.env.*`, `.git`, uploads and the local vendor credentials file are excluded from synchronization. No destination files are deleted. Consequently, removed source files and obsolete dependencies can remain on the VPS; review and remove stale files separately when needed. Store custom runtime files outside source directories to avoid name collisions.
 

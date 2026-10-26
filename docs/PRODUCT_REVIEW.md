@@ -29,17 +29,8 @@ The admin Products page defaults to pending listings and includes full-size imag
 
 ## Deploy in order
 
-1. Back up production PostgreSQL.
-2. Deploy the backend revision and apply `20261025120000_product_moderation` before starting the new API code. The existing Actions deployment stops when migrations are pending.
-3. Generate the Prisma client and restart the API.
-4. Deploy the admin and vendor revisions. The customer app needs no code changes: its catalog, cart and checkout use the approval-filtered API.
+1. Maintain a production database backup.
+2. Push the backend revision. Actions applies pending migrations (including `20261025120000_product_moderation`) automatically from the tested release before copying code and restarting PM2.
+3. Wait for the backend deployment and readiness checks to pass, then deploy admin and vendor revisions. The customer app uses the approval-filtered API without a separate moderation UI change.
 
-For a manual initial rollout on the VPS:
-
-```bash
-cd /var/www/api.barwaqt.com
-git pull origin main
-npm run db:generate && npm run db:migrate && pm2 restart barwaqt-api --update-env
-```
-
-Then rerun the backend deployment if it stopped on pending migrations, and deploy the admin/vendor revisions. Do not run a database reset. Reversing application code does not reverse moderation decisions or the additive migration.
+No manual git pull or migration command is needed. Failed migrations stop deployment before live files are copied; inspect and repair the migration failure before retrying. Do not run a database reset. Reversing application code does not reverse moderation decisions or migrations.
