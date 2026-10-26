@@ -109,3 +109,7 @@ New vendor products require admin review before publication. Vendors see rejecti
 ## Private developer API reference
 
 Open `https://api.barwaqt.com/integerate/api/complete_api.md` and enter the shared developer PIN. The server returns the current `complete_api.md` as readable plain text only after a correct form submission. Each access requires the PIN; no URL token or public static copy is created. Share the PIN separately. Responses disable caching and search indexing. Five failed attempts per IP within 15 minutes block further attempts until the window resets (in-memory limits reset on API restart). No new environment variables or database migrations are required for this route. Deploy the backend to make it available.
+
+## Session and support updates
+
+Search popularity requires migration `20261026120000_search_terms`. Support contacts use the existing StorefrontPage table. See complete_api.md for support and search endpoints.

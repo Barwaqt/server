@@ -13,6 +13,11 @@ export async function get() {
   return {
     content: {
       ...row.content,
+      searches: {
+        ...row.content.searches,
+        limit: row.content.searches.limit ?? 10,
+        dynamic: row.content.searches.dynamic ?? true,
+      },
       heroMain: heroCarousel.parse(row.content.heroMain),
       heroSide: heroCarousel.parse(row.content.heroSide),
     },
@@ -76,6 +81,11 @@ export async function publish(user, input) {
     return {
       content: {
         ...row.content,
+        searches: {
+          ...row.content.searches,
+          limit: row.content.searches.limit ?? 10,
+          dynamic: row.content.searches.dynamic ?? true,
+        },
         heroMain: heroCarousel.parse(row.content.heroMain),
         heroSide: heroCarousel.parse(row.content.heroSide),
       },

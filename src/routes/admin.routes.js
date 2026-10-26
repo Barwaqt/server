@@ -1,3 +1,8 @@
+import {
+  getSupport,
+  saveSupport,
+  supportInput,
+} from "../services/support.service.js";
 import * as customers from "../services/admin-customer.service.js";
 import * as homepage from "../controllers/homepage.controller.js";
 import { publishHomepage } from "../validators/homepage.validator.js";
@@ -29,6 +34,12 @@ adminRouter.param("id", (req, res, next, value) => {
   next();
 });
 adminRouter.use(authenticate, roles("ADMIN"));
+adminRouter.get("/support", async (req, res) =>
+  res.json({ data: await getSupport() }),
+);
+adminRouter.put("/support", validate(supportInput), async (req, res) =>
+  res.json({ data: await saveSupport(req.user, req.input.body) }),
+);
 adminRouter.get("/customers", validate(page, "query"), async (req, res) =>
   res.json({ data: await customers.customers(req.input.query) }),
 );

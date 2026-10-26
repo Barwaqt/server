@@ -116,6 +116,8 @@ export const homepageContent = z
         enabled: z.boolean(),
         title: text,
         terms: z.array(text).max(100),
+        limit: z.number().int().min(1).max(100).default(10),
+        dynamic: z.boolean().default(true),
       })
       .strict(),
     footer: z

@@ -457,3 +457,9 @@ model StorefrontPage {
  version Int @default(1)
  updatedAt DateTime @updatedAt
 }
+
+model SearchTerm {
+ term String @id
+ count Int @default(1)
+ updatedAt DateTime @updatedAt
+}

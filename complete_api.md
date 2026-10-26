@@ -2,7 +2,7 @@
 
 This document describes the endpoints implemented in `src/app.js` and `src/routes`, including service-level requirements. It describes the Node API directly; the Next.js authentication proxy has a different cookie-based interface.
 
-Last updated: 2026-10-25.
+Last updated: 2026-10-26.
 
 **Release scope:** This documents the checked-out source, not a verification of the live deployment. Product moderation requires migration `20261025120000_product_moderation` and the corresponding backend release. See [rollout instructions](docs/PRODUCT_REVIEW.md). The moderation contract below is authoritative when using older Postman templates.
 
@@ -87,6 +87,10 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | POST | `/api/v1/auth/logout` | Authenticated |
 | POST | `/api/v1/auth/change-password` | Authenticated |
 | GET | `/api/v1/catalog/homepage` | Public |
+| GET | `/api/v1/catalog/support` | Public |
+| POST | `/api/v1/catalog/searches` | Public |
+| GET | `/api/v1/admin/support` | ADMIN |
+| PUT | `/api/v1/admin/support` | ADMIN |
 | GET | `/api/v1/catalog/categories` | Public |
 | GET | `/api/v1/catalog/products` | Public |
 | GET | `/api/v1/catalog/products/:id` | Public |
@@ -1718,3 +1722,37 @@ ADMIN or FINANCE. No body. Returns `data: {eligibleCount, awaitingPaymentCount, 
 ### GET /api/v1/finance/rider-balances
 
 ADMIN or FINANCE. No body. Returns `data: [{id, firstName, lastName, collectedMinor, receivedMinor, outstandingMinor}]`. Amounts are minor PKR units; outstanding is collected COD minus recorded remittances, across all vendors. Recording a partial remittance does not unlock individual orders: existing reconciliation rules unlock delivered orders once the rider’s outstanding balance is fully received. A delivery is not proof of platform receipt; administrators must record only money actually received.
+
+## Support contacts and popular searches
+
+### GET /api/v1/catalog/support
+
+Public. No body. Returns `{ "data": { "phone": "", "phone2": "", "email": "", "whatsapp": "" } }`. Empty values mean the contact has not been configured. Vendor Support displays these contacts with call, mail and WhatsApp links.
+
+### GET /api/v1/admin/support
+
+ADMIN only. No body. Returns the same contacts object.
+
+### PUT /api/v1/admin/support
+
+ADMIN only. Replaces all four fields, records SUPPORT_UPDATED in the audit log. Example body:
+
+```json
+{"phone":"+923001234567","phone2":"","email":"support@example.com","whatsapp":"+923001234567"}
+```
+
+All fields are required strings; use an empty string to remove a contact. Phone fields allow digits, spaces, parentheses, hyphens and an optional leading plus (7–30 characters). Email must be valid or empty. Use a full international number for WhatsApp. Success 200 `{data: contacts}`; invalid input 422; wrong role 403.
+
+### POST /api/v1/catalog/searches
+
+Public. Called once when a customer submits the product search box, not on each keystroke or catalog fetch. Body:
+
+```json
+{"term":"Basmati rice"}
+```
+
+Trimmed input length 2–100. Success 204, no body. Rate limit 20 submissions per minute per IP (429 when exceeded). Terms are normalized to lowercase, whitespace is collapsed, and an aggregate count is stored. No customer ID is stored with the term. Search counting failures must not block product search.
+
+Homepage publishing now accepts `content.searches.limit` (integer 1–100, default 10) and `content.searches.dynamic` (boolean, default true), alongside enabled/title/terms. Admin `terms` are pinned first, followed by searches ranked by aggregate count with alphabetical tie-breaking. Case-insensitive duplicates are removed, then the limit is applied. Set dynamic=false for admin-only tags. No fabricated tags fill an empty result. Public GET /catalog/homepage returns resolved tags in searches.terms; admin GET /admin/homepage returns only editable pinned terms. Publish using the normal homepage version check.
+
+Requires migration `20261026120000_search_terms` before deploying this backend release.
