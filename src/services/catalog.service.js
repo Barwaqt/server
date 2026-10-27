@@ -1,4 +1,5 @@
 import { reviewReset } from "../utils/product-review.js";
+import { descendantCategoryIds } from "../utils/category-tree.js";
 import { db, transaction } from "../config/database.js";
 import { pagination } from "../validators/common.validator.js";
 import { assert } from "../utils/error.js";
@@ -29,25 +30,16 @@ export async function products(q) {
     422,
     "Minimum price must not exceed maximum price",
   );
-  let categoryIds = q.categoryId ? [q.categoryId] : [];
-  if (q.categoryId) {
-    const rows = await db.category.findMany({
-      select: { id: true, slug: true, parentSlug: true },
-    });
-    const slugs = new Set(
-      rows.filter((c) => c.id === q.categoryId).map((c) => c.slug),
-    );
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const c of rows)
-        if (c.parentSlug && slugs.has(c.parentSlug) && !slugs.has(c.slug)) {
-          slugs.add(c.slug);
-          categoryIds.push(c.id);
-          changed = true;
-        }
-    }
-  }
+  const categoryIds = q.categoryId
+    ? [
+        ...descendantCategoryIds(
+          await db.category.findMany({
+            select: { id: true, slug: true, parentSlug: true },
+          }),
+          [q.categoryId],
+        ),
+      ]
+    : [];
   const where = {
     active: true,
     reviewStatus: "APPROVED",

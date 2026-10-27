@@ -1174,7 +1174,7 @@ Both required: name text, slug. Slug unique. Optional commissionBps is an intege
 
 **Success:** 201; `data: Coupon`.
 
-Required: categoryIds (1–500 unique existing category UUIDs), code (trimmed/uppercased, 3–30 uppercase letters/digits/_/-), percentBps integer 1–10,000, positive maxDiscountMinor, maxUses integer 1–1,000,000, expiresAt ISO datetime. Optional minSubtotalMinor defaults 0. New coupons active=true and used=0. Checkout validates expiry, usage and minimum; list/update/delete are documented in Operations additions.
+Required: categoryIds (1–500 unique existing category UUIDs), code (trimmed/uppercased, 3–30 uppercase letters/digits/_/-), percentBps integer 1–10,000, positive maxDiscountMinor, maxUses integer 1–1,000,000, expiresAt ISO datetime. Optional minSubtotalMinor defaults 0. New coupons active=true and used=0. A coupon applies to every product shown in the selected categories, including their subcategories (parentSlug descendants) and catalog collection members; the eligible subtotal, minimum and discount use those matching products only. Checkout validates expiry, usage and minimum; list/update/delete are documented in Operations additions.
 
 ### GET /api/v1/admin/reports
 

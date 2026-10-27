@@ -21,6 +21,19 @@ test("coupon only discounts selected categories in a mixed cart", () => {
     { discount: 100, discounts: [100, 0] },
   );
 });
+test("products listed under the coupon category through a catalog collection are eligible", () => {
+  const linked = (categoryId, catalogCategories, priceMinor) => ({
+    quantity: 1,
+    product: { categoryId, catalogCategories, priceMinor },
+  });
+  assert.deepEqual(
+    categoryDiscount(
+      [[linked("b", [{ id: "a" }], 4000), linked("c", [], 6000)]],
+      config,
+    ),
+    { discount: 400, discounts: [400] },
+  );
+});
 test("multiple categories and discount caps are supported", () => {
   assert.deepEqual(
     categoryDiscount([[item("a", 1000)], [item("b", 2000)]], {

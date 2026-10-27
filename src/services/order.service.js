@@ -1,4 +1,5 @@
 import { categoryDiscount } from "../utils/coupon-discount.js";
+import { descendantCategoryIds } from "../utils/category-tree.js";
 import { createPayment, syncPayment } from "./payment.service.js";
 import { reserveSlot, releaseCancelledSlot } from "./delivery.service.js";
 import bcrypt from "bcryptjs";
@@ -25,7 +26,11 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       userId: user.id,
       ...(input.productIds ? { productId: { in: input.productIds } } : {}),
     },
-    include: { product: { include: { vendor: true } } },
+    include: {
+      product: {
+        include: { vendor: true, catalogCategories: { select: { id: true } } },
+      },
+    },
   });
   assert(cart.length, 422, "Cart is empty");
   if (input.productIds)
@@ -95,7 +100,17 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       422,
       "Coupon is invalid, expired or exhausted",
     );
-    ({ discount, discounts } = categoryDiscount(groups, coupon));
+    ({ discount, discounts } = categoryDiscount(groups, {
+      ...coupon,
+      categoryIds: [
+        ...descendantCategoryIds(
+          await tx.category.findMany({
+            select: { id: true, slug: true, parentSlug: true },
+          }),
+          coupon.categoryIds,
+        ),
+      ],
+    }));
     if (reserve)
       await tx.coupon.update({
         where: { id: coupon.id },

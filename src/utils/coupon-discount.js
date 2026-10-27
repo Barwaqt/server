@@ -1,12 +1,22 @@
 import { allocate, percentage } from "./money.js";
 import { assert } from "./error.js";
+// A product counts as eligible when the coupon targets its primary category or
+// any catalog collection it belongs to, matching how the storefront lists it.
+function matchesCategory(item, selected) {
+  return (
+    selected.has(item.product.categoryId) ||
+    (item.product.catalogCategories || []).some((category) =>
+      selected.has(category.id),
+    )
+  );
+}
 export function categoryDiscount(groups, coupon) {
   const selected = new Set(coupon.categoryIds || []);
   const weights = groups.map((items) =>
     items.reduce(
       (sum, item) =>
         sum +
-        (selected.has(item.product.categoryId)
+        (matchesCategory(item, selected)
           ? item.product.priceMinor * item.quantity
           : 0),
       0,
