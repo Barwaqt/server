@@ -1,10 +1,10 @@
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { db, transaction } from "../config/database.js";
 import { env } from "../config/env.js";
-import { findIdentity, publicUser } from "../models/user.model.js";
+import { findIdentity } from "../models/user.model.js";
 import { hashToken, token } from "../utils/security.js";
 import { assert } from "../utils/error.js";
+import { access, sessionFor } from "./session.service.js";
 import {
   issueVerification,
   verificationRequired,
@@ -13,34 +13,6 @@ const dummy = await bcrypt.hash(
   "constant-dummy-password-to-balance-login-time",
   12,
 );
-function access(user, session) {
-  return jwt.sign({ sid: session.id }, env.JWT_SECRET, {
-    subject: user.id,
-    issuer: "barwaqt",
-    audience: "barwaqt-api",
-    expiresIn: env.ACCESS_TOKEN_MINUTES * 60,
-    algorithm: "HS256",
-  });
-}
-export async function sessionFor(user) {
-  const refreshToken = token();
-  const session = await db.session.create({
-    data: {
-      userId: user.id,
-      tokenHash: hashToken(refreshToken),
-      expiresAt: new Date(Date.now() + env.REFRESH_TOKEN_DAYS * 86400000),
-    },
-  });
-  return {
-    accessToken: access(user, session),
-    refreshToken,
-    expiresIn: env.ACCESS_TOKEN_MINUTES * 60,
-    user: await db.user.findUnique({
-      where: { id: user.id },
-      select: publicUser,
-    }),
-  };
-}
 export async function register(input) {
   const user = await db.user.create({
     data: {

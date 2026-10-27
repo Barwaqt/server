@@ -333,9 +333,9 @@ Both required. token 32–200 characters; newPassword 12–72. Single use; inval
 }
 ```
 
-**Success:** 200; `data: {message: "Email verified. You can sign in now.", email: "customer@example.com"}`.
+**Success:** 200; `data: {message: "Email verified. You are signed in.", email: "customer@example.com", accessToken, refreshToken, expiresIn, user}` — the same session payload login returns, so the customer is signed in as soon as the code is accepted. The Next.js proxy stores it in HttpOnly cookies.
 
-code required, exactly six digits. The signup and resend emails carry the code, and the form that submits it is `<WEB_URL>/verify-email` for customers and `<VENDOR_WEB_URL>/verify-email` for vendors. Codes expire after 15 minutes; issuing a new code invalidates the previous one. Verification is single use and removes every verification code for that account. Invalid or expired codes return 422, as does a payload that is not six digits; disabled accounts return 403. Does not return a session. When email is configured, a welcome email is sent on a best-effort basis.
+code required, exactly six digits. The signup and resend emails carry the code, and the form that submits it is `<WEB_URL>/verify-email` for customers and `<VENDOR_WEB_URL>/verify-email` for vendors. Codes expire after 15 minutes; issuing a new code invalidates the previous one. Verification is single use and removes every verification code for that account. Invalid or expired codes return 422, as does a payload that is not six digits; disabled accounts return 403. Sessions started by verification are independent, so the same email and password still sign in from any other device. When email is configured, a welcome email is sent on a best-effort basis.
 
 ### POST /api/v1/auth/resend-verification
 

@@ -87,13 +87,19 @@ test("signup emails a verification code, blocks sign-in until it is used and all
   // A resend replaces the previous code; two draws can collide by chance.
   if (stale !== fresh)
     assert.equal((await post("verify-email", { code: stale })).status, 422);
-  assert.equal((await post("verify-email", { code: fresh })).status, 200);
+  const signedUp = await ok(post("verify-email", { code: fresh }));
+  assert.equal(signedUp.user.email, email);
+  assert.ok(signedUp.accessToken, "verification must sign the customer in");
+  assert.ok(signedUp.refreshToken);
   assert.equal((await post("verify-email", { code: fresh })).status, 422);
   assert.equal((await post("verify-email", { code: "12345" })).status, 422);
   const verified = await db.user.findUnique({ where: { email } });
   assert.ok(verified.emailVerifiedAt);
   assert.ok(messages.some((m) => /Welcome to Barwaqt/.test(m)));
-  await ok(post("login", { identity: email, password }));
+  // The same email and password must sign in from any other device.
+  const otherDevice = await ok(post("login", { identity: email, password }));
+  assert.ok(otherDevice.accessToken);
+  assert.notEqual(otherDevice.refreshToken, signedUp.refreshToken);
 });
 test("reset email delivers locally, expires, is single-use and revokes sessions", async () => {
   const login = await ok(post("login", { identity: email, password }));

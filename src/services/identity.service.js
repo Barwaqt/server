@@ -5,7 +5,7 @@ import { db, transaction } from "../config/database.js";
 import { env } from "../config/env.js";
 import { assert, ApiError } from "../utils/error.js";
 import { token, hashToken } from "../utils/security.js";
-import { sessionFor } from "./auth.service.js";
+import { sessionFor } from "./session.service.js";
 import {
   mailReady,
   sendPasswordChangedEmail,

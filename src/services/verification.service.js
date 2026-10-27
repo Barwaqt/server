@@ -2,6 +2,7 @@ import { db, transaction } from "../config/database.js";
 import { env } from "../config/env.js";
 import { assert } from "../utils/error.js";
 import { hashToken, verificationCode } from "../utils/security.js";
+import { sessionFor } from "./session.service.js";
 import {
   mailReady,
   sendVerificationEmail,
@@ -76,7 +77,12 @@ export async function verifyEmail({ code }) {
       // Intentionally ignored.
     }
   }
-  return { message: "Email verified. You can sign in now.", email: user.email };
+  // A correct code proves the address, so the customer is signed in straight away.
+  return {
+    message: "Email verified. You are signed in.",
+    email: user.email,
+    ...(await sessionFor(user)),
+  };
 }
 
 export async function resendVerification({ email }) {
