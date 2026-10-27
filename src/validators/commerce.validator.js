@@ -74,6 +74,14 @@ export const staff = z
   .strict();
 export const coupon = z
   .object({
+    categoryIds: z
+      .array(id)
+      .min(1)
+      .max(500)
+      .refine(
+        (values) => new Set(values).size === values.length,
+        "Choose each category only once",
+      ),
     code: z
       .string()
       .trim()

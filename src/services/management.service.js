@@ -127,6 +127,14 @@ export async function coupons(q) {
 }
 export async function saveCoupon(user, id, input) {
   return transaction(async (tx) => {
+    if (input.categoryIds)
+      assert(
+        (await tx.category.count({
+          where: { id: { in: input.categoryIds } },
+        })) === input.categoryIds.length,
+        422,
+        "One or more coupon categories do not exist",
+      );
     const current = id ? await tx.coupon.findUnique({ where: { id } }) : null;
     if (id) assert(current, 404, "Coupon not found");
     assert(

@@ -159,6 +159,7 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
     await ok(call("put", `/customer/cart/${p.id}`, ct, { quantity: 1 }));
   const coupon = await ok(
     call("post", "/admin/coupons", at, {
+      categoryIds: [category.id],
       code: `SAVE_${suffix.toUpperCase()}`,
       percentBps: 1000,
       maxDiscountMinor: 50000,

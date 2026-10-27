@@ -1163,6 +1163,7 @@ Both required: name text, slug. Slug unique. Optional commissionBps is an intege
 ```json
 {
   "code": "WELCOME10",
+  "categoryIds": ["11111111-1111-4111-8111-111111111111"],
   "percentBps": 1000,
   "maxDiscountMinor": 50000,
   "minSubtotalMinor": 100000,
@@ -1173,7 +1174,7 @@ Both required: name text, slug. Slug unique. Optional commissionBps is an intege
 
 **Success:** 201; `data: Coupon`.
 
-Required: code (trimmed/uppercased, 3–30 uppercase letters/digits/_/-), percentBps integer 1–10,000, positive maxDiscountMinor, maxUses integer 1–1,000,000, expiresAt ISO datetime. Optional minSubtotalMinor defaults 0. New coupons active=true and used=0. Checkout validates expiry, usage and minimum; list/update/delete are documented in Operations additions.
+Required: categoryIds (1–500 unique existing category UUIDs), code (trimmed/uppercased, 3–30 uppercase letters/digits/_/-), percentBps integer 1–10,000, positive maxDiscountMinor, maxUses integer 1–1,000,000, expiresAt ISO datetime. Optional minSubtotalMinor defaults 0. New coupons active=true and used=0. Checkout validates expiry, usage and minimum; list/update/delete are documented in Operations additions.
 
 ### GET /api/v1/admin/reports
 
@@ -1338,7 +1339,7 @@ These are scalar response fields, not additional writable fields. Relations appe
 | Address | `id: String`, `userId: String`, `kind: String`, `firstName: String`, `lastName: String`, `phone: String`, `city: String`, `zone: String`, `street: String`, `building: String`, `apartment: String`, `directions: String`, `latitude: Float?`, `longitude: Float?`, `createdAt: DateTime` |
 | CartItem | `userId: String`, `productId: String`, `quantity: Int` |
 | WishlistItem | `userId: String`, `productId: String` |
-| Coupon | `id: String`, `code: String`, `percentBps: Int`, `maxDiscountMinor: Int`, `minSubtotalMinor: Int`, `maxUses: Int`, `used: Int`, `active: Boolean`, `expiresAt: DateTime` |
+| Coupon | `categoryIds: String[]`, `id: String`, `code: String`, `percentBps: Int`, `maxDiscountMinor: Int`, `minSubtotalMinor: Int`, `maxUses: Int`, `used: Int`, `active: Boolean`, `expiresAt: DateTime` |
 | Order | `id: String (barwaqt-######)`, `customerId: String`, `idempotencyKey: String`, `requestHash: String`, `address: Json`, `currency: String`, `paymentMethod: String`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `couponId: String?`, `createdAt: DateTime` |
 | VendorOrder | `id: String (barwaqt-######)`, `orderId: String (barwaqt-######)`, `vendorId: String`, `status: OrderStatus`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `commissionMinor: Int`, `payableMinor: Int`, `riderId: String?`, `codCollectedMinor: Int`, `cashReceived: Boolean`, `deliveredAt: DateTime?`, `failureReason: String?`, `latitude: Float?`, `longitude: Float?`, `locationAt: DateTime?`, `settlementId: String?`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | OrderItem | `id: String`, `vendorOrderId: String`, `productId: String`, `name: String`, `unitPriceMinor: Int`, `quantity: Int`, `image: String?` |
@@ -1756,3 +1757,11 @@ Trimmed input length 2–100. Success 204, no body. Rate limit 20 submissions pe
 Homepage publishing now accepts `content.searches.limit` (integer 1–100, default 10) and `content.searches.dynamic` (boolean, default true), alongside enabled/title/terms. Admin `terms` are pinned first, followed by searches ranked by aggregate count with alphabetical tie-breaking. Case-insensitive duplicates are removed, then the limit is applied. Set dynamic=false for admin-only tags. No fabricated tags fill an empty result. Public GET /catalog/homepage returns resolved tags in searches.terms; admin GET /admin/homepage returns only editable pinned terms. Publish using the normal homepage version check.
 
 Requires migration `20261026120000_search_terms` before deploying this backend release.
+
+## Category-scoped coupons
+
+POST /api/v1/admin/coupons now requires `categoryIds`, an array of 1–500 unique existing category UUIDs. PATCH /api/v1/admin/coupons/:id accepts the same field to replace the selection. Coupon responses include categoryIds. Example selection: `{"categoryIds":["11111111-1111-4111-8111-111111111111"]}`.
+
+Coupons match a product's primary categoryId exactly. Select child categories separately; parent selection does not implicitly include descendants or collection memberships. Quote and checkout compute the percentage, cap, and minimum subtotal from matching items only. Other products and delivery fees are not discounted. Unmatched carts or insufficient eligible subtotals return 422. Vendor discount allocation excludes vendors with no eligible items, including rounding remainders.
+
+Migration `20261027120000_coupon_categories` adds the category selection. Existing coupons have an empty selection and cannot be redeemed until an admin chooses categories. Historical order discounts remain unchanged. Customer checkout uses the existing couponCode payload; no mobile payload change is required.

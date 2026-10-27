@@ -178,6 +178,7 @@ model WishlistItem {
  @@id([userId,productId])
 }
 model Coupon {
+ categoryIds String[] @default([])
  id String @id @default(uuid())
  code String @unique
  percentBps Int

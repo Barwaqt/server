@@ -1,3 +1,4 @@
+import { categoryDiscount } from "../utils/coupon-discount.js";
 import { createPayment, syncPayment } from "./payment.service.js";
 import { reserveSlot, releaseCancelledSlot } from "./delivery.service.js";
 import bcrypt from "bcryptjs";
@@ -79,6 +80,7 @@ async function prepareCheckout(tx, user, input, reserve = false) {
   );
   const subtotal = subtotals.reduce((a, b) => a + b, 0);
   assert(subtotal <= 1000000000, 422, "Order exceeds the maximum value");
+  let discounts = subtotals.map(() => 0);
   let discount = 0,
     coupon;
   if (input.couponCode) {
@@ -89,23 +91,18 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       coupon &&
         coupon.active &&
         coupon.expiresAt > new Date() &&
-        coupon.used < coupon.maxUses &&
-        subtotal >= coupon.minSubtotalMinor,
+        coupon.used < coupon.maxUses,
       422,
       "Coupon is invalid, expired or exhausted",
     );
-    discount = Math.min(
-      percentage(subtotal, coupon.percentBps),
-      coupon.maxDiscountMinor,
-    );
+    ({ discount, discounts } = categoryDiscount(groups, coupon));
     if (reserve)
       await tx.coupon.update({
         where: { id: coupon.id },
         data: { used: { increment: 1 } },
       });
   }
-  const discounts = allocate(discount, subtotals),
-    fees = allocate(env.DELIVERY_FEE_MINOR, subtotals);
+  const fees = allocate(env.DELIVERY_FEE_MINOR, subtotals);
   return {
     deliverySlot,
     address,

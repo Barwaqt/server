@@ -1,0 +1,1 @@
+ALTER TABLE "Coupon" ADD COLUMN "categoryIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

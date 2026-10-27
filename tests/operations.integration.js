@@ -114,6 +114,7 @@ test("management, uploads, scheduled checkout and returns after paid settlement"
   await ok(call("delete", "/admin/categories/" + child.id, admin));
   const coupon = await ok(
     call("post", "/admin/coupons", admin, {
+      categoryIds: [category.id],
       code: "OPS_" + suffix.toUpperCase(),
       percentBps: 1000,
       maxDiscountMinor: 10000,
