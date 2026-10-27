@@ -5,7 +5,7 @@ import { reserveSlot, releaseCancelledSlot } from "./delivery.service.js";
 import bcrypt from "bcryptjs";
 import { randomInt } from "node:crypto";
 import { db, transaction } from "../config/database.js";
-import { env } from "../config/env.js";
+import { deliveryFeeMinor } from "./settings.service.js";
 import { assert, ApiError } from "../utils/error.js";
 import { hashToken } from "../utils/security.js";
 import { allocate, percentage } from "../utils/money.js";
@@ -117,7 +117,8 @@ async function prepareCheckout(tx, user, input, reserve = false) {
         data: { used: { increment: 1 } },
       });
   }
-  const fees = allocate(env.DELIVERY_FEE_MINOR, subtotals);
+  const deliveryFee = await deliveryFeeMinor(tx);
+  const fees = allocate(deliveryFee, subtotals);
   return {
     deliverySlot,
     address,
@@ -127,6 +128,7 @@ async function prepareCheckout(tx, user, input, reserve = false) {
     discount,
     coupon,
     discounts,
+    deliveryFee,
     fees,
   };
 }
@@ -148,8 +150,8 @@ export async function quote(user, input) {
       deliverySlot: p.deliverySlot,
       subtotalMinor: p.subtotal,
       discountMinor: p.discount,
-      deliveryMinor: env.DELIVERY_FEE_MINOR,
-      totalMinor: p.subtotal - p.discount + env.DELIVERY_FEE_MINOR,
+      deliveryMinor: p.deliveryFee,
+      totalMinor: p.subtotal - p.discount + p.deliveryFee,
       vendorOrders: p.groups.map((items, i) => ({
         vendorId: items[0].product.vendorId,
         vendorName: items[0].product.vendor.name,
@@ -212,6 +214,7 @@ export async function checkout(user, input, key) {
           discount,
           coupon,
           discounts,
+          deliveryFee,
           fees,
         } = await prepareCheckout(tx, user, input, true);
         const { userId, ...snapshot } = address;
@@ -235,8 +238,8 @@ export async function checkout(user, input, key) {
               : undefined,
             subtotalMinor: subtotal,
             discountMinor: discount,
-            deliveryMinor: env.DELIVERY_FEE_MINOR,
-            totalMinor: subtotal - discount + env.DELIVERY_FEE_MINOR,
+            deliveryMinor: deliveryFee,
+            totalMinor: subtotal - discount + deliveryFee,
             couponId: coupon?.id,
           },
         });

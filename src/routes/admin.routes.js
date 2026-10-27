@@ -3,6 +3,11 @@ import {
   saveSupport,
   supportInput,
 } from "../services/support.service.js";
+import {
+  getSettings,
+  saveSettings,
+  settingsInput,
+} from "../services/settings.service.js";
 import * as customers from "../services/admin-customer.service.js";
 import * as homepage from "../controllers/homepage.controller.js";
 import { publishHomepage } from "../validators/homepage.validator.js";
@@ -39,6 +44,12 @@ adminRouter.get("/support", async (req, res) =>
 );
 adminRouter.put("/support", validate(supportInput), async (req, res) =>
   res.json({ data: await saveSupport(req.user, req.input.body) }),
+);
+adminRouter.get("/settings", async (req, res) =>
+  res.json({ data: await getSettings() }),
+);
+adminRouter.put("/settings", validate(settingsInput), async (req, res) =>
+  res.json({ data: await saveSettings(req.user, req.input.body) }),
 );
 adminRouter.get("/customers", validate(page, "query"), async (req, res) =>
   res.json({ data: await customers.customers(req.input.query) }),

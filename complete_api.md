@@ -91,6 +91,8 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | POST | `/api/v1/catalog/searches` | Public |
 | GET | `/api/v1/admin/support` | ADMIN |
 | PUT | `/api/v1/admin/support` | ADMIN |
+| GET | `/api/v1/admin/settings` | ADMIN |
+| PUT | `/api/v1/admin/settings` | ADMIN |
 | GET | `/api/v1/catalog/categories` | Public |
 | GET | `/api/v1/catalog/products` | Public |
 | GET | `/api/v1/catalog/products/:id` | Public |
@@ -1744,6 +1746,26 @@ ADMIN only. Replaces all four fields, records SUPPORT_UPDATED in the audit log. 
 
 All fields are required strings; use an empty string to remove a contact. Phone fields allow digits, spaces, parentheses, hyphens and an optional leading plus (7–30 characters). Email must be valid or empty. Use a full international number for WhatsApp. Success 200 `{data: contacts}`; invalid input 422; wrong role 403.
 
+### GET /api/v1/admin/settings
+
+ADMIN only. No body. Returns the platform settings:
+
+```json
+{"deliveryFeeMinor":15000}
+```
+
+`deliveryFeeMinor` is the delivery fee charged per order, in minor units (PKR paisa). Until an admin saves a value, it falls back to the server `DELIVERY_FEE_MINOR` configuration (default 15000).
+
+### PUT /api/v1/admin/settings
+
+ADMIN only. Replaces the settings and records SETTINGS_UPDATED in the audit log. Example body:
+
+```json
+{"deliveryFeeMinor":15000}
+```
+
+`deliveryFeeMinor` is required, a non-negative integer up to 1,000,000 (PKR 0–10,000); set 0 for free delivery. Quote and checkout charge this fee once per order and split it across the order's vendors by subtotal. Success 200 `{data:{deliveryFeeMinor}}`; invalid input 422; wrong role 403.
+
 ### POST /api/v1/catalog/searches
 
 Public. Called once when a customer submits the product search box, not on each keystroke or catalog fetch. Body:
@@ -1762,6 +1784,6 @@ Requires migration `20261026120000_search_terms` before deploying this backend r
 
 POST /api/v1/admin/coupons now requires `categoryIds`, an array of 1–500 unique existing category UUIDs. PATCH /api/v1/admin/coupons/:id accepts the same field to replace the selection. Coupon responses include categoryIds. Example selection: `{"categoryIds":["11111111-1111-4111-8111-111111111111"]}`.
 
-Coupons match a product's primary categoryId exactly. Select child categories separately; parent selection does not implicitly include descendants or collection memberships. Quote and checkout compute the percentage, cap, and minimum subtotal from matching items only. Other products and delivery fees are not discounted. Unmatched carts or insufficient eligible subtotals return 422. Vendor discount allocation excludes vendors with no eligible items, including rounding remainders.
+Coupons match every product shown in the selected categories: the product's primary categoryId, its catalog collection memberships, and products in descendant (subcategory) categories. Quote and checkout compute the percentage, cap, and minimum subtotal from matching items only. Other products and delivery fees are not discounted. Unmatched carts or insufficient eligible subtotals return 422. Vendor discount allocation excludes vendors with no eligible items, including rounding remainders.
 
 Migration `20261027120000_coupon_categories` adds the category selection. Existing coupons have an empty selection and cannot be redeemed until an admin chooses categories. Historical order discounts remain unchanged. Customer checkout uses the existing couponCode payload; no mobile payload change is required.
