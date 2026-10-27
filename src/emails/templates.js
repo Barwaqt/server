@@ -10,21 +10,25 @@ const expiryChip = (minutes) => ({
 });
 const singleUseChip = { label: "Single-use link" };
 
-export function verifyEmail({ name, url, expiresMinutes = 1440 } = {}) {
-  const minutes = Math.max(1, Number(expiresMinutes) || 1440);
+export function verifyEmail({ name, url, code, expiresMinutes = 15 } = {}) {
+  const minutes = Math.max(1, Number(expiresMinutes) || 15);
   return {
-    subject: "Verify your Barwaqt email address",
+    subject: "Your Barwaqt verification code",
     ...renderEmail({
-      preview: "Confirm your email to activate your Barwaqt account.",
+      preview: "Enter this code to activate your Barwaqt account.",
       eyebrow: "Signup verification",
       heading: "Confirm your email address",
       paragraphs: [
         greeting(name),
-        "Thanks for joining Barwaqt. Confirm this email address to activate your account and start shopping across Pakistan.",
+        "Thanks for joining Barwaqt. Enter this code on the verification page to activate your account and start shopping across Pakistan.",
       ],
-      action: { label: "Verify my email", url },
-      chips: [expiryChip(minutes), singleUseChip],
-      note: "If you did not create a Barwaqt account you can ignore this email — nothing happens until the link is opened.",
+      code,
+      action: url ? { label: "Enter my code", url } : undefined,
+      chips: [
+        { label: `Code expires in ${minutes} minutes` },
+        { label: "Single-use code" },
+      ],
+      note: "If you did not create a Barwaqt account you can ignore this email — nothing happens until the code is used.",
       footerNote:
         "You received this because someone signed up with this email address.",
     }),

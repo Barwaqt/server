@@ -53,7 +53,9 @@ async function ok(req) {
 const password = "A-test-password-123!",
   email = `reset-${randomUUID()}@example.test`;
 const verificationToken = (message) => message.match(/#token=([\w-]+)/)?.[1];
-test("signup sends a verification link, blocks sign-in until it is used and allows a resend", async () => {
+const verificationCode = (message) =>
+  message.match(/Verification code: (\d{6})/)?.[1];
+test("signup emails a verification code, blocks sign-in until it is used and allows a resend", async () => {
   const signup = await ok(
     post("register", { email, password, firstName: "Reset", lastName: "" }),
   );
@@ -61,7 +63,7 @@ test("signup sends a verification link, blocks sign-in until it is used and allo
   assert.equal(signup.verificationSent, true);
   assert.equal("accessToken" in signup, false);
   assert.equal(messages.length, 1);
-  assert.match(messages[0], /Verify your Barwaqt email address/);
+  assert.match(messages[0], /Your Barwaqt verification code/);
 
   const registered = await db.user.findUnique({ where: { email } });
   assert.equal(registered.emailVerifiedAt, null);
@@ -70,7 +72,7 @@ test("signup sends a verification link, blocks sign-in until it is used and allo
     403,
   );
 
-  // Resend is enumeration-safe and replaces the previous link.
+  // Resend is enumeration-safe and replaces the previous code.
   const resent = await ok(post("resend-verification", { email }));
   const unknownResend = await ok(
     post("resend-verification", {
@@ -79,13 +81,15 @@ test("signup sends a verification link, blocks sign-in until it is used and allo
   );
   assert.deepEqual(resent, unknownResend);
   assert.equal(messages.length, 2);
-  const stale = verificationToken(messages[0]);
-  const fresh = verificationToken(messages[1]);
+  const stale = verificationCode(messages[0]);
+  const fresh = verificationCode(messages[1]);
   assert.ok(stale && fresh);
-  assert.notEqual(stale, fresh);
-  assert.equal((await post("verify-email", { token: stale })).status, 422);
-  assert.equal((await post("verify-email", { token: fresh })).status, 200);
-  assert.equal((await post("verify-email", { token: fresh })).status, 422);
+  // A resend replaces the previous code; two draws can collide by chance.
+  if (stale !== fresh)
+    assert.equal((await post("verify-email", { code: stale })).status, 422);
+  assert.equal((await post("verify-email", { code: fresh })).status, 200);
+  assert.equal((await post("verify-email", { code: fresh })).status, 422);
+  assert.equal((await post("verify-email", { code: "12345" })).status, 422);
   const verified = await db.user.findUnique({ where: { email } });
   assert.ok(verified.emailVerifiedAt);
   assert.ok(messages.some((m) => /Welcome to Barwaqt/.test(m)));

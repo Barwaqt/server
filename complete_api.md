@@ -36,7 +36,7 @@ Login and social sign-in return:
 {"data":{"accessToken":"<JWT>","refreshToken":"<opaque token>","expiresIn":900,"user":{"id":"11111111-1111-4111-8111-111111111111","email":"customer@example.com","phone":"+923001234567","role":"CUSTOMER","firstName":"Ali","lastName":"Khan","profile":{},"active":true,"emailVerifiedAt":"2026-10-12T10:00:00.000Z","createdAt":"2026-10-12T10:00:00.000Z"}}}
 ```
 
-Registration never returns tokens. It returns `{message, email, verificationSent}`; the account is activated immediately when email delivery is not configured, otherwise the customer must verify the emailed link. Login is refused with 403 until the address is verified.
+Registration never returns tokens. It returns `{message, email, verificationSent}`; the account is activated immediately when email delivery is not configured, otherwise the customer must enter the 6-digit code emailed at signup. Login is refused with 403 until the address is verified.
 
 `expiresIn` is seconds and configurable (default 15 minutes). Refresh tokens default to 30 days. Refresh rotates the token: save both new tokens and never reuse the old refresh token. Refresh does not extend the original session expiry. Logout revokes the current session; password change/reset revokes every session. The direct Node API returns tokens in JSON and does not set authentication cookies. Existing Next.js `/api/auth/[action]` proxies store them in HttpOnly cookies; do not mix those endpoints with this API contract.
 
@@ -238,7 +238,7 @@ Runs a database query; database errors use the error handler.
 }
 ```
 
-**Success:** 201; `data: {message, email, verificationSent}`. No access or refresh tokens are returned. When email delivery is not configured, the account is already activated and `verificationSent` is `false`. When SMTP is configured (`SMTP_HOST` and `SMTP_FROM`), `verificationSent` is `true` and the customer must verify the email before signing in.
+**Success:** 201; `data: {message, email, verificationSent}`. No access or refresh tokens are returned. When email delivery is not configured, the account is already activated and `verificationSent` is `false`. When SMTP is configured (`SMTP_HOST` and `SMTP_FROM`), `verificationSent` is `true` and the customer must enter the 6-digit verification code before signing in.
 
 Required: email, password, firstName. Optional: lastName (trimmed, max 200; empty allowed), phone. Always creates CUSTOMER. Vendors/staff are created by ADMIN; a `role` field is rejected. The account is deleted if the verification email cannot be sent, so the customer can simply retry.
 
@@ -259,7 +259,7 @@ Required: email, password, firstName. Optional: lastName (trimmed, max 200; empt
 
 Both fields required. identity is an email or exact phone string (text); password 1–72 characters. Supports all roles; check returned user.role to choose the portal. Password login itself does not enforce vendor approval; vendor routes do.
 
-If the account has not verified its email, login returns 403 with `Verify your email address before signing in. Request a new verification link if it expired.` Use `resend-verification` and then `verify-email`. Administrator-provisioned vendors and staff are created verified, so this normally affects only customer signups.
+If the account has not verified its email, login returns 403 with `Verify your email address before signing in. Request a new verification code if it expired.` Use `resend-verification` and then `verify-email`. Administrator-provisioned vendors and staff are created verified, so this normally affects only customer signups.
 
 ### POST /api/v1/auth/refresh
 
@@ -329,13 +329,13 @@ Both required. token 32–200 characters; newPassword 12–72. Single use; inval
 
 ```json
 {
-  "token": "<token extracted from the email URL fragment>"
+  "code": "482913"
 }
 ```
 
 **Success:** 200; `data: {message: "Email verified. You can sign in now.", email: "customer@example.com"}`.
 
-token required, 32–200 characters. Verification links use `<WEB_URL>/verify-email#token=<raw>` for customers and `<VENDOR_WEB_URL>/verify-email#token=<raw>` for vendors. Tokens expire after 24 hours; issuing a new link invalidates the previous one. Verification is single use and removes every verification token for that account. Invalid/expired links return 422; disabled accounts return 403. Does not return a session. When email is configured, a welcome email is sent on a best-effort basis.
+code required, exactly six digits. The signup and resend emails carry the code, and the form that submits it is `<WEB_URL>/verify-email` for customers and `<VENDOR_WEB_URL>/verify-email` for vendors. Codes expire after 15 minutes; issuing a new code invalidates the previous one. Verification is single use and removes every verification code for that account. Invalid or expired codes return 422, as does a payload that is not six digits; disabled accounts return 403. Does not return a session. When email is configured, a welcome email is sent on a best-effort basis.
 
 ### POST /api/v1/auth/resend-verification
 
@@ -349,9 +349,9 @@ token required, 32–200 characters. Verification links use `<WEB_URL>/verify-em
 }
 ```
 
-**Success:** 200; `data: {message: "If this account needs verification, a new verification link will be emailed shortly."}`.
+**Success:** 200; `data: {message: "If this account needs verification, a new verification code will be emailed shortly."}`.
 
-email required. The response is deliberately generic and does not reveal whether the account exists. A new 24-hour link is sent only for an active, unverified account when SMTP is configured; otherwise no email is sent. The link invalidates any previous verification link. This action has its own rate-limit budget, separate from login.
+email required. The response is deliberately generic and does not reveal whether the account exists. A new 15-minute code is sent only for an active, unverified account when SMTP is configured; otherwise no email is sent. The code invalidates any previous verification code. This action has its own rate-limit budget, separate from login.
 
 ### POST /api/v1/auth/challenge
 
@@ -1007,7 +1007,7 @@ id is vendor UUID. Unlike the public `/catalog/vendors/:id`, this returns suspen
 
 **Access:** ADMIN.
 
-All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset/verification tokens. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Optional categoryId assigns a category and adopts its commission. Optional bankDetails replaces the payout account using the creation rules. Categorized vendors cannot override commissionBps; change the rate under Categories. Legacy vendors without an assigned category retain their rate until assigned, and can still use commissionBps (integer 0–10,000). Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters.
+All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset links and verification codes. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Optional categoryId assigns a category and adopts its commission. Optional bankDetails replaces the payout account using the creation rules. Categorized vendors cannot override commissionBps; change the rate under Categories. Legacy vendors without an assigned category retain their rate until assigned, and can still use commissionBps (integer 0–10,000). Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters.
 
 **Example JSON body:**
 
@@ -1375,7 +1375,7 @@ For native clients, resolve `/api/media/<upload UUID>` through `https://api.barw
 
 1. ADMIN logs in, creates category and vendor, and creates RIDER/DISPATCHER/FINANCE accounts as required. Keep each returned resource ID.
 2. VENDOR logs in and creates products with the category UUID and integer prices. ADMIN reviews the PENDING queue and approves each product using its current reviewVersion before customers can buy it. Rejections include rejectionReason; the vendor corrects content and resubmits.
-3. CUSTOMER registers and, when SMTP is configured, verifies the emailed link before logging in. Then browse the catalog, create an address matching vendor city/zone, and set cart quantities with product UUIDs.
+3. CUSTOMER registers and, when SMTP is configured, enters the 6-digit code emailed at signup before logging in. Then browse the catalog, create an address matching vendor city/zone, and set cart quantities with product UUIDs.
 4. CUSTOMER posts checkout with addressId and a fresh Idempotency-Key. Save parent `data.id` and each `data.vendorOrders[].id` separately (both are `barwaqt-######` numbers). Retry network failures with the same key and payload.
 5. VENDOR reads `/orders`, accepts each child, then marks it ready. RIDER starts a shift. ADMIN/DISPATCHER assigns an available rider to a ready child.
 6. RIDER marks pickup, updates location as needed, then delivers using the PIN shown in the CUSTOMER’s notifications and exact child totalMinor. For failed deliveries, dispatch retries or returns the child.

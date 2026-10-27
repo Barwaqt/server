@@ -1,56 +1,60 @@
 import { db, transaction } from "../config/database.js";
 import { env } from "../config/env.js";
 import { assert } from "../utils/error.js";
-import { hashToken, token } from "../utils/security.js";
+import { hashToken, verificationCode } from "../utils/security.js";
 import {
   mailReady,
   sendVerificationEmail,
   sendWelcomeEmail,
 } from "./mail.service.js";
 
-export const VERIFICATION_TTL_MINUTES = 24 * 60;
+/* A six-digit code is only strong while it is short-lived. */
+export const VERIFICATION_TTL_MINUTES = 15;
 
 /* Verification can only be enforced when the install can actually deliver email. */
 export const verificationRequired = () => mailReady();
 
-export function verificationUrl(raw, portal = "customer") {
+/* The email carries the code, so the link only opens the form where it is entered. */
+export function verificationUrl(portal = "customer") {
   const base = portal === "vendor" ? env.VENDOR_WEB_URL : env.WEB_URL;
-  const url = new URL("/verify-email", base);
-  url.hash = `token=${raw}`;
-  return url.toString();
+  return new URL("/verify-email", base).toString();
 }
 
 /**
- * Creates a fresh single-use token for the account and emails the verification link.
- * Older tokens are dropped so only the newest link works.
+ * Creates a fresh single-use code for the account and emails it.
+ * Older codes are dropped so only the newest one works.
  */
 export async function issueVerification(user) {
-  const raw = token();
+  const code = verificationCode();
   await db.emailVerification.deleteMany({ where: { userId: user.id } });
   await db.emailVerification.create({
     data: {
       userId: user.id,
-      tokenHash: hashToken(raw),
+      tokenHash: hashToken(code),
       expiresAt: new Date(Date.now() + VERIFICATION_TTL_MINUTES * 60000),
     },
   });
   await sendVerificationEmail(
     user.email,
-    verificationUrl(raw, user.role === "VENDOR" ? "vendor" : "customer"),
+    {
+      code,
+      url: verificationUrl(user.role === "VENDOR" ? "vendor" : "customer"),
+      minutes: VERIFICATION_TTL_MINUTES,
+    },
     { name: user.firstName },
   );
 }
 
-export async function verifyEmail({ token: raw }) {
+export async function verifyEmail({ code }) {
   const user = await transaction(async (tx) => {
     const pending = await tx.emailVerification.findUnique({
-      where: { tokenHash: hashToken(raw) },
+      where: { tokenHash: hashToken(code) },
       include: { user: true },
     });
     assert(
       pending && pending.expiresAt > new Date(),
       422,
-      "This verification link is invalid or expired. Request a new one.",
+      "This verification code is invalid or expired. Request a new one.",
     );
     assert(pending.user.active, 403, "This account is disabled.");
     await tx.emailVerification.deleteMany({
@@ -77,7 +81,7 @@ export async function verifyEmail({ token: raw }) {
 
 export async function resendVerification({ email }) {
   const message =
-    "If this account needs verification, a new verification link will be emailed shortly.";
+    "If this account needs verification, a new verification code will be emailed shortly.";
   const user = await db.user.findUnique({ where: { email } });
   if (user?.active && !user.emailVerifiedAt && mailReady()) {
     await issueVerification(user);

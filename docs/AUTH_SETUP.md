@@ -63,7 +63,7 @@ Existing-account linking requires the same email, so an Apple private-relay emai
 | POST /api/v1/auth/social | `{provider,credential,nonce,portal}` | Verified provider session |
 | POST /api/v1/auth/link-provider | Same as social + Bearer session | Explicitly links matching-email provider |
 
-The application never accepts a frontend-decoded social identity as proof. New local accounts have no verified-email badge; SMS/OTP authentication and email-verification signup are not implemented here.
+The application never accepts a frontend-decoded social identity as proof. New local accounts have no verified-email badge until the 6-digit code emailed at signup is entered on the verify-email page; SMS one-time-password sign-in is not implemented.
 
 ## Verification limits
 

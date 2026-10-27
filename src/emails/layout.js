@@ -128,6 +128,18 @@ function actionBlock(action) {
   </td></tr>`;
 }
 
+/* One short code, spaced out so it can be read and retyped from a phone. */
+function codeBlock(code) {
+  if (!code) return "";
+  return `<tr><td style="padding:12px 0 4px">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+      <tr>
+        <td align="center" style="background:${brand.panel};border:1px dashed ${brand.line};border-radius:12px;padding:18px 14px;font:700 30px/1.2 Consolas,Menlo,monospace;letter-spacing:9px;text-indent:9px;color:${brand.ink}">${escapeHtml(code)}</td>
+      </tr>
+    </table>
+  </td></tr>`;
+}
+
 function detailsBlock(details) {
   if (!details?.length) return "";
   const rows = details
@@ -187,6 +199,7 @@ export function renderEmail({
   paragraphs = [],
   bullets = [],
   chips = [],
+  code = "",
   action,
   details,
   steps = [],
@@ -237,6 +250,7 @@ export function renderEmail({
                 `<tr><td class="body-copy" style="padding:0 0 14px;font:400 15px/1.7 ${sans};color:${brand.body}">${escapeHtml(paragraph)}</td></tr>`,
             )
             .join("")}
+          ${codeBlock(code)}
           ${bulletList(bullets)}
           ${chipRow(chips)}
           ${actionBlock(action)}
@@ -256,6 +270,7 @@ export function renderEmail({
     heading,
     "",
     ...paragraphs,
+    ...(code ? ["", `Verification code: ${code}`] : []),
     ...(bullets.length ? ["", ...bullets.map((b) => `- ${b}`)] : []),
     ...(chips.length
       ? [

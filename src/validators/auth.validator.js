@@ -25,7 +25,9 @@ export const resetPassword = z
   .object({ token: z.string().min(32).max(200), newPassword: password })
   .strict();
 export const verifyEmail = z
-  .object({ token: z.string().min(32).max(200) })
+  .object({
+    code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code from the email"),
+  })
   .strict();
 export const resendVerification = z.object({ email }).strict();
 export const social = z

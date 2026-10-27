@@ -8,8 +8,12 @@ import { brand, escapeHtml } from "../src/emails/layout.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const link = "https://shop.barwaqt.example/reset#token=abc-123";
+const verifyPage = "https://shop.barwaqt.example/verify-email";
 const bodies = [
-  ["verifyEmail", templates.verifyEmail({ name: "Ayesha", url: link })],
+  [
+    "verifyEmail",
+    templates.verifyEmail({ name: "Ayesha", url: verifyPage, code: "482913" }),
+  ],
   ["resetPassword", templates.resetPassword({ name: "Ayesha", url: link })],
   ["passwordChanged", templates.passwordChanged({ name: "Ayesha" })],
   ["welcome", templates.welcome({ name: "Ayesha", url: link })],
@@ -91,8 +95,10 @@ test("action emails use the lime storefront button and show the raw link", () =>
   for (const [name, message] of bodies.filter(
     ([n]) => n !== "passwordChanged",
   )) {
-    assert.ok(message.html.includes(`href="${link}"`), `${name} html link`);
-    assert.ok(message.text.includes(link), `${name} text link`);
+    // Signup now carries a code and links to the form; every other action links out.
+    const url = name === "verifyEmail" ? verifyPage : link;
+    assert.ok(message.html.includes(`href="${url}"`), `${name} html link`);
+    assert.ok(message.text.includes(url), `${name} text link`);
     assert.match(
       message.html,
       /bgcolor="#93de1e"/,
@@ -105,16 +111,24 @@ test("action emails use the lime storefront button and show the raw link", () =>
   }
 });
 
-test("verification and reset emails state the expiry and single-use rule", () => {
+test("verification email carries a short code and reset email carries a link", () => {
   const verify = templates.verifyEmail({
     name: "Ayesha",
-    url: link,
-    expiresMinutes: 1440,
+    url: verifyPage,
+    code: "482913",
   });
-  assert.ok(verify.html.includes("Link expires in 24 hours"));
-  assert.ok(verify.text.includes("Link expires in 24 hours"));
-  assert.ok(verify.text.includes("Single-use link"));
+  assert.equal(verify.subject, "Your Barwaqt verification code");
+  assert.ok(verify.html.includes("482913"), "code missing from html");
+  assert.ok(verify.text.includes("Verification code: 482913"));
+  assert.ok(verify.html.includes("Code expires in 15 minutes"));
+  assert.ok(verify.text.includes("Code expires in 15 minutes"));
+  assert.ok(verify.text.includes("Single-use code"));
   assert.ok(verify.text.includes("ignore this email"));
+  assert.ok(verify.html.includes(verifyPage), "verification page link missing");
+  assert.ok(
+    !verify.html.includes("#token="),
+    "the signup email must not carry a verification token",
+  );
 
   const reset = templates.resetPassword({ name: "Ayesha", url: link });
   assert.ok(reset.html.includes("Link expires in 20 minutes"));

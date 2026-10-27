@@ -66,13 +66,13 @@ export async function register(input) {
   try {
     await issueVerification(user);
   } catch (error) {
-    // No link means no account: remove it so the customer can simply try again.
+    // No code means no account: remove it so the customer can simply try again.
     await db.user.delete({ where: { id: user.id } });
     throw error;
   }
   return {
     message:
-      "Account created. Check your inbox and verify your email to sign in.",
+      "Account created. Enter the 6-digit code we emailed you to verify your account.",
     email: user.email,
     verificationSent: true,
   };
@@ -87,7 +87,7 @@ export async function login(input) {
   assert(
     user.emailVerifiedAt,
     403,
-    "Verify your email address before signing in. Request a new verification link if it expired.",
+    "Verify your email address before signing in. Request a new verification code if it expired.",
   );
   return sessionFor(user);
 }

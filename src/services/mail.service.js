@@ -60,9 +60,13 @@ export async function sendResetEmail(email, url, { name = "" } = {}) {
   });
 }
 
-export async function sendVerificationEmail(email, url, { name = "" } = {}) {
+export async function sendVerificationEmail(
+  email,
+  { url, code, minutes },
+  { name = "" } = {},
+) {
   await deliver(email, {
-    ...verifyEmail({ name, url }),
+    ...verifyEmail({ name, url, code, expiresMinutes: minutes }),
     entityId: `email-verification:${email}`,
   });
 }

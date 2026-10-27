@@ -9,14 +9,17 @@ const out = join(
   "..",
   ".email-preview",
 );
-const verifyLink =
-  "http://localhost:3000/verify-email#token=sample-verification-token";
+const verifyPage = "http://localhost:3000/verify-email";
 const resetLink =
   "http://localhost:3000/reset-password#token=sample-reset-token";
 const examples = [
   [
     "1-verify-email",
-    templates.verifyEmail({ name: "Ayesha", url: verifyLink }),
+    templates.verifyEmail({
+      name: "Ayesha",
+      url: verifyPage,
+      code: "482913",
+    }),
   ],
   [
     "2-reset-password",
