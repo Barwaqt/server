@@ -23,11 +23,15 @@ async function post(url, body, headers = {}) {
       "Message delivery could not be confirmed. Check the Veevo portal before retrying.",
     );
   }
-  if (!response.ok || data?.STATUS !== "SUCCESSFUL")
+  if (!response.ok || data?.STATUS !== "SUCCESSFUL") {
+    const detail = data?.ERROR_DESCRIPTION
+      ? `Veevo error: ${data.ERROR_DESCRIPTION}${data.ERROR_FILTER ? ` (${data.ERROR_FILTER})` : ""}`
+      : "Veevo did not accept this message. Check your credentials, balance, sender or template in the Veevo portal.";
     throw new ApiError(
       502,
-      "Veevo did not accept this message. Check your credentials, balance, sender or template in the Veevo portal.",
+      detail.replaceAll(env.VEEVO_SMS_API_KEY || "", "[REDACTED]"),
     );
+  }
   return {
     providerId: data.MESSAGE_ID == null ? null : String(data.MESSAGE_ID),
   };
@@ -39,10 +43,11 @@ export async function sendSms(phone, text) {
     "SMS is not configured. Add a real Veevo SMS API key.",
   );
   return post("https://api.veevotech.com/v3/sendsms", {
+    hash: env.VEEVO_SMS_API_KEY,
     apikey: env.VEEVO_SMS_API_KEY,
     receivernum: phone,
     textmessage: text,
-    ...(env.VEEVO_SMS_SENDER ? { sendernum: env.VEEVO_SMS_SENDER } : {}),
+    sendernum: env.VEEVO_SMS_SENDER || "Default",
   });
 }
 export async function sendWhatsapp(phone, template, reference) {

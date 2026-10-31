@@ -30,6 +30,7 @@ test("SMS uses the documented POST body and never puts credentials in a URL", as
     assert.equal(options.method, "POST");
     assert.equal(options.redirect, "error");
     assert.deepEqual(JSON.parse(options.body), {
+      hash: "unit-sms-key",
       apikey: "unit-sms-key",
       receivernum: "+923001234567",
       textmessage: "hello",

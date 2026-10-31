@@ -170,6 +170,7 @@ export async function processNextMessage() {
       data: {
         status: error.status === 503 ? "FAILED" : "UNKNOWN",
         error:
+          error.message ||
           "Message not confirmed. Check provider configuration and the Veevo portal before resending.",
       },
     });
