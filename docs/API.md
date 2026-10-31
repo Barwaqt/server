@@ -106,9 +106,8 @@ Omit couponCode if none; coupons must first be created by an administrator. Retu
 |---|---|---|
 | GET | /orders | Customer: own parent orders. Vendor/rider: scoped child orders. Admin/dispatcher/finance: all child orders. Supports pagination; child lists support status. |
 | GET | /orders/:id | Customer passes parent ID; other roles pass child ID |
-| POST | /orders/:vendorOrderId/actions | `{action,reason?,pin?,cashCollectedMinor?}` |
+| POST | /orders/:vendorOrderId/actions | `{action,reason?,proofImage?,cashCollectedMinor?}` |
 | POST | /orders/:vendorOrderId/assign | ADMIN/DISPATCHER; `{riderId}` |
-| POST | /orders/:vendorOrderId/reset-pin | ADMIN/DISPATCHER; customer receives new PIN notification |
 | PATCH | /orders/:vendorOrderId/location | Assigned RIDER; `{latitude,longitude}` while assigned/in transit |
 
 Order and vendor-order IDs are customer-facing numbers: `barwaqt-` followed by six digits (for example `barwaqt-482913`). They are not UUIDs, and a number is unique across both parent orders and vendor orders.
@@ -122,12 +121,12 @@ Actions:
 | ready | Owning vendor | PREPARING → READY |
 | cancel | Owning customer or admin | NEW → CANCELLED |
 | pickup | Assigned rider | ASSIGNED → PICKED_UP |
-| deliver | Assigned rider; PIN and exact cashCollectedMinor | PICKED_UP → DELIVERED |
+| deliver | Assigned rider; proofImage photo URL and exact cashCollectedMinor | PICKED_UP → DELIVERED |
 | fail | Assigned rider; reason required | ASSIGNED/PICKED_UP → FAILED |
 | retry | Admin/dispatcher | FAILED → ASSIGNED (same rider) |
 | return | Admin/dispatcher; reason required | FAILED → RETURNED |
 
-Delivery PIN attempts are persisted even when verification fails. After five wrong attempts, dispatch must issue a fresh PIN. Order status events provide polling-based tracking; GPS is stored on the vendor order with locationAt. No WebSocket/SMS delivery is implied.
+Delivery requires proofImage to be an IMAGE the assigned rider uploaded; a missing, malformed or foreign photo URL returns 422. Order status events provide polling-based tracking; GPS is stored on the vendor order with locationAt. No WebSocket/SMS delivery is implied.
 
 ## Riders, finance and notifications
 
@@ -143,7 +142,7 @@ Delivery PIN attempts are persisted even when verification fails. After five wro
 | GET | /notifications | Any role, own latest 100 notifications |
 | PATCH | /notifications/:id/read | Any role, own notification only |
 
-Settlements and refunds require reconciled cash. These record externally completed financial operations and do not connect to banking APIs. PIN notification content is visible only to the order's customer.
+Settlements and refunds require reconciled cash. These record externally completed financial operations and do not connect to banking APIs. Order notifications are visible only to the owning account.
 
 ### Admin customer directory
 

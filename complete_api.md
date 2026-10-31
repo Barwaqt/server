@@ -46,7 +46,7 @@ Registration never returns tokens. It returns `{message, email, verificationSent
 {"error":{"message":"Validation failed","details":[{"path":"email","message":"Invalid email address"}]},"requestId":"<request UUID>"}
 ```
 
-`details` is optional. Common statuses: `401` missing/expired authentication or invalid credentials; `403` wrong role/ownership; `404` missing resource; `409` duplicate, stock conflict, invalid state, or concurrent update; `422` invalid input/business requirement; `423` delivery PIN locked; `503` unconfigured provider/payment service; `500` unexpected server error. Preserve `requestId` when reporting a failure. Invalid JSON can return 400 and oversized bodies 413.
+`details` is optional. Common statuses: `401` missing/expired authentication or invalid credentials; `403` wrong role/ownership; `404` missing resource; `409` duplicate, stock conflict, invalid state, or concurrent update; `422` invalid input/business requirement; `503` unconfigured provider/payment service; `500` unexpected server error. Preserve `requestId` when reporting a failure. Invalid JSON can return 400 and oversized bodies 413.
 
 ### Shared validation rules
 
@@ -115,7 +115,6 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/orders/:id` | CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE |
 | POST | `/api/v1/orders/:id/actions` | Authenticated; action-specific permissions below |
 | POST | `/api/v1/orders/:id/assign` | ADMIN, DISPATCHER |
-| POST | `/api/v1/orders/:id/reset-pin` | ADMIN, DISPATCHER |
 | PATCH | `/api/v1/orders/:id/location` | RIDER |
 | GET | `/api/v1/vendor/profile` | Approved VENDOR |
 | PATCH | `/api/v1/vendor/profile` | Approved VENDOR |
@@ -172,10 +171,10 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/returns` | CUSTOMER, VENDOR, ADMIN, FINANCE, DISPATCHER |
 | POST | `/api/v1/returns` | CUSTOMER |
 | POST | `/api/v1/returns/:id/actions` | ADMIN, DISPATCHER |
-| POST | `/api/v1/uploads` | ADMIN, Approved VENDOR |
-| GET | `/api/v1/uploads` | ADMIN, Approved VENDOR |
+| POST | `/api/v1/uploads` | ADMIN, Approved VENDOR, RIDER |
+| GET | `/api/v1/uploads` | ADMIN, Approved VENDOR, RIDER |
 | GET | `/api/v1/uploads/:id/content` | Public for IMAGE; owner or ADMIN for DOCUMENT |
-| DELETE | `/api/v1/uploads/:id` | Owner (Approved VENDOR) or ADMIN |
+| DELETE | `/api/v1/uploads/:id` | Owner (Approved VENDOR, RIDER) or ADMIN |
 
 ## System endpoints
 ### GET /
@@ -691,7 +690,7 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 
 **Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.
 
-Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. BANK_TRANSFER/JAZZCASH/EASYPAISA use configured active platform transfer accounts and require admin verification; disabled methods and CARD return 503. See Central platform payments. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. PINs go to customer notifications, not the order response.
+Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. BANK_TRANSFER/JAZZCASH/EASYPAISA use configured active platform transfer accounts and require admin verification; disabled methods and CARD return 503. See Central platform payments. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. No delivery code is generated: riders confirm delivery with an uploaded photo.
 
 ### GET /api/v1/orders
 
@@ -724,14 +723,14 @@ CUSTOMER supplies parent Order.id. All other roles supply child VendorOrder.id. 
 ```json
 {
   "action": "deliver",
-  "pin": "123456",
+  "proofImage": "/api/media/6f1c2a9e-0d4b-4c1e-9a5d-2b7c8e3f1a60",
   "cashCollectedMinor": 130000
 }
 ```
 
 **Success:** 200; `data: VendorOrder` scalar fields (without items/events).
 
-Always supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3–500, pin exactly six digits, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example PIN/amount are placeholders: use actual notification PIN and child totalMinor.
+Always supply child VendorOrder.id, including customer cancellation. Required action; optional reason trimmed 3–500, proofImage is the `/api/media/<upload UUID>` URL of an IMAGE the rider uploaded, cashCollectedMinor nonnegative minor integer. The action table below specifies conditional requirements. Example values are placeholders: use your own uploaded photo URL and the child totalMinor.
 
 ### Order action payloads and transitions
 
@@ -744,12 +743,12 @@ Every row uses `POST /api/v1/orders/:id/actions` with the child order number (`b
 | ready | Owning approved VENDOR | PREPARING | READY | `{"action":"ready"}` |
 | cancel | Owning CUSTOMER or ADMIN | NEW | CANCELLED | `{"action":"cancel"}` |
 | pickup | Assigned RIDER | ASSIGNED | PICKED_UP | `{"action":"pickup"}` |
-| deliver | Assigned RIDER | PICKED_UP | DELIVERED | `{"action":"deliver","pin":"123456","cashCollectedMinor":130000}` |
+| deliver | Assigned RIDER | PICKED_UP | DELIVERED | `{"action":"deliver","proofImage":"/api/media/<upload UUID>","cashCollectedMinor":130000}` |
 | fail | Assigned RIDER | ASSIGNED or PICKED_UP | FAILED | `{"action":"fail","reason":"Customer unavailable"}` |
 | retry | ADMIN or DISPATCHER | FAILED | ASSIGNED | `{"action":"retry"}` |
 | return | ADMIN or DISPATCHER | FAILED | RETURNED | `{"action":"return","reason":"Returned to vendor"}` |
 
-Delivery requires cashCollectedMinor to equal the **child** totalMinor exactly. Wrong PIN returns 422 and increments attempts; after five failures further delivery attempts return 423 until dispatch resets the PIN. Cancellation/return restores stock. Retry retains the assigned rider and requires pickup again. FAILED deliveries keep the rider busy; completed/cancelled/returned deliveries release the rider when no active assignments remain. Returns here concern failed deliveries, not customer returns after delivery. Refunds have a separate finance endpoint.
+Delivery requires proofImage to reference an IMAGE uploaded by that rider and cashCollectedMinor to equal the **child** totalMinor exactly; a missing, malformed or foreign photo URL returns 422. The stored URL is returned as `proofImage` on the delivered child order for admin and dispatch review. Cancellation/return restores stock. Retry retains the assigned rider and requires pickup again. FAILED deliveries keep the rider busy; completed/cancelled/returned deliveries release the rider when no active assignments remain. Returns here concern failed deliveries, not customer returns after delivery. Refunds have a separate finance endpoint.
 
 ### POST /api/v1/orders/:id/assign
 
@@ -766,16 +765,6 @@ Delivery requires cashCollectedMinor to equal the **child** totalMinor exactly. 
 **Success:** 200; `data: VendorOrder` scalar fields.
 
 id is the child order number (`barwaqt-######`). Order must be READY. riderId required UUID for active RIDER on an AVAILABLE open shift. Sets ASSIGNED and marks rider BUSY.
-
-### POST /api/v1/orders/:id/reset-pin
-
-**Access:** ADMIN, DISPATCHER.
-
-**Body:** None.
-
-**Success:** 200; `data: {message: "New PIN sent to customer notifications"}`.
-
-id is the child order number (`barwaqt-######`). Cannot reset DELIVERED/CANCELLED/RETURNED orders. Resets attempts and sends a new customer notification; does not return the PIN.
 
 ### PATCH /api/v1/orders/:id/location
 
@@ -1317,7 +1306,7 @@ id is the child order number (`barwaqt-######`). All fields required: positive a
 
 **Success:** 200; `data: Notification[]`, newest 100 owned notifications.
 
-Includes customer delivery PIN notifications. No pagination/unread filter or push/WebSocket endpoint.
+Includes customer order status notifications. No pagination/unread filter or push/WebSocket endpoint.
 
 ### PATCH /api/v1/notifications/:id/read
 
@@ -1362,7 +1351,7 @@ These are scalar response fields, not additional writable fields. Relations appe
 | PaymentSubmission | `id: String`, `paymentId: String`, `method: String`, `reference: String`, `status: String`, `note: String`, `reviewedBy: String?`, `reviewedAt: DateTime?`, `createdAt: DateTime` |
 | VendorAdjustment | `id: String`, `vendorId: String`, `refundId: String`, `amountMinor: Int`, `settlementId: String?`, `createdAt: DateTime` |
 
-PublicUser contains only `id, email, phone, role, firstName, lastName, profile, active, emailVerifiedAt, createdAt`; no password hashes, linked subject identifiers, or sessions. `emailVerifiedAt` is null until the address is verified; administrator-provisioned vendors and staff are verified at creation. Category also returns nullable `image` (asset URL) and `parentSlug` (parent category slug). The public category list adds `productIds` for APPROVED, active approved-vendor products explicitly assigned to that collection; direct and descendant primary-category memberships are included when filtering catalog products. Category has no createdAt field. CartItem and WishlistItem have compound keys and no independent id. PIN hashes and attempt counts are stripped from all order responses. Parent Order responses currently include idempotencyKey and requestHash; integrations should treat these as internal metadata, not IDs. Address in Order is a checkout-time JSON snapshot (without userId), not a live relation.
+PublicUser contains only `id, email, phone, role, firstName, lastName, profile, active, emailVerifiedAt, createdAt`; no password hashes, linked subject identifiers, or sessions. `emailVerifiedAt` is null until the address is verified; administrator-provisioned vendors and staff are verified at creation. Category also returns nullable `image` (asset URL) and `parentSlug` (parent category slug). The public category list adds `productIds` for APPROVED, active approved-vendor products explicitly assigned to that collection; direct and descendant primary-category memberships are included when filtering catalog products. Category has no createdAt field. CartItem and WishlistItem have compound keys and no independent id. `proofImage` is null until the assigned rider confirms delivery with a photo. Parent Order responses currently include idempotencyKey and requestHash; integrations should treat these as internal metadata, not IDs. Address in Order is a checkout-time JSON snapshot (without userId), not a live relation.
 
 ## Product publication rules for mobile clients
 
@@ -1381,7 +1370,7 @@ For native clients, resolve `/api/media/<upload UUID>` through `https://api.barw
 3. CUSTOMER registers and, when SMTP is configured, enters the 6-digit code emailed at signup before logging in. Then browse the catalog, create an address matching vendor city/zone, and set cart quantities with product UUIDs.
 4. CUSTOMER posts checkout with addressId and a fresh Idempotency-Key. Save parent `data.id` and each `data.vendorOrders[].id` separately (both are `barwaqt-######` numbers). Retry network failures with the same key and payload.
 5. VENDOR reads `/orders`, accepts each child, then marks it ready. RIDER starts a shift. ADMIN/DISPATCHER assigns an available rider to a ready child.
-6. RIDER marks pickup, updates location as needed, then delivers using the PIN shown in the CUSTOMER’s notifications and exact child totalMinor. For failed deliveries, dispatch retries or returns the child.
+6. RIDER marks pickup, updates location as needed, uploads a photo of the drop-off (`POST /api/v1/uploads`, kind IMAGE), then delivers with that `/api/media/<id>` URL as proofImage and the exact child totalMinor. For failed deliveries, dispatch retries or returns the child.
 7. FINANCE records COD remittance. Refunds after settlement are carried into future payouts as negative adjustments. Process the settlement, then mark it paid with the actual payment reference. Rider can end the shift after active deliveries and outstanding COD are cleared.
 
 ### curl examples
@@ -1451,7 +1440,7 @@ Same payload validation as checkout: addressId required; productIds optionally s
 
 **Success:** 200; `data: {currency:"PKR", paymentMethods:["COD"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, vendorOrders}`.
 
-Each quote vendorOrders entry contains `{vendorId,vendorName,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID/PIN.
+Each quote vendorOrders entry contains `{vendorId,vendorName,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID or delivery proof.
 
 Validates the customer's current cart, owned address, stock, vendor approval, service city/zone and coupon. Same calculations as checkout; no stock reservation, coupon consumption, cart clearing or order creation. The quote is advisory, not a price/stock lock. Requote when inputs change; checkout revalidates atomically. Errors include 404 address, 422 empty cart/invalid coupon/unsupported area and 409 unavailable stock.
 
@@ -1593,7 +1582,7 @@ For a RECEIVED request, use existing `POST /finance/orders/:vendorOrderId/refund
 
 ### POST /api/v1/uploads
 
-**Access:** ADMIN, approved VENDOR. JSON endpoint; no multipart form.
+**Access:** ADMIN, approved VENDOR, RIDER. JSON endpoint; no multipart form.
 
 ```json
 {"filename":"product.png","kind":"IMAGE","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII="}
@@ -1601,11 +1590,13 @@ For a RECEIVED request, use existing `POST /finance/orders/:vendorOrderId/refund
 
 filename 1–200 chars; kind IMAGE (default) or DOCUMENT. data is raw base64 without a data URL prefix. Max decoded size 5 MB; this route has a 7 MB JSON limit. Images: PNG/JPEG/WebP; documents: PDF only. File signature checked, server-generated UUID filenames; SVG/HTML rejected. Invalid format 422, size 413.
 
-**Success:** 201; `data:{id,ownerId,kind,filename,mimeType,size,createdAt,url}`. url is `/api/media/<id>`, supported by all three Next.js frontends. Save this URL in product images/category image separately. For a mobile/native client, fetch binary content directly from `<API base>/uploads/<id>/content`; the relative media URL is a frontend proxy, not a Node API endpoint.
+RIDERS may upload only IMAGE; DOCUMENT uploads require ADMIN or an approved VENDOR. A rider uploads one delivery proof photo here per drop-off and then passes the returned `url` as `proofImage` in the `deliver` order action with the exact child `totalMinor`.
+
+**Success:** 201; `data:{id,ownerId,kind,filename,mimeType,size,createdAt,url}`. url is `/api/media/<id>`, supported by all three Next.js frontends. Save this URL in product images/category image separately. Riders upload one IMAGE here per delivery and pass its url as proofImage in the deliver action. For a mobile/native client, fetch binary content directly from `<API base>/uploads/<id>/content`; the relative media URL is a frontend proxy, not a Node API endpoint.
 
 ### GET /api/v1/uploads
 
-**Access:** ADMIN, approved VENDOR. Body/query: none. Success: 200, array of own latest 100 upload metadata records, each with url. Does not list another account's private documents.
+**Access:** ADMIN, approved VENDOR, RIDER. Body/query: none. Success: 200, array of own latest 100 upload metadata records, each with url. Does not list another account's private documents.
 
 ### GET /api/v1/uploads/:id/content
 
@@ -1613,7 +1604,7 @@ filename 1–200 chars; kind IMAGE (default) or DOCUMENT. data is raw base64 wit
 
 ### DELETE /api/v1/uploads/:id
 
-**Access:** Owner (approved VENDOR) or ADMIN. Success: 204. Rejects 409 if image is referenced by a product, category or historical order item. Rejects 403 for another owner's file. Removes metadata and disk file.
+**Access:** Owner (approved VENDOR or RIDER) or ADMIN. Success: 204. Rejects 409 if image is referenced by a product, category or historical order item. Rejects 403 for another owner's file. Removes metadata and disk file.
 
 **Storage:** Set UPLOAD_DIR to a persistent directory (default server/uploads). Keep it backed up with PostgreSQL. Shared/replicated deployments need a shared persistent volume; disk uploads are not S3 replication. Migrations: run `npm run db:generate` and `npm run db:migrate`, then restart the API. RETURN_WINDOW_DAYS controls new customer return eligibility. No provider credentials are needed for these operations. Manual platform bank/wallet transfers are supported as described in Central platform payments; automated merchant gateways are not connected.
 
@@ -1704,7 +1695,7 @@ Action verify/reject; note trimmed 3–1,000 required. Verify must only be used 
 
 **Updated quote/checkout contract:** paymentMethod additionally accepts BANK_TRANSFER. Quote advertises COD plus configured active methods. For a prepaid checkout, a Payment in AWAITING_TRANSFER is created atomically with orders, stock reservation and coupon use. Response includes `payment` with destination snapshot and submissions. Customer transfers **after** order creation and submits the bank/wallet reference. Idempotency-Key behavior is unchanged. Disabled/unconfigured method returns 503 without reserving stock. The customer checkout and Account → Payments use these APIs; Admin → Payments manages accounts and reviews references.
 
-**Fulfillment and refunds:** Vendor accept is blocked until the platform verifies a prepaid payment (409). Prepaid delivery still requires the customer PIN, but cashCollectedMinor must be 0 (or omitted); COD deliveries still require the exact shipment amount. The legacy cashReceived field means centrally reconciled payment for both COD and prepaid orders. Unverified orders cannot be settled. Verified, delivered orders can be included in the normal vendor settlement without a rider remittance. If a prepaid shipment is CANCELLED or RETURNED, its refund must be the full remaining shipment total including allocated delivery charges. Use the existing finance refund endpoint after externally returning money. The payment is REFUND_DUE until cancelled-shipment liabilities are recorded; fully refunded parent payments become REFUNDED. Delivered customer returns still refund product net only. Online transfers do not increase rider COD balances.
+**Fulfillment and refunds:** Vendor accept is blocked until the platform verifies a prepaid payment (409). Prepaid delivery still requires the drop-off photo, but cashCollectedMinor must be 0 (or omitted); COD deliveries still require the exact shipment amount. The legacy cashReceived field means centrally reconciled payment for both COD and prepaid orders. Unverified orders cannot be settled. Verified, delivered orders can be included in the normal vendor settlement without a rider remittance. If a prepaid shipment is CANCELLED or RETURNED, its refund must be the full remaining shipment total including allocated delivery charges. Use the existing finance refund endpoint after externally returning money. The payment is REFUND_DUE until cancelled-shipment liabilities are recorded; fully refunded parent payments become REFUNDED. Delivered customer returns still refund product net only. Online transfers do not increase rider COD balances.
 
 Admin reports now additionally return `transfersReceivedMinor` (gross verified bank/wallet transfers) and `platformCollectedMinor` (gross verified transfers plus COD remittances). Refund and payout totals remain separate; gross receipts are not the available bank balance.
 
@@ -1712,7 +1703,7 @@ Admin reports now additionally return `transfersReceivedMinor` (gross verified b
 
 For authorized vendor-order responses from `GET /api/v1/orders` and `GET /api/v1/orders/:id`, `order.customer` contains only `firstName`, `lastName`, `email`, and `phone`; `rider` contains the assigned rider's `firstName`, `lastName`, and `phone`, or null. `order.payment` contains only `status`, or null for COD. Vendor access remains restricted to that vendor's own child orders.
 
-`order.address` is the checkout snapshot: recipient name/phone, kind, apartment, building, street, zone, city, directions and optional latitude/longitude. Customer account contact information is current; the delivery recipient may differ. Item snapshots include productId, name, image, quantity, and unitPriceMinor. Child-order totals include subtotalMinor, discountMinor, deliveryMinor, totalMinor, commissionMinor and payableMinor. Monetary fields are in minor currency units. Events contain status, createdAt and optional note; deliveryWindow, deliveredAt and failureReason describe delivery scheduling and progress where available. Passwords and delivery PIN hashes are not returned.
+`order.address` is the checkout snapshot: recipient name/phone, kind, apartment, building, street, zone, city, directions and optional latitude/longitude. Customer account contact information is current; the delivery recipient may differ. Item snapshots include productId, name, image, quantity, and unitPriceMinor. Child-order totals include subtotalMinor, discountMinor, deliveryMinor, totalMinor, commissionMinor and payableMinor. Monetary fields are in minor currency units. Events contain status, createdAt and optional note; deliveryWindow, deliveredAt and failureReason describe delivery scheduling and progress where available. Passwords are not returned.
 
 Settlement creation, processing and paid transitions create in-app notifications for the vendor owner. Settlement amount is fixed when created; later refunds may change linked order payable values and create deductions for a future settlement. UI breakdowns distinguish current order values from the fixed settlement amount. Recording PAID requires an external payment reference and does not initiate a bank or wallet transfer.
 

@@ -63,14 +63,14 @@ See the [backend architecture diagrams](docs/ARCHITECTURE.md) for application la
 - Cash can be remitted partially. Orders become settlement-eligible only after that rider's entire outstanding balance is reconciled. This conservative policy prevents partially received cash being paid out twice.
 - Refunds are restricted to reconciled deliveries not yet linked to a settlement. Refunds cannot exceed the discounted product amount; commission is proportionally reversed and audited. Delivery fees are not refunded by this endpoint. Post-settlement disputes need a separate adjustment process, not mutation of paid history.
 - Settlements progress `PENDING → PROCESSED → PAID`. Duplicate cash/payment references and settling the same order twice are rejected.
-- PINs are bcrypt hashed, five bad attempts lock delivery, and dispatch may reset a PIN. The customer receives PINs via authenticated in-app notifications. Riders and vendors never receive the PIN/hash from order APIs.
+- Delivery is confirmed by the assigned rider with an uploaded photo of the drop-off; the stored `/api/media/<id>` URL is returned as `proofImage` for admin review. No delivery code is generated or sent to the customer.
 - Address availability currently uses exact case-insensitive city/zone matching, not geofencing. Shift break seconds are deducted from working time; breaks do not require a separate approval workflow.
 
 ## Authentication and operations
 
 Access JWTs expire after 15 minutes by default. Refresh tokens are random, hashed in PostgreSQL, rotated on refresh, and expire after 30 days. Each access request checks the persisted session and active user. Logout/password changes revoke sessions. Only allowed roles and resource owners can operate on private resources.
 
-Bearer authentication is used; the API does not set authentication cookies. Store tokens appropriately in your frontend/BFF; never store actual passwords or delivery PINs in logs. Browser origins are allowlisted. Helmet, bounded JSON bodies, request IDs, strict validation, password hashing and rate limits are configured. Built-in rate limiting is per process; use a shared store at multi-instance deployment. Configure proxy trust explicitly for your deployment rather than accepting arbitrary forwarded IP headers.
+Bearer authentication is used; the API does not set authentication cookies. Store tokens appropriately in your frontend/BFF; never store actual passwords or delivery photos in logs. Browser origins are allowlisted. Helmet, bounded JSON bodies, request IDs, strict validation, password hashing and rate limits are configured. Built-in rate limiting is per process; use a shared store at multi-instance deployment. Configure proxy trust explicitly for your deployment rather than accepting arbitrary forwarded IP headers.
 
 ## Frontend integration
 

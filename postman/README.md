@@ -25,7 +25,7 @@ This is an integration reference, **not a sequential Run All test suite**. Reque
 | settlementId | Captured when finance creates a settlement |
 | notificationId | Copy from authenticated GET /notifications |
 | idempotencyKey | Generated before checkout if empty; retain for retries; clear or replace before a NEW purchase |
-| deliveryPin | Copy the actual PIN from the receiving customer's notifications |
+| proofImage | `/api/media/<upload UUID>` of the drop-off photo the rider uploaded before confirming delivery |
 | cashCollectedMinor | Set to the exact child order totalMinor, numeric integer paisa |
 | provider, credential, nonce | google/apple, SDK-issued signed ID token, captured challenge nonce |
 | resetToken | Token from reset email URL fragment; never a login token |
@@ -39,7 +39,7 @@ Variables belong to each selected environment. When switching roles, copy only n
 2. Vendor: login → create product with real categoryId, priceMinor, stock, image URLs.
 3. Customer: register/login → browse catalog → create address matching vendor city/zone → PUT cart product quantity → POST quote → POST checkout.
 4. Vendor: accept → ready using its child order ID.
-5. Rider: start shift. Admin/dispatch: assign that rider. Rider: pickup → deliver with customer PIN and exact COD amount.
+5. Rider: start shift. Admin/dispatch: assign that rider. Rider: pickup → POST /uploads (IMAGE) → deliver with that `/api/media/<id>` URL as proofImage and exact COD amount.
 6. Finance/admin: record remittance → create settlement → mark processed → mark paid with actual reference.
 
 For two vendors, repeat vendor preparation/dispatch/delivery per child. Refunds must be recorded after reconciliation and before settlement. Finance endpoints record actual external money movement; they do not initiate payment-provider transfers.

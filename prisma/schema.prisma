@@ -231,8 +231,7 @@ model VendorOrder {
  payableMinor Int
  riderId String?
  rider User? @relation("RiderOrders",fields:[riderId],references:[id])
- pinHash String
- pinAttempts Int @default(0)
+ proofImage String?
  codCollectedMinor Int @default(0)
  cashReceived Boolean @default(false)
  deliveredAt DateTime?

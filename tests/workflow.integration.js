@@ -223,7 +223,7 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
   assert.equal(order.discountMinor, 20000);
   assert.equal(order.totalMinor, 195000);
   assert.equal(order.totalMinor, preview.totalMinor);
-  assert.ok(order.vendorOrders.every((o) => !o.pinHash));
+  assert.ok(order.vendorOrders.every((o) => !o.proofImage));
   assert.equal(
     (await db.product.findUnique({ where: { id: products[0].id } })).stock,
     4,
@@ -278,28 +278,28 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
     409,
   );
   await ok(call("post", `/orders/${one.id}/actions`, rt, { action: "pickup" }));
-  const notifications = await ok(call("get", "/notifications", ct)),
-    pin = notifications
-      .find((n) => n.title === "Delivery PIN" && n.body.includes(one.id))
-      .body.match(/PIN is (\d{6})/)[1];
+  const proof = await db.upload.create({
+    data: {
+      ownerId: rider.id,
+      kind: "IMAGE",
+      filename: "door.png",
+      mimeType: "image/png",
+      size: 128,
+    },
+  });
   assert.equal(
     (
       await call("post", `/orders/${one.id}/actions`, rt, {
         action: "deliver",
-        pin: pin === "111111" ? "222222" : "111111",
         cashCollectedMinor: one.totalMinor,
       })
     ).status,
     422,
   );
-  assert.equal(
-    (await db.vendorOrder.findUnique({ where: { id: one.id } })).pinAttempts,
-    1,
-  );
   await ok(
     call("post", `/orders/${one.id}/actions`, rt, {
       action: "deliver",
-      pin,
+      proofImage: `/api/media/${proof.id}`,
       cashCollectedMinor: one.totalMinor,
     }),
   );
@@ -307,7 +307,7 @@ test("multi-vendor lifecycle, isolation, accounting, idempotency and stock concu
     (
       await call("post", `/orders/${one.id}/actions`, rt, {
         action: "deliver",
-        pin,
+        proofImage: `/api/media/${proof.id}`,
         cashCollectedMinor: one.totalMinor,
       })
     ).status,

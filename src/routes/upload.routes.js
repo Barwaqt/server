@@ -31,7 +31,7 @@ uploadRouter.get(
   },
   c.content,
 );
-uploadRouter.use(authenticate, roles("ADMIN", "VENDOR"));
+uploadRouter.use(authenticate, roles("ADMIN", "VENDOR", "RIDER"));
 uploadRouter.use((req, res, next) =>
   req.user.role === "VENDOR" ? approvedVendor(req, res, next) : next(),
 );

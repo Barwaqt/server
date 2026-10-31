@@ -2,8 +2,6 @@ import { categoryDiscount } from "../utils/coupon-discount.js";
 import { descendantCategoryIds } from "../utils/category-tree.js";
 import { createPayment, syncPayment } from "./payment.service.js";
 import { reserveSlot, releaseCancelledSlot } from "./delivery.service.js";
-import bcrypt from "bcryptjs";
-import { randomInt } from "node:crypto";
 import { db, transaction } from "../config/database.js";
 import { deliveryFeeMinor } from "./settings.service.js";
 import { assert, ApiError } from "../utils/error.js";
@@ -249,7 +247,6 @@ export async function checkout(user, input, key) {
           const vendor = items[0].product.vendor;
           const net = subtotals[i] - discounts[i];
           const commission = percentage(net, vendor.commissionBps);
-          const pin = String(randomInt(100000, 1000000));
           const child = await tx.vendorOrder.create({
             data: {
               id: await allocateOrderNumber(tx, reserved),
@@ -261,7 +258,6 @@ export async function checkout(user, input, key) {
               totalMinor: net + fees[i],
               commissionMinor: commission,
               payableMinor: net - commission,
-              pinHash: await bcrypt.hash(pin, 8),
               items: {
                 create: items.map((item) => ({
                   productId: item.productId,
@@ -274,12 +270,6 @@ export async function checkout(user, input, key) {
               events: { create: { actorId: user.id, status: "NEW" } },
             },
           });
-          await notify(
-            tx,
-            user.id,
-            "Delivery PIN",
-            `Order ${child.id}: your delivery PIN is ${pin}. Share it only when receiving your order.`,
-          );
           await notify(
             tx,
             vendor.ownerId,
@@ -533,25 +523,32 @@ export async function transition(actor, id, input) {
           "Pickup is required before delivery",
         );
         assert(
-          order.pinAttempts < 5,
-          423,
-          "PIN attempts exhausted; contact dispatch",
+          input.proofImage &&
+            /^\/api\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+              input.proofImage,
+            ),
+          422,
+          "Attach a photo of the delivery location",
         );
         assert(
-          input.pin &&
-            (order.order.paymentMethod === "COD"
-              ? input.cashCollectedMinor === order.totalMinor
-              : order.cashReceived && (input.cashCollectedMinor ?? 0) === 0),
+          await tx.upload.findFirst({
+            where: {
+              id: input.proofImage.slice("/api/media/".length),
+              ownerId: actor.id,
+              kind: "IMAGE",
+            },
+            select: { id: true },
+          }),
           422,
-          "Delivery PIN and correct cash amount required (zero for prepaid orders)",
+          "Delivery photo not found",
         );
-        if (!(await bcrypt.compare(input.pin, order.pinHash))) {
-          await tx.vendorOrder.update({
-            where: { id },
-            data: { pinAttempts: { increment: 1 } },
-          });
-          return { invalidPin: true };
-        }
+        assert(
+          order.order.paymentMethod === "COD"
+            ? input.cashCollectedMinor === order.totalMinor
+            : order.cashReceived && (input.cashCollectedMinor ?? 0) === 0,
+          422,
+          "Correct cash amount required (zero for prepaid orders)",
+        );
         status = "DELIVERED";
         break;
       case "fail":
@@ -603,6 +600,7 @@ export async function transition(actor, id, input) {
               codCollectedMinor:
                 order.order.paymentMethod === "COD" ? order.totalMinor : 0,
               deliveredAt: new Date(),
+              proofImage: input.proofImage,
             }
           : {}),
         ...(status === "FAILED" ? { failureReason: input.reason } : {}),
@@ -646,36 +644,7 @@ export async function transition(actor, id, input) {
     });
     return sanitizeOrder(updated);
   });
-  if (result.invalidPin) throw new ApiError(422, "Incorrect delivery PIN");
   return result;
-}
-export async function resetPin(actor, id) {
-  const pin = String(randomInt(100000, 1000000));
-  return transaction(async (tx) => {
-    const order = await tx.vendorOrder.findUnique({
-      where: { id },
-      include: { order: true },
-    });
-    assert(
-      order && !ended.includes(order.status),
-      409,
-      "Order cannot receive a new PIN",
-    );
-    await tx.vendorOrder.update({
-      where: { id },
-      data: { pinHash: await bcrypt.hash(pin, 8), pinAttempts: 0 },
-    });
-    await notify(
-      tx,
-      order.order.customerId,
-      "New delivery PIN",
-      `Order ${id}: your new delivery PIN is ${pin}.`,
-    );
-    await tx.auditLog.create({
-      data: { actorId: actor.id, action: "PIN_RESET", entityId: id },
-    });
-    return { message: "New PIN sent to customer notifications" };
-  });
 }
 export async function location(actor, id, input) {
   const result = await db.vendorOrder.updateMany({

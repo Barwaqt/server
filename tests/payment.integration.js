@@ -208,19 +208,20 @@ test("central collection, payment verification, prepaid delivery and cancellatio
             action: "pickup",
           }),
         );
-        const notice = await db.notification.findFirst({
-          where: {
-            userId: customer.id,
-            title: "Delivery PIN",
-            body: { contains: shipment.id },
+        const proof = await db.upload.create({
+          data: {
+            ownerId: rider.id,
+            kind: "IMAGE",
+            filename: "door.png",
+            mimeType: "image/png",
+            size: 128,
           },
         });
-        const pin = notice.body.match(/PIN is (\d{6})/)[1];
         assert.equal(
           (
             await call("post", `/orders/${shipment.id}/actions`, rider, {
               action: "deliver",
-              pin,
+              proofImage: `/api/media/${proof.id}`,
               cashCollectedMinor: shipment.totalMinor,
             })
           ).status,
@@ -229,7 +230,7 @@ test("central collection, payment verification, prepaid delivery and cancellatio
         await ok(
           call("post", `/orders/${shipment.id}/actions`, rider, {
             action: "deliver",
-            pin,
+            proofImage: `/api/media/${proof.id}`,
             cashCollectedMinor: 0,
           }),
         );

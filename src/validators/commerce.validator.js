@@ -119,9 +119,10 @@ export const action = z
       "return",
     ]),
     reason: z.string().trim().min(3).max(500).optional(),
-    pin: z
+    proofImage: z
       .string()
-      .regex(/^\d{6}$/)
+      .max(2000)
+      .regex(/^\/api\/media\/[0-9a-f-]{36}$/)
       .optional(),
     cashCollectedMinor: minor.optional(),
   })

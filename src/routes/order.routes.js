@@ -36,7 +36,6 @@ orderRouter.post(
   validate(assign),
   c.assign,
 );
-orderRouter.post("/:id/reset-pin", roles("ADMIN", "DISPATCHER"), c.resetPin);
 orderRouter.patch(
   "/:id/location",
   roles("RIDER"),

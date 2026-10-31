@@ -110,7 +110,6 @@ test("admin customer search, totals, purchase snapshots and access restrictions"
             totalMinor: 1100,
             commissionMinor: 100,
             payableMinor: 900,
-            pinHash: "never-expose",
             items: {
               create: {
                 productId: product.id,
@@ -160,7 +159,6 @@ test("admin customer search, totals, purchase snapshots and access restrictions"
   const shipment = detail.orders.items[0].vendorOrders[0];
   assert.equal(shipment.items[0].name, "Original purchased name");
   assert.equal(shipment.items[0].unitPriceMinor, 500);
-  assert.equal(shipment.pinHash, undefined);
   assert.equal(
     (await call("get", "/orders/" + shipment.id, admin)).status,
     200,
