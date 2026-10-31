@@ -57,7 +57,7 @@ export async function login(input) {
   );
   assert(valid && user?.active, 401, "Invalid credentials");
   assert(
-    user.emailVerifiedAt,
+    user.emailVerifiedAt || (!user.email && user.phoneVerifiedAt),
     403,
     "Verify your email address before signing in. Request a new verification code if it expired.",
   );

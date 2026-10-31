@@ -1,3 +1,4 @@
+import * as phoneAuth from "../services/phone-auth.service.js";
 import * as identity from "../controllers/identity.controller.js";
 import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
@@ -9,15 +10,47 @@ import { env } from "../config/env.js";
 export const authRouter = Router();
 // Background session checks use the API-wide limit. Each sensitive action
 // has a separate budget so login attempts cannot block email verification.
-for (const action of ["register", "login", "forgot-password", "reset-password", "verify-email", "resend-verification", "challenge", "social", "link-provider", "change-password"]) {
-  authRouter.post(`/${action}`, rateLimit({
-    windowMs: 900000,
-    limit: env.AUTH_RATE_LIMIT_MAX,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    message: { error: { message: "Too many attempts for this action. Please try again in 15 minutes." } },
-  }));
+for (const action of [
+  "phone-signup",
+  "phone-login",
+  "phone-verify",
+  "phone-resend",
+  "register",
+  "login",
+  "forgot-password",
+  "reset-password",
+  "verify-email",
+  "resend-verification",
+  "challenge",
+  "social",
+  "link-provider",
+  "change-password",
+]) {
+  authRouter.post(
+    `/${action}`,
+    rateLimit({
+      windowMs: 900000,
+      limit: env.AUTH_RATE_LIMIT_MAX,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      message: {
+        error: {
+          message:
+            "Too many attempts for this action. Please try again in 15 minutes.",
+        },
+      },
+    }),
+  );
 }
+for (const [path, schema, handler] of [
+  ["phone-signup", phoneAuth.phoneSignup, phoneAuth.signup],
+  ["phone-login", phoneAuth.phoneLogin, phoneAuth.login],
+  ["phone-verify", phoneAuth.phoneVerify, phoneAuth.verify],
+  ["phone-resend", phoneAuth.phoneResend, phoneAuth.resend],
+])
+  authRouter.post("/" + path, validate(schema), async (req, res) =>
+    res.json({ data: await handler(req.input.body) }),
+  );
 authRouter.post("/register", validate(v.register), c.register);
 authRouter.post("/login", validate(v.login), c.login);
 authRouter.post("/refresh", validate(v.refresh), c.refresh);

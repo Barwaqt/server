@@ -9,6 +9,7 @@ export const publicUser = {
   profile: true,
   active: true,
   emailVerifiedAt: true,
+  phoneVerifiedAt: true,
   createdAt: true,
 };
 export const findIdentity = (identity) =>

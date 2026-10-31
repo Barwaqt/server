@@ -40,7 +40,7 @@ enum SettlementStatus {
 }
 model User {
  id String @id @default(uuid())
- email String @unique
+ email String? @unique
  phone String? @unique
  googleSubject String? @unique
  appleSubject String? @unique
@@ -52,6 +52,7 @@ model User {
  lastName String @default("")
  active Boolean @default(true)
  emailVerifiedAt DateTime?
+ phoneVerifiedAt DateTime?
  profile Json @default("{}")
  createdAt DateTime @default(now())
  updatedAt DateTime @updatedAt
@@ -463,4 +464,46 @@ model SearchTerm {
  term String @id
  count Int @default(1)
  updatedAt DateTime @updatedAt
+}
+
+model PhoneOtp {
+ phone String @id
+ id String @unique @default(uuid())
+ purpose String
+ portal String
+ userId String?
+ pending Json?
+ codeHash String
+ attempts Int @default(0)
+ sends Int @default(1)
+ windowStartedAt DateTime @default(now())
+ sentAt DateTime @default(now())
+ expiresAt DateTime
+ status String @default("PENDING")
+}
+model MarketingCampaign {
+ id String @id @default(uuid())
+ actorId String
+ requestKey String
+ requestHash String
+ name String
+ channels String[]
+ content Json
+ createdAt DateTime @default(now())
+ messages MarketingMessage[]
+ @@unique([actorId, requestKey])
+}
+model MarketingMessage {
+ id String @id @default(uuid())
+ campaignId String
+ campaign MarketingCampaign @relation(fields:[campaignId],references:[id],onDelete:Cascade)
+ phone String
+ channel String
+ status String @default("QUEUED")
+ providerId String?
+ error String?
+ updatedAt DateTime @updatedAt
+ createdAt DateTime @default(now())
+ @@unique([campaignId, phone, channel])
+ @@index([status, createdAt])
 }

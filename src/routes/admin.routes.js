@@ -1,3 +1,5 @@
+import * as marketing from "../services/marketing.service.js";
+import { rateLimit } from "express-rate-limit";
 import {
   getSupport,
   saveSupport,
@@ -39,6 +41,27 @@ adminRouter.param("id", (req, res, next, value) => {
   next();
 });
 adminRouter.use(authenticate, roles("ADMIN"));
+adminRouter.get("/marketing/config", (req, res) =>
+  res.json({ data: marketing.configuration() }),
+);
+adminRouter.get("/marketing/campaigns", async (req, res) =>
+  res.json({ data: await marketing.campaigns() }),
+);
+adminRouter.post(
+  "/marketing/campaigns",
+  rateLimit({ windowMs: 3600000, limit: 20 }),
+  validate(marketing.campaignInput),
+  async (req, res) =>
+    res
+      .status(202)
+      .json({
+        data: await marketing.createCampaign(
+          req.user,
+          req.input.body,
+          req.get("Idempotency-Key"),
+        ),
+      }),
+);
 adminRouter.get("/support", async (req, res) =>
   res.json({ data: await getSupport() }),
 );

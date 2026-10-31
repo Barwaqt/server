@@ -1,14 +1,27 @@
+import { assert } from "../utils/error.js";
+import { normalizePhone } from "../utils/phone.js";
 import * as s from "../services/customer.service.js";
 import { db } from "../config/database.js";
 import { publicUser } from "../models/user.model.js";
-export const profile = async (req, res) =>
-  res.json({
+export const profile = async (req, res) => {
+  const input = { ...req.input.body };
+  if (input.phone) input.phone = normalizePhone(input.phone);
+  if (input.phone && input.phone !== req.user.phone) {
+    assert(
+      req.user.email,
+      422,
+      "Phone-only accounts cannot change their sign-in number here. Contact support.",
+    );
+    input.phoneVerifiedAt = null;
+  }
+  return res.json({
     data: await db.user.update({
       where: { id: req.user.id },
-      data: req.input.body,
+      data: input,
       select: publicUser,
     }),
   });
+};
 export const addresses = async (req, res) =>
   res.json({ data: await s.addresses(req.user) });
 export const createAddress = async (req, res) =>

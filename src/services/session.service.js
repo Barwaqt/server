@@ -18,9 +18,9 @@ export function access(user, session) {
  * Starts a session for the account. Shared by password login, social sign-in and
  * email verification, which signs the customer in as soon as the code is accepted.
  */
-export async function sessionFor(user) {
+export async function sessionFor(user, client = db) {
   const refreshToken = token();
-  const session = await db.session.create({
+  const session = await client.session.create({
     data: {
       userId: user.id,
       tokenHash: hashToken(refreshToken),
@@ -31,7 +31,7 @@ export async function sessionFor(user) {
     accessToken: access(user, session),
     refreshToken,
     expiresIn: env.ACCESS_TOKEN_MINUTES * 60,
-    user: await db.user.findUnique({
+    user: await client.user.findUnique({
       where: { id: user.id },
       select: publicUser,
     }),

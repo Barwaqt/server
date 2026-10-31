@@ -113,3 +113,5 @@ Open `https://api.barwaqt.com/integerate/api/complete_api.md` and enter the shar
 ## Session and support updates
 
 Search popularity requires migration `20261026120000_search_terms`. Support contacts use the existing StorefrontPage table. See complete_api.md for support and search endpoints.
+
+SMS signup/login and admin SMS/WhatsApp campaigns: see [Veevo setup](docs/VEEVO_SETUP.md) and the [API reference](docs/API.md#sms-phone-authentication-veevo). Dummy credentials disable delivery until real provider keys are configured.

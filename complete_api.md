@@ -2,7 +2,7 @@
 
 This document describes the endpoints implemented in `src/app.js` and `src/routes`, including service-level requirements. It describes the Node API directly; the Next.js authentication proxy has a different cookie-based interface.
 
-Last updated: 2026-10-26.
+Last updated: 2026-10-30.
 
 **Release scope:** This documents the checked-out source, not a verification of the live deployment. Product moderation requires migration `20261025120000_product_moderation` and the corresponding backend release. See [rollout instructions](docs/PRODUCT_REVIEW.md). The moderation contract below is authoritative when using older Postman templates.
 
@@ -1787,3 +1787,51 @@ POST /api/v1/admin/coupons now requires `categoryIds`, an array of 1–500 uniqu
 Coupons match every product shown in the selected categories: the product's primary categoryId, its catalog collection memberships, and products in descendant (subcategory) categories. Quote and checkout compute the percentage, cap, and minimum subtotal from matching items only. Other products and delivery fees are not discounted. Unmatched carts or insufficient eligible subtotals return 422. Vendor discount allocation excludes vendors with no eligible items, including rounding remainders.
 
 Migration `20261027120000_coupon_categories` adds the category selection. Existing coupons have an empty selection and cannot be redeemed until an admin chooses categories. Historical order discounts remain unchanged. Customer checkout uses the existing couponCode payload; no mobile payload change is required.
+
+
+## SMS phone authentication (Veevo)
+
+Base URL: `https://api.barwaqt.com/api/v1`. These routes use SMS, never WhatsApp. Email authentication routes remain available. Phone-only users have `email: null`; use `phone` as their display identity.
+
+| Method / path | JSON body | Result |
+| --- | --- | --- |
+| POST `/auth/phone-signup` | `{"phone":"+923001234567","password":"A-long-example-password","firstName":"Ali","lastName":"Khan"}` | Pending customer signup; account is created only after verification |
+| POST `/auth/phone-login` | `{"phone":"+923001234567","portal":"customer"}` | SMS challenge for an existing eligible account; portal may be `customer` or `vendor` |
+| POST `/auth/phone-resend` | `{"challengeId":"UUID_FROM_PREVIOUS_RESPONSE"}` | New challenge; discard the old ID and code |
+| POST `/auth/phone-verify` | `{"challengeId":"UUID_FROM_RESPONSE","code":"123456"}` | Consumes the code and returns a session |
+
+Challenge response:
+
+```json
+{"data":{"challengeId":"uuid","phone":"+923001234567","expiresIn":300,"resendAfter":60,"message":"If this number is eligible, a verification code has been sent by SMS."}}
+```
+
+Successful verification returns `data: {user, accessToken, refreshToken, expiresIn, message}` like password login. The web portals store tokens in HttpOnly cookies rather than exposing them in frontend JSON. Mobile clients should store refresh tokens securely. The password is required on phone signup (12–72 characters), not on phone login. Vendors must already be registered by an administrator. Admin/rider phone OTP login is not supported.
+
+Codes expire after 5 minutes, permit 5 attempts, and can be requested once per minute, at most 5 times per hour per phone. Resending invalidates the previous challenge. Errors: `422` invalid/expired code or input, `429` cooldown/limits, `409` duplicate signup or conflicting legacy numbers, `503` missing/dummy provider configuration, `502` provider submission unconfirmed. Unknown/disabled/wrong-role login numbers get a generic response and cannot verify into a session.
+
+## Admin SMS / WhatsApp marketing
+
+All endpoints require an ADMIN bearer token.
+
+- GET `/admin/marketing/config` → `data: {smsConfigured, whatsappConfigured, maxRecipients:100}`. Never returns credentials.
+- GET `/admin/marketing/campaigns` → `data: [...]` (30 most recent campaigns, including per-recipient `messages`).
+- POST `/admin/marketing/campaigns` → HTTP `202`, `data: {id, name, channels, content, messages, createdAt, ...}`. Header `Idempotency-Key` is required (8–100 letters/digits/underscores/hyphens). Same key and payload returns the same campaign; a changed payload returns `409`. Limited to 20 creation requests per hour per IP.
+
+```json
+{
+  "name": "Weekend offers",
+  "channels": ["SMS", "WHATSAPP"],
+  "recipients": ["+923001234567"],
+  "smsText": "Barwaqt weekend offers are here!",
+  "whatsapp": {
+    "templateId": 42,
+    "headerVariables": [],
+    "bodyVariables": ["Weekend offers"]
+  }
+}
+```
+
+Select one or both channels. `smsText` (1–1600 characters) is required for SMS; `whatsapp` is required for WhatsApp, with an approved text-only template ID, up to one header variable, and up to 20 body variables. Recipients: 1–100 numbers, normalized/deduplicated. Credentials are configured exclusively in server `.env`. Missing real keys returns `503`; invalid content returns `422`.
+
+Each message contains `id`, `phone`, `channel`, `status`, `providerId`, `error`, and timestamps. Status is `QUEUED`, `SENDING`, `ACCEPTED`, `FAILED`, or `UNKNOWN`. `ACCEPTED` is provider submission acknowledgement, not a delivery/read receipt. Refresh history to follow background processing. Unknown outcomes are not automatically retried. See [Veevo setup](docs/VEEVO_SETUP.md) for deployment and configuration.
