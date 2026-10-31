@@ -30,7 +30,7 @@ app.use(helmet());
 app.use(
   pinoHttp({
     genReqId: () => randomUUID(),
-    autoLogging: env.NODE_ENV !== "test",
+    autoLogging: false,
     redact: [
       "req.headers.authorization",
       "req.headers.cookie",
