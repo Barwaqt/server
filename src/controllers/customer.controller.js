@@ -28,6 +28,10 @@ export const createAddress = async (req, res) =>
   res
     .status(201)
     .json({ data: await s.saveAddress(req.user, null, req.input.body) });
+export const createAddressFromLocation = async (req, res) =>
+  res
+    .status(201)
+    .json({ data: await s.saveAddressFromLocation(req.user, req.input.body) });
 export const updateAddress = async (req, res) =>
   res.json({
     data: await s.saveAddress(req.user, req.params.id, req.input.body),

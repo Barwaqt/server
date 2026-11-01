@@ -1838,3 +1838,153 @@ All endpoints require an ADMIN bearer token.
 Select one or both channels. `smsText` (1–1600 characters) is required for SMS; `whatsapp` is required for WhatsApp, with an approved text-only template ID, up to one header variable, and up to 20 body variables. Recipients: 1–100 numbers, normalized/deduplicated. Credentials are configured exclusively in server `.env`. Missing real keys returns `503`; invalid content returns `422`.
 
 Each message contains `id`, `phone`, `channel`, `status`, `providerId`, `error`, and timestamps. Status is `QUEUED`, `SENDING`, `ACCEPTED`, `FAILED`, or `UNKNOWN`. `ACCEPTED` is provider submission acknowledgement, not a delivery/read receipt. Refresh history to follow background processing. Unknown outcomes are not automatically retried. See [Veevo setup](docs/VEEVO_SETUP.md) for deployment and configuration.
+
+## Google Maps & Location Services
+
+Base URL: `https://api.barwaqt.com/api/v1`. These endpoints power address lookup, location search, and GPS coordinate reverse-geocoding for both mobile apps and web applications. Configured with `GOOGLE_MAPS_API_KEY` in `server/.env`. When dummy credentials or development keys are active, the endpoints automatically provide built-in Pakistani city/zone fallbacks (Islamabad, Rawalpindi, Lahore, Karachi, Peshawar, Multan, etc.) so UI development works without requiring live Google billing.
+
+### 1. GET /api/v1/maps/config
+
+**Access:** Public / Any. **Query:** None.
+
+Returns client configuration and default map center for Pakistan. Never exposes the server API key.
+
+```json
+{
+  "data": {
+    "mapsConfigured": false,
+    "defaultCenter": {
+      "latitude": 33.6844,
+      "longitude": 73.0479
+    },
+    "country": "PK"
+  }
+}
+```
+
+### 2. GET /api/v1/maps/search (Alias: /api/v1/maps/autocomplete)
+
+**Access:** Public / Any.
+
+**Query parameters:**
+- `query` (or `q`): string (required, 1–200 characters) — address, area, or place name (e.g., `F-7`, `Gulberg`, `Clifton`).
+- `sessionToken`: string (optional) — Google Places session UUID for billing grouping.
+
+**Success:** 200; `data: [...]`. Array of matched place predictions:
+
+```json
+{
+  "data": [
+    {
+      "placeId": "ChIJbU60gyn83zgR_qqxfD0GlDs",
+      "description": "F-7 Markaz, Islamabad, Islamabad Capital Territory, Pakistan",
+      "mainText": "F-7 Markaz",
+      "secondaryText": "Islamabad, Pakistan"
+    }
+  ]
+}
+```
+
+### 3. GET /api/v1/maps/reverse-geocode
+
+**Access:** Public / Any.
+
+Converts GPS coordinates (obtained from mobile device GPS `expo-location` / `react-native-geolocation` or browser `navigator.geolocation`) into a structured address with city, zone, and street.
+
+**Query parameters:**
+- `lat` (or `latitude`): number (required, -90 to 90)
+- `lng` (or `longitude`): number (required, -180 to 180)
+
+**Success:** 200:
+
+```json
+{
+  "data": {
+    "formattedAddress": "Jinnah Super Market, College Road, F-7, Islamabad, Pakistan",
+    "street": "Jinnah Super Market, College Road",
+    "zone": "F-7",
+    "city": "Islamabad",
+    "country": "Pakistan",
+    "latitude": 33.7215,
+    "longitude": 73.0567,
+    "placeId": "ChIJbU60gyn83zgR_qqxfD0GlDs"
+  }
+}
+```
+
+### 4. GET /api/v1/maps/place-details
+
+**Access:** Public / Any.
+
+Retrieves exact latitude, longitude, and parsed address components for a `placeId` selected from `/maps/search`.
+
+**Query parameters:**
+- `placeId`: string (required)
+- `sessionToken`: string (optional)
+
+**Success:** 200:
+
+```json
+{
+  "data": {
+    "placeId": "ChIJbU60gyn83zgR_qqxfD0GlDs",
+    "name": "F-7 Markaz",
+    "formattedAddress": "F-7 Markaz, Islamabad, Pakistan",
+    "street": "College Road",
+    "zone": "F-7",
+    "city": "Islamabad",
+    "country": "Pakistan",
+    "latitude": 33.7215,
+    "longitude": 73.0567
+  }
+}
+```
+
+### 5. Saving the Location as a Customer Delivery Address
+
+Both the web application and mobile applications can save the location to the customer's account using either of two methods:
+
+#### Method A: Direct Save from Location Coordinates (1-step)
+**POST `/api/v1/customer/addresses/from-location`**
+**Access:** Customer Bearer Token.
+
+Automatically reverse-geocodes the coordinates and saves the address in a single request:
+
+```json
+{
+  "latitude": 33.7215,
+  "longitude": 73.0567,
+  "kind": "Home",
+  "phone": "+923001234567",
+  "firstName": "Ali",
+  "lastName": "Khan",
+  "street": "Street 12, House 4B",
+  "building": "Silver Heights",
+  "apartment": "Flat 302",
+  "directions": "Near post office"
+}
+```
+
+#### Method B: Standard Customer Address Creation
+**POST `/api/v1/customer/addresses`**
+**Access:** Customer Bearer Token.
+
+Supply the resolved fields alongside `latitude` and `longitude`:
+
+```json
+{
+  "kind": "Home",
+  "firstName": "Ali",
+  "lastName": "Khan",
+  "phone": "+923001234567",
+  "city": "Islamabad",
+  "zone": "F-7",
+  "street": "Street 12, House 4B",
+  "building": "Silver Heights",
+  "apartment": "Flat 302",
+  "directions": "Ring bell on gate",
+  "latitude": 33.7215,
+  "longitude": 73.0567
+}
+```
+

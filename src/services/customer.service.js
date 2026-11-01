@@ -1,5 +1,6 @@
 import { db, transaction } from "../config/database.js";
 import { assert } from "../utils/error.js";
+import { reverseGeocode } from "./maps.service.js";
 export const addresses = (user) =>
   db.address.findMany({
     where: { userId: user.id },
@@ -15,6 +16,35 @@ export async function saveAddress(user, id, input) {
     return db.address.update({ where: { id }, data: input });
   }
   return db.address.create({ data: { ...input, userId: user.id } });
+}
+export async function saveAddressFromLocation(user, input) {
+  const geo = await reverseGeocode({
+    latitude: input.latitude,
+    longitude: input.longitude,
+  });
+
+  const firstName = input.firstName || user.firstName || "Customer";
+  const lastName = input.lastName ?? (user.lastName || "");
+  const userPhone = input.phone || user.phone;
+  assert(userPhone, 422, "Phone number is required for delivery contact");
+
+  const addressData = {
+    kind: input.kind || "Home",
+    firstName,
+    lastName,
+    phone: userPhone,
+    city: input.city || geo.city || "Islamabad",
+    zone: input.zone || geo.zone || "Central",
+    street: input.street || geo.street || "Main Road",
+    building: input.building || "",
+    apartment: input.apartment || "",
+    directions: input.directions || "",
+    latitude: input.latitude,
+    longitude: input.longitude,
+    userId: user.id,
+  };
+
+  return db.address.create({ data: addressData });
 }
 export const deleteAddress = (user, id) =>
   db.address.deleteMany({ where: { id, userId: user.id } });

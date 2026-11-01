@@ -17,6 +17,22 @@ export const address = z
     longitude: z.number().min(-180).max(180).optional(),
   })
   .strict();
+export const addressFromLocation = z
+  .object({
+    kind: z.enum(["Home", "Work", "Other"]).default("Home"),
+    firstName: text.optional(),
+    lastName: z.string().max(100).default(""),
+    phone: phone.optional(),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    city: text.optional(),
+    zone: text.optional(),
+    street: z.string().max(200).optional(),
+    building: z.string().max(200).default(""),
+    apartment: z.string().max(100).default(""),
+    directions: z.string().max(500).default(""),
+  })
+  .strict();
 export const product = z
   .object({
     name: text,

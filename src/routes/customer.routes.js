@@ -3,7 +3,7 @@ import { z } from "zod";
 import * as c from "../controllers/customer.controller.js";
 import { authenticate, roles } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
-import { address, quantity } from "../validators/commerce.validator.js";
+import { address, addressFromLocation, quantity } from "../validators/commerce.validator.js";
 import { text, phone } from "../validators/common.validator.js";
 export const customerRouter = Router();
 customerRouter.param("id", (req, res, next, value) => {
@@ -35,6 +35,11 @@ customerRouter.patch(
 );
 customerRouter.get("/addresses", c.addresses);
 customerRouter.post("/addresses", validate(address), c.createAddress);
+customerRouter.post(
+  "/addresses/from-location",
+  validate(addressFromLocation),
+  c.createAddressFromLocation,
+);
 customerRouter.put("/addresses/:id", validate(address), c.updateAddress);
 customerRouter.delete("/addresses/:id", c.deleteAddress);
 customerRouter.get("/cart", c.cart);

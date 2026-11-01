@@ -22,6 +22,7 @@ import { vendorRouter } from "./routes/vendor.routes.js";
 import { riderRouter } from "./routes/rider.routes.js";
 import { financeRouter } from "./routes/finance.routes.js";
 import { notificationRouter } from "./routes/notification.routes.js";
+import { mapsRouter } from "./routes/maps.routes.js";
 export const app = express();
 app.disable("x-powered-by");
 // Nginx connects locally; do not trust forwarded headers from remote peers.
@@ -94,5 +95,6 @@ app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/delivery", deliveryRouter);
 app.use("/api/v1/returns", returnRouter);
+app.use("/api/v1/maps", mapsRouter);
 app.use((req, res, next) => next(new ApiError(404, "Route not found")));
 app.use(errorHandler);
