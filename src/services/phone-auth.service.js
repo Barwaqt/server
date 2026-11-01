@@ -7,6 +7,7 @@ import { assert } from "../utils/error.js";
 import { internationalPhone, normalizePhone } from "../utils/phone.js";
 import { verificationCode } from "../utils/security.js";
 import { password, text } from "../validators/common.validator.js";
+import { dummy } from "./auth.service.js";
 import { sessionFor } from "./session.service.js";
 import { smsReady, sendSms } from "./veevo.service.js";
 export const phoneSignup = z
@@ -20,6 +21,7 @@ export const phoneSignup = z
 export const phoneLogin = z
   .object({
     phone: internationalPhone,
+    password: z.string().min(1).max(72),
     portal: z.enum(["customer", "vendor"]).default("customer"),
   })
   .strict();
@@ -72,7 +74,6 @@ async function issue(phone, purpose, portal, pending, userId) {
     });
   });
   try {
-    // Unknown login accounts receive the same response but no SMS or session.
     if (purpose === "signup" || userId)
       await sendSms(
         phone,
@@ -136,21 +137,37 @@ export async function signup(input) {
     null,
   );
 }
-export async function login({ phone, portal }) {
+export async function login({ phone, password: plain, portal }) {
   const user = await findPhoneUser(db, phone);
-  const allowed =
-    user?.active && user.role === (portal === "vendor" ? "VENDOR" : "CUSTOMER");
-  return issue(phone, "login", portal, null, allowed ? user.id : null);
+  // The signup OTP already proved phone ownership, so phone login only needs
+  // the password set at signup. No SMS is sent here.
+  const valid = await bcrypt.compare(plain, user?.passwordHash || dummy);
+  assert(
+    valid &&
+      user?.active &&
+      user.role === (portal === "vendor" ? "VENDOR" : "CUSTOMER"),
+    401,
+    "Invalid credentials",
+  );
+  assert(
+    user.emailVerifiedAt || user.phoneVerifiedAt,
+    403,
+    "Verify your phone number before signing in.",
+  );
+  return { ...(await sessionFor(user)), message: "Signed in." };
 }
 export async function resend({ challengeId }) {
   const previous = await db.phoneOtp.findUnique({ where: { id: challengeId } });
   assert(
     previous && ["SENT", "FAILED"].includes(previous.status),
     422,
-    "Request a new code from the signup or login screen.",
+    "Request a new code from the signup screen.",
   );
-  if (previous.purpose === "login")
-    return login({ phone: previous.phone, portal: previous.portal });
+  assert(
+    previous.purpose !== "login",
+    422,
+    "Sign in with your phone number and password instead.",
+  );
   return issue(
     previous.phone,
     previous.purpose,

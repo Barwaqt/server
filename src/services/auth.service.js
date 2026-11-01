@@ -9,7 +9,7 @@ import {
   issueVerification,
   verificationRequired,
 } from "./verification.service.js";
-const dummy = await bcrypt.hash(
+export const dummy = await bcrypt.hash(
   "constant-dummy-password-to-balance-login-time",
   12,
 );

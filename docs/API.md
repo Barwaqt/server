@@ -158,19 +158,31 @@ Base URL: `https://api.barwaqt.com/api/v1`. These routes use SMS, never WhatsApp
 | Method / path | JSON body | Result |
 | --- | --- | --- |
 | POST `/auth/phone-signup` | `{"phone":"+923001234567","password":"A-long-example-password","firstName":"Ali","lastName":"Khan"}` | Pending customer signup; account is created only after verification |
-| POST `/auth/phone-login` | `{"phone":"+923001234567","portal":"customer"}` | SMS challenge for an existing eligible account; portal may be `customer` or `vendor` |
-| POST `/auth/phone-resend` | `{"challengeId":"UUID_FROM_PREVIOUS_RESPONSE"}` | New challenge; discard the old ID and code |
-| POST `/auth/phone-verify` | `{"challengeId":"UUID_FROM_RESPONSE","code":"123456"}` | Consumes the code and returns a session |
+| POST `/auth/phone-login` | `{"phone":"+923001234567","password":"A-long-example-password","portal":"customer"}` | Signs in an existing eligible account with its phone and signup password; portal may be `customer` or `vendor` |
+| POST `/auth/phone-resend` | `{"challengeId":"UUID_FROM_PREVIOUS_RESPONSE"}` | New signup challenge; discard the old ID and code |
+| POST `/auth/phone-verify` | `{"challengeId":"UUID_FROM_RESPONSE","code":"123456"}` | Consumes the signup code and returns a session |
 
-Challenge response:
+Signup challenge response:
 
 ```json
 {"data":{"challengeId":"uuid","phone":"+923001234567","expiresIn":300,"resendAfter":60,"message":"If this number is eligible, a verification code has been sent by SMS."}}
 ```
 
-Successful verification returns `data: {user, accessToken, refreshToken, expiresIn, message}` like password login. The web portals store tokens in HttpOnly cookies rather than exposing them in frontend JSON. Mobile clients should store refresh tokens securely. The password is required on phone signup (12–72 characters), not on phone login. Vendors must already be registered by an administrator. Admin/rider phone OTP login is not supported.
+Phone login request:
 
-Codes expire after 5 minutes, permit 5 attempts, and can be requested once per minute, at most 5 times per hour per phone. Resending invalidates the previous challenge. Errors: `422` invalid/expired code or input, `429` cooldown/limits, `409` duplicate signup or conflicting legacy numbers, `503` missing/dummy provider configuration, `502` provider submission unconfirmed. Unknown/disabled/wrong-role login numbers get a generic response and cannot verify into a session.
+```json
+{
+  "phone": "+923001234567",
+  "password": "A-long-example-password",
+  "portal": "customer"
+}
+```
+
+**Success:** 200; `data: {accessToken, refreshToken, expiresIn, user, message: "Signed in."}` — the same session shape as `/auth/login`. `phone` and `password` are required; `portal` is `customer` (default) or `vendor`.
+
+Phone login returns a session directly (`data: {user, accessToken, refreshToken, expiresIn, message}`), using the password set at phone signup. It sends no SMS and accepts no OTP; phone ownership was already proven at signup. The web portals store tokens in HttpOnly cookies rather than exposing them in frontend JSON. Mobile clients should store refresh tokens securely. Vendors must already be registered by an administrator. Admin/rider phone login is not supported.
+
+Successful signup verification returns the same session payload. Signup codes expire after 5 minutes, permit 5 attempts, and can be requested once per minute, at most 5 times per hour per phone. Resending invalidates the previous challenge. Errors: `422` invalid/expired code or input, `429` cooldown/limits, `409` duplicate signup or conflicting legacy numbers, `503` missing/dummy provider configuration, `502` provider submission unconfirmed. Phone login returns `401 Invalid credentials` for unknown, disabled, wrong-role or wrong-password accounts.
 
 ## Admin SMS / WhatsApp marketing
 

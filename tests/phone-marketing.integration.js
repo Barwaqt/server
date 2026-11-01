@@ -1,6 +1,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, randomInt } from "node:crypto";
+import bcrypt from "bcryptjs";
 import request from "supertest";
 if (
   process.env.NODE_ENV !== "test" ||
@@ -101,17 +102,23 @@ test("phone-only signup creates no account until OTP, hashes code, consumes once
     ).status,
     422,
   );
-  await cooldown(c.phone);
-  const login = await post("phone-login", { phone: c.phone });
-  assert.equal(login.status, 200);
+  const before = calls.length;
+  const login = await post("phone-login", {
+    phone: c.phone,
+    password: "LongTestPassword2026",
+  });
+  assert.equal(login.status, 200, JSON.stringify(login.body));
+  assert.equal(login.body.data.user.id, session.user.id);
+  assert.equal(login.body.data.message, "Signed in.");
+  assert.equal(calls.length, before);
   assert.equal(
     (
-      await post("phone-verify", {
-        challengeId: login.body.data.challengeId,
-        code: otp(),
+      await post("phone-login", {
+        phone: c.phone,
+        password: "Wrong-long-password-2026",
       })
     ).status,
-    200,
+    401,
   );
 });
 test("wrong guesses commit attempt count, expire and resend invalidates older code", async () => {
@@ -161,10 +168,15 @@ test("wrong guesses commit attempt count, expire and resend invalidates older co
     429,
   );
 });
-test("unknown/disabled/admin accounts cannot get phone login sessions; vendor codes are role-scoped", async () => {
+test("unknown/disabled/admin accounts cannot get phone login sessions; vendor logins are role-scoped", async () => {
+  const plain = "LongTestPassword2026";
+  const hash = await bcrypt.hash(plain, 12);
   const unknown = phone();
   let before = calls.length;
-  assert.equal((await post("phone-login", { phone: unknown })).status, 200);
+  assert.equal(
+    (await post("phone-login", { phone: unknown, password: plain })).status,
+    401,
+  );
   assert.equal(calls.length, before);
   for (const [role, active] of [
     ["ADMIN", true],
@@ -172,37 +184,35 @@ test("unknown/disabled/admin accounts cannot get phone login sessions; vendor co
     ["VENDOR", true],
   ]) {
     const number = phone();
-    await db.user.create({
+    const created = await db.user.create({
       data: {
         phone: number,
         email: randomUUID() + "@phone.test",
         firstName: role,
         role,
         active,
-        passwordHash: "unused",
+        emailVerifiedAt: new Date(),
+        passwordHash: hash,
       },
     });
     before = calls.length;
     const result = await post("phone-login", {
       phone: number,
+      password: plain,
       portal: "customer",
     });
-    assert.equal(result.status, 200);
+    assert.equal(result.status, 401);
     assert.equal(calls.length, before);
     if (role === "VENDOR") {
-      await cooldown(number);
       const vendor = await post("phone-login", {
         phone: number,
+        password: plain,
         portal: "vendor",
       });
-      assert.equal(vendor.status, 200);
-      assert.equal(calls.length, before + 1);
-      const verified = await post("phone-verify", {
-        challengeId: vendor.body.data.challengeId,
-        code: otp(),
-      });
-      assert.equal(verified.status, 200);
-      assert.equal(verified.body.data.user.role, "VENDOR");
+      assert.equal(vendor.status, 200, JSON.stringify(vendor.body));
+      assert.equal(vendor.body.data.user.id, created.id);
+      assert.equal(vendor.body.data.user.role, "VENDOR");
+      assert.equal(calls.length, before);
     }
   }
 });
@@ -301,6 +311,7 @@ test("marketing requires admin, validates channel content, deduplicates and queu
 });
 
 test("legacy local phone numbers work without creating a duplicate account", async () => {
+  const plain = "LongTestPassword2026";
   const number = phone(),
     legacy = "0" + number.slice(3);
   const user = await db.user.create({
@@ -308,18 +319,13 @@ test("legacy local phone numbers work without creating a duplicate account", asy
       phone: legacy,
       email: randomUUID() + "@legacy.test",
       firstName: "Legacy",
-      passwordHash: "unused",
+      emailVerifiedAt: new Date(),
+      passwordHash: await bcrypt.hash(plain, 12),
     },
   });
-  const requestCode = await post("phone-login", { phone: number });
-  assert.equal(requestCode.status, 200);
-  const verified = await post("phone-verify", {
-    challengeId: requestCode.body.data.challengeId,
-    code: otp(),
-  });
-  assert.equal(verified.status, 200);
-  assert.equal(verified.body.data.user.id, user.id);
-  assert.equal(verified.body.data.user.phone, number);
+  const login = await post("phone-login", { phone: number, password: plain });
+  assert.equal(login.status, 200, JSON.stringify(login.body));
+  assert.equal(login.body.data.user.id, user.id);
   assert.equal(
     (
       await post("phone-signup", {

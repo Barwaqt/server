@@ -28,12 +28,12 @@ Restart the API after changing its environment (`pm2 restart barwaqt-api --updat
 
 - Email/password signup and login continue to work.
 - Customer phone signup uses `/auth/phone-signup`, then `/auth/phone-verify`. No email is required. The account is created only after successful SMS verification.
-- Customer and admin-registered vendor phone login uses `/auth/phone-login`, then `/auth/phone-verify`. This is passwordless SMS login; the signup password remains usable for password/account-management flows.
+- Customer and admin-registered vendor phone login uses `/auth/phone-login` with the phone number and the password set at signup. No SMS is sent for login; phone ownership was already proven by the signup OTP.
 - Admin and rider accounts cannot use these public SMS endpoints.
-- Pending codes are scoped to a random challenge ID and phone, HMAC-hashed, expire after five minutes, and allow five guesses. Each phone can request one code per minute and five codes per hour across signup/login/resends. Existing per-action IP rate limits also apply. Resending replaces the challenge and invalidates the old code.
+- Signup codes are scoped to a random challenge ID and phone, HMAC-hashed, expire after five minutes, and allow five guesses. Each phone can request one code per minute and five codes per hour across signup and resends. Existing per-action IP rate limits also apply. Resending replaces the challenge and invalidates the old code.
 - `03001234567`, `923001234567`, and `+923001234567` normalize to `+923001234567`. Legacy variants are supported, but conflicting existing accounts require support to resolve them.
 - `User.email` is nullable for phone accounts. `phoneVerifiedAt` tracks proof of phone ownership. Frontends should display `email ?? phone` as the account identity. Phone-only accounts cannot replace their login number from the ordinary profile form.
-- SMS failure never creates an active account or a usable verification challenge. Unknown/disabled/wrong-role login requests return the generic challenge response without sending SMS.
+- SMS failure never creates an active account or a usable verification challenge. Phone login returns `401 Invalid credentials` for unknown, disabled, wrong-role or wrong-password accounts.
 
 ## Admin campaigns
 
