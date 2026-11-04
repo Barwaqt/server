@@ -49,6 +49,73 @@ async function ok(p) {
   return r.body.data;
 }
 
+test("vendor registration accepts several categories and a per-vendor commission", async () => {
+  const admin = await actor("ADMIN");
+  const suffix = randomUUID();
+  const first = await ok(
+    call("post", "/admin/categories", admin, {
+      name: "Multi primary",
+      slug: "m1-" + suffix,
+    }),
+  );
+  const second = await ok(
+    call("post", "/admin/categories", admin, {
+      name: "Multi secondary",
+      slug: "m2-" + suffix,
+      commissionBps: 1500,
+    }),
+  );
+  const created = await ok(
+    call("post", "/admin/vendors", admin, {
+      email: `multi-${suffix}@category.test`,
+      password: "SecurePassword123!",
+      phone: "+92300" + String(Math.floor(Math.random() * 10000000)),
+      firstName: "Multi",
+      name: "Multi category store",
+      slug: "multi-" + suffix,
+      businessType: "Retail",
+      city: "Lahore",
+      zone: "Central",
+      address: "Market road",
+      categoryIds: [first.id, second.id],
+      commissionBps: 2000,
+      bankDetails: {
+        method: "EASYPAISA",
+        accountTitle: "Vendor",
+        accountNumber: "03001234567",
+      },
+    }),
+  );
+  assert.equal(created.categoryId, first.id);
+  assert.deepEqual(created.categoryIds, [first.id, second.id]);
+  assert.equal(created.commissionBps, 2000);
+  assert.deepEqual(
+    created.categories.map((category) => category.id),
+    [first.id, second.id],
+  );
+  assert.equal(
+    (await call("delete", "/admin/categories/" + second.id, admin)).status,
+    409,
+  );
+  const narrowed = await ok(
+    call("patch", "/admin/vendors/" + created.id, admin, {
+      categoryIds: [second.id],
+      commissionBps: 2000,
+    }),
+  );
+  assert.equal(narrowed.categoryId, second.id);
+  assert.deepEqual(narrowed.categoryIds, [second.id]);
+  assert.equal(narrowed.commissionBps, 2000);
+  assert.equal(
+    (
+      await call("patch", "/admin/vendors/" + created.id, admin, {
+        categoryIds: [randomUUID()],
+      })
+    ).status,
+    422,
+  );
+});
+
 test("category commission is inherited, synchronized, and snapshotted; payout data stays private", async () => {
   const admin = await actor("ADMIN"),
     customer = await actor("CUSTOMER");
@@ -174,11 +241,10 @@ test("category commission is inherited, synchronized, and snapshotted; payout da
     ).commissionMinor,
     10000,
   );
-  assert.equal(
-    (await call("patch", "/admin/vendors/" + v.id, admin, { commissionBps: 0 }))
-      .status,
-    422,
+  const overridden = await ok(
+    call("patch", "/admin/vendors/" + v.id, admin, { commissionBps: 0 }),
   );
+  assert.equal(overridden.commissionBps, 0);
   const moved = await ok(
     call("patch", "/admin/vendors/" + v.id, admin, {
       categoryId: b.id,
@@ -191,6 +257,8 @@ test("category commission is inherited, synchronized, and snapshotted; payout da
     }),
   );
   assert.equal(moved.commissionBps, 2500);
+  assert.deepEqual(moved.categoryIds, [b.id, a.id]);
+  assert.equal(moved.categoryId, b.id);
   assert.equal(moved.bankDetails.accountNumber, "00123456789");
   assert.equal(
     (await call("delete", "/admin/categories/" + b.id, admin)).status,

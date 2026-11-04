@@ -51,7 +51,8 @@ test("payout accounts retain string numbers and require bank names only for bank
     assert.equal(vendorPayout.safeParse(input).success, false);
 });
 
-test("vendor registration requires a category and payout account and rejects a client commission override", () => {
+test("vendor registration requires at least one category and a payout account, and accepts a per-vendor commission", () => {
+  const otherCategoryId = "7f3c2ab4-5d61-4b8e-9c0d-2f4a6b8c1d3e";
   const input = {
     email: "vendor@example.com",
     password: "SecurePassword123!",
@@ -79,5 +80,44 @@ test("vendor registration requires a category and payout account and rejects a c
     vendor.safeParse({ ...input, bankDetails: undefined }).success,
     false,
   );
-  assert.equal(vendor.safeParse({ ...input, commissionBps: 0 }).success, false);
+  assert.equal(vendor.safeParse({ ...input, commissionBps: 0 }).success, true);
+  assert.equal(
+    vendor.safeParse({
+      ...input,
+      categoryId: undefined,
+      categoryIds: [otherCategoryId],
+    }).success,
+    true,
+  );
+  assert.equal(
+    vendor.safeParse({
+      ...input,
+      categoryIds: [input.categoryId, input.categoryId],
+    }).success,
+    false,
+  );
+  assert.equal(
+    vendor.safeParse({ ...input, commissionBps: 10001 }).success,
+    false,
+  );
+  assert.equal(
+    vendor.safeParse({
+      ...input,
+      categoryIds: [input.categoryId, otherCategoryId],
+      categoryCommissions: {
+        [input.categoryId]: 800,
+        [otherCategoryId]: 1500,
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    vendor.safeParse({
+      ...input,
+      categoryCommissions: {
+        [input.categoryId]: -10,
+      },
+    }).success,
+    false,
+  );
 });

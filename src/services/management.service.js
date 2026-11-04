@@ -81,8 +81,9 @@ export async function saveCategory(user, id, input) {
           },
         });
     if (current && current.commissionBps !== row.commissionBps)
+      // Vendors with their own rate keep it; only category-rate vendors follow.
       await tx.vendor.updateMany({
-        where: { categoryId: row.id },
+        where: { categoryId: row.id, commissionBps: current.commissionBps },
         data: { commissionBps: row.commissionBps },
       });
     if (current && current.slug !== row.slug)
@@ -106,7 +107,9 @@ export async function deleteCategory(user, id) {
     assert(
       !c._count.products &&
         !c._count.catalogProducts &&
-        !(await tx.vendor.count({ where: { categoryId: id } })) &&
+        !(await tx.vendor.count({
+          where: { OR: [{ categoryId: id }, { categoryIds: { has: id } }] },
+        })) &&
         !(await tx.category.count({ where: { parentSlug: c.slug } })),
       409,
       "Reassign vendors and products, remove collection memberships and move child categories before deleting",

@@ -91,7 +91,9 @@ model Vendor {
  status VendorStatus @default(APPROVED)
  categoryId String?
  category Category? @relation(fields:[categoryId],references:[id],onDelete:Restrict)
+ categoryIds String[] @default([])
  commissionBps Int @default(1000)
+ categoryCommissions Json @default("{}")
  bankDetails Json @default("{}")
  createdAt DateTime @default(now())
  products Product[]

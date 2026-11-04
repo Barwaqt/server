@@ -1,7 +1,7 @@
 import { vendorPayout } from "./vendor-payout.validator.js";
 import { z } from "zod";
 import { id, text, email, phone, password } from "./common.validator.js";
-import { product } from "./commerce.validator.js";
+import { product, vendorCategoryIds } from "./commerce.validator.js";
 
 const list = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -54,6 +54,8 @@ export const vendorUpdate = z
     address: text.optional(),
     status: z.enum(["APPROVED", "SUSPENDED"]).optional(),
     categoryId: id.optional(),
+    categoryIds: vendorCategoryIds.optional(),
+    categoryCommissions: z.record(id, z.number().int().min(0).max(10000)).optional(),
     bankDetails: vendorPayout.optional(),
     commissionBps: z.number().int().min(0).max(10000).optional(),
     owner: z

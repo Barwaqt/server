@@ -953,12 +953,15 @@ Requires the full homepage `content` object and the current positive integer `ve
   "lastName": "Ahmed",
   "name": "Gulberg Market",
   "slug": "gulberg-market",
-  "businessType": "Grocery",
   "description": "Local groceries",
   "city": "Lahore",
   "zone": "Gulberg",
   "address": "Main Boulevard",
-  "categoryId": "<category-uuid>",
+  "categoryIds": ["<category-uuid-1>", "<category-uuid-2>"],
+  "categoryCommissions": {
+    "<category-uuid-1>": 800,
+    "<category-uuid-2>": 1200
+  },
   "bankDetails": {
     "method": "BANK_TRANSFER",
     "accountTitle": "Vendor Business",
@@ -970,7 +973,7 @@ Requires the full homepage `content` object and the current positive integer `ve
 
 **Success:** 201; `data: Vendor` (not a session).
 
-Required: email, password, phone, firstName, name, slug, businessType, city, zone, address, categoryId (existing category UUID), and bankDetails. Optional: lastName text and description max 5,000. Commission is derived server-side from the selected category; a commissionBps override is rejected. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. The owner account is created email-verified, so it can sign in immediately without the customer verification flow. Owner signs in using assigned credentials. No public vendor registration.
+Required: email, password, phone, firstName, name, slug, city, zone, address, at least one category (`categoryIds` or `categoryId`), and bankDetails. Optional: lastName text, description max 5,000, businessType (defaults to primary category name or "Retail"), commissionBps (0–10,000), and categoryCommissions object mapping category UUID to rate in basis points. Categories without an explicit override inherit their category default rate. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. The owner account is created email-verified, so it can sign in immediately without the customer verification flow. Owner signs in using assigned credentials. No public vendor registration.
 
 ### GET /api/v1/admin/vendors
 
@@ -1987,4 +1990,58 @@ Supply the resolved fields alongside `latitude` and `longitude`:
   "longitude": 73.0567
 }
 ```
+
+## Multi-Category Vendor Support and Per-Category Commissions
+
+Vendors can serve multiple categories simultaneously, and administrators can define customized commission rates on a per-category basis for each vendor.
+
+### 1. Vendor Creation: POST `/api/v1/admin/vendors`
+- `categoryIds`: Array of 1–50 category UUIDs. The first category in the array serves as the primary category (`categoryId`).
+- `categoryCommissions`: Object mapping category UUID to commission rate in basis points (`1000` = 10%). Any selected category omitted from this object inherits that category's global platform rate (`commissionBps`).
+- `businessType`: Optional (defaults to the primary category name or `"Retail"`).
+
+Example request payload:
+```json
+{
+  "email": "vendor@example.com",
+  "password": "VendorPassword123!",
+  "phone": "+923001234568",
+  "firstName": "Sara",
+  "name": "Gulberg Market",
+  "slug": "gulberg-market",
+  "city": "Lahore",
+  "zone": "Gulberg",
+  "address": "Main Boulevard",
+  "categoryIds": ["cat-uuid-1", "cat-uuid-2"],
+  "categoryCommissions": {
+    "cat-uuid-1": 800,
+    "cat-uuid-2": 1200
+  },
+  "bankDetails": {
+    "method": "BANK_TRANSFER",
+    "accountTitle": "Vendor Business",
+    "accountNumber": "00123456789",
+    "bankName": "Example Bank"
+  }
+}
+```
+
+### 2. Vendor Update: PATCH `/api/v1/admin/vendors/:id`
+All fields optional. Accepts `categoryIds` to replace the vendor's assigned categories and `categoryCommissions` to update or override individual category rates:
+```json
+{
+  "categoryIds": ["cat-uuid-1", "cat-uuid-2"],
+  "categoryCommissions": {
+    "cat-uuid-1": 750,
+    "cat-uuid-2": 1500
+  }
+}
+```
+
+### 3. Order Commission Calculation
+During checkout (`POST /api/v1/customer/orders/checkout`), order items are grouped per vendor. For each vendor child order:
+1. Item nets are allocated proportionally from the vendor order net total (`subtotal - discount`).
+2. Each item's commission is calculated using the vendor's rate for that product's category (`vendor.categoryCommissions[product.categoryId]`), falling back to `vendor.commissionBps`.
+3. Total `commissionMinor` is the exact sum of individual product commissions, and `payableMinor = net - commissionMinor`.
+
 

@@ -57,6 +57,14 @@ export const product = z
     active: z.boolean().default(true),
   })
   .strict();
+export const vendorCategoryIds = z
+  .array(id)
+  .min(1)
+  .max(50)
+  .refine(
+    (values) => new Set(values).size === values.length,
+    "Choose each category only once",
+  );
 export const vendor = z
   .object({
     email,
@@ -69,15 +77,22 @@ export const vendor = z
       .string()
       .regex(/^[a-z0-9-]+$/)
       .max(180),
-    businessType: text,
+    businessType: text.default("Retail"),
     description: z.string().max(5000).optional(),
     city: text,
     zone: text,
     address: text,
-    categoryId: id,
+    categoryId: id.optional(),
+    categoryIds: vendorCategoryIds.optional(),
+    categoryCommissions: z.record(id, z.number().int().min(0).max(10000)).optional(),
+    commissionBps: z.number().int().min(0).max(10000).optional(),
     bankDetails: vendorPayout,
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => Boolean(value.categoryId || value.categoryIds?.length),
+    "Select at least one vendor category",
+  );
 export const staff = z
   .object({
     email,

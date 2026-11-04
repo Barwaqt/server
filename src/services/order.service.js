@@ -246,7 +246,23 @@ export async function checkout(user, input, key) {
           const items = groups[i];
           const vendor = items[0].product.vendor;
           const net = subtotals[i] - discounts[i];
-          const commission = percentage(net, vendor.commissionBps);
+          const commissions =
+            vendor.categoryCommissions &&
+            typeof vendor.categoryCommissions === "object"
+              ? vendor.categoryCommissions
+              : {};
+          const itemTotals = items.map(
+            (it) => it.product.priceMinor * it.quantity,
+          );
+          const itemNets = allocate(net, itemTotals);
+          const commission = itemNets.reduce((sum, itemNet, j) => {
+            const prod = items[j].product;
+            const rate =
+              (prod.categoryId && commissions[prod.categoryId] !== undefined)
+                ? commissions[prod.categoryId]
+                : (vendor.commissionBps ?? 1000);
+            return sum + percentage(itemNet, rate);
+          }, 0);
           const child = await tx.vendorOrder.create({
             data: {
               id: await allocateOrderNumber(tx, reserved),

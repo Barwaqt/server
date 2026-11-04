@@ -7,11 +7,22 @@ import { pagination } from "../validators/common.validator.js";
 export async function createVendor(actor, input) {
   const { email, password, phone, firstName, lastName, ...vendor } = input;
   const passwordHash = await bcrypt.hash(password, 12);
+  const categoryIds = [
+    ...new Set(
+      vendor.categoryIds?.length ? vendor.categoryIds : [vendor.categoryId],
+    ),
+  ].filter(Boolean);
   return transaction(async (tx) => {
-    const category = await tx.category.findUnique({
-      where: { id: vendor.categoryId },
+    assert(categoryIds.length, 422, "Select at least one vendor category");
+    const categories = await tx.category.findMany({
+      where: { id: { in: categoryIds } },
     });
-    assert(category, 422, "Select an existing vendor category");
+    assert(
+      categories.length === categoryIds.length,
+      422,
+      "Select existing vendor categories",
+    );
+    const category = categories.find((item) => item.id === categoryIds[0]);
     const owner = await tx.user.create({
       data: {
         email,
@@ -24,10 +35,23 @@ export async function createVendor(actor, input) {
         emailVerifiedAt: new Date(),
       },
     });
+    const categoryCommissions = { ...(vendor.categoryCommissions || {}) };
+    for (const c of categories) {
+      if (categoryCommissions[c.id] === undefined) {
+        categoryCommissions[c.id] = c.commissionBps;
+      }
+    }
     const result = await tx.vendor.create({
       data: {
         ...vendor,
-        commissionBps: category.commissionBps,
+        businessType: vendor.businessType || category.name || "Retail",
+        categoryId: category.id,
+        categoryIds,
+        commissionBps:
+          vendor.commissionBps ??
+          categoryCommissions[category.id] ??
+          category.commissionBps,
+        categoryCommissions,
         ownerId: owner.id,
       },
       include: { category: true },
@@ -39,7 +63,16 @@ export async function createVendor(actor, input) {
         entityId: result.id,
       },
     });
-    return result;
+    return {
+      ...result,
+      categories: categoryIds.map((id) => {
+        const cat = categories.find((item) => item.id === id);
+        return {
+          ...cat,
+          commissionBps: categoryCommissions[id] ?? cat.commissionBps,
+        };
+      }),
+    };
   });
 }
 export async function createStaff(actor, input) {
@@ -61,8 +94,43 @@ export async function createStaff(actor, input) {
     return user;
   });
 }
-export const vendors = (q) =>
-  db.vendor.findMany({
+const categoryIdsOf = (row) =>
+  row.categoryIds?.length
+    ? row.categoryIds
+    : row.categoryId
+      ? [row.categoryId]
+      : [];
+// Adds the selected categories to vendor rows, which store them as an id list.
+async function withCategories(rows) {
+  const ids = [...new Set(rows.flatMap(categoryIdsOf))];
+  if (!ids.length) return rows.map((row) => ({ ...row, categories: [] }));
+  const categories = await db.category.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, slug: true, commissionBps: true },
+  });
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  return rows.map((row) => {
+    const rowCommissions =
+      row.categoryCommissions && typeof row.categoryCommissions === "object"
+        ? row.categoryCommissions
+        : {};
+    return {
+      ...row,
+      categories: categoryIdsOf(row)
+        .map((id) => {
+          const cat = byId.get(id);
+          if (!cat) return null;
+          return {
+            ...cat,
+            commissionBps: rowCommissions[id] ?? cat.commissionBps,
+          };
+        })
+        .filter(Boolean),
+    };
+  });
+}
+export async function vendors(q) {
+  const rows = await db.vendor.findMany({
     where: {
       ...(q.search
         ? { name: { contains: q.search, mode: "insensitive" } }
@@ -75,13 +143,15 @@ export const vendors = (q) =>
     ...pagination(q),
     orderBy: { createdAt: "desc" },
   });
+  return withCategories(rows);
+}
 export async function vendor(id) {
   const result = await db.vendor.findUnique({
     where: { id },
     include: { owner: { select: publicUser }, category: true },
   });
   assert(result, 404, "Vendor not found");
-  return result;
+  return (await withCategories([result]))[0];
 }
 export async function products(q) {
   const where = {
@@ -191,25 +261,64 @@ export async function updateVendor(actor, id, input) {
   const { owner, ...fields } = input;
   const { password, ...ownerFields } = owner || {};
   const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
-  return transaction(async (tx) => {
+  const result = await transaction(async (tx) => {
     const current = await tx.vendor.findUnique({
       where: { id },
       include: { owner: true },
     });
     assert(current, 404, "Vendor not found");
-    const categoryId = fields.categoryId ?? current.categoryId;
-    if (categoryId) {
-      const category = await tx.category.findUnique({
-        where: { id: categoryId },
+    const currentCategoryIds = categoryIdsOf(current);
+    const categoryIds = fields.categoryIds
+      ? [...new Set(fields.categoryIds)]
+      : fields.categoryId
+        ? [
+            fields.categoryId,
+            ...currentCategoryIds.filter((id) => id !== fields.categoryId),
+          ]
+        : null;
+    if (categoryIds) {
+      const categories = await tx.category.findMany({
+        where: { id: { in: categoryIds } },
       });
-      assert(category, 422, "Select an existing vendor category");
       assert(
-        fields.commissionBps === undefined ||
-          fields.commissionBps === category.commissionBps,
+        categories.length === categoryIds.length,
         422,
-        "Change the commission in Categories; this vendor uses its category rate",
+        "Select existing vendor categories",
       );
-      fields.commissionBps = category.commissionBps;
+      const primary = categories.find(
+        (category) => category.id === categoryIds[0],
+      );
+      fields.categoryId = primary.id;
+      fields.categoryIds = categoryIds;
+      // An explicit commission wins; otherwise a new primary category sets the rate.
+      if (
+        fields.commissionBps === undefined &&
+        primary.id !== current.categoryId
+      )
+        fields.commissionBps = primary.commissionBps;
+    }
+    if (fields.categoryCommissions !== undefined || categoryIds) {
+      const currentCommissions =
+        current.categoryCommissions &&
+        typeof current.categoryCommissions === "object"
+          ? current.categoryCommissions
+          : {};
+      const mergedCommissions = {
+        ...currentCommissions,
+        ...(fields.categoryCommissions || {}),
+      };
+      const effectiveIds = categoryIds || currentCategoryIds;
+      if (effectiveIds.length) {
+        const filtered = {};
+        for (const catId of effectiveIds) {
+          if (mergedCommissions[catId] !== undefined) {
+            filtered[catId] = mergedCommissions[catId];
+          }
+        }
+        fields.categoryCommissions = filtered;
+      } else {
+        fields.categoryCommissions = mergedCommissions;
+      }
     }
     if (owner) {
       await tx.user.update({
@@ -254,6 +363,7 @@ export async function updateVendor(actor, id, input) {
     });
     return result;
   });
+  return (await withCategories([result]))[0];
 }
 export async function report() {
   const [orders, delivered, cash, payouts, refunds, transfers] =
