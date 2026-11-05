@@ -1,6 +1,8 @@
 import * as s from "../services/catalog.service.js";
 export const categories = async (req, res) =>
   res.json({ data: await s.categoryList() });
+export const categoriesFiltered = async (req, res) =>
+  res.json({ data: await s.categoriesFiltered(req.input.query) });
 export const products = async (req, res) =>
   res.json({ data: await s.products(req.input.query) });
 export const product = async (req, res) =>

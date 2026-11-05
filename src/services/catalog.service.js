@@ -22,6 +22,27 @@ export async function categoryList() {
     productIds: catalogProducts.map((p) => p.id),
   }));
 }
+export async function categoriesFiltered(input) {
+  const ids = input.ids ? input.ids.split(',').filter(Boolean) : null;
+  const rows = await db.category.findMany({
+    where: ids ? { id: { in: ids } } : undefined,
+    orderBy: { name: "asc" },
+    include: {
+      catalogProducts: {
+        where: {
+          active: true,
+          reviewStatus: "APPROVED",
+          vendor: { status: "APPROVED" },
+        },
+        select: { id: true },
+      },
+    },
+  });
+  return rows.map(({ catalogProducts, ...category }) => ({
+    ...category,
+    productIds: catalogProducts.map((p) => p.id),
+  }));
+}
 export async function products(q) {
   assert(
     q.minPriceMinor === undefined ||
