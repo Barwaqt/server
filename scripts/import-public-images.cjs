@@ -5,9 +5,19 @@
  *
  *   /shop/product-0-0.webp  ->  https://api.barwaqt.com/uploads/<uuid>.webp
  *
- * Each unique legacy path is copied once into server/uploads/public and the
+ * Each unique legacy path is copied once into <api root>/uploads/public and the
  * relative -> absolute mapping is persisted in .image-url-map.json so re-runs
  * reuse the same URL instead of creating duplicate files or duplicate rows.
+ *
+ * The API root is detected by walking up from this file until
+ * prisma/data/catalog.json is found, so it runs unchanged in the monorepo and in
+ * a deployment where the repo root is the web root:
+ *
+ *   node --env-file=.env scripts/import-public-images.cjs [--dry-run]
+ *
+ * Legacy images are read from vendor_web/public, admin/public and web/public
+ * beside the API root. A deployment that ships only the API can point at the
+ * storefront checkout instead: IMAGE_SOURCE_DIR=/var/www/barwaqt.com/public
  */
 const { mkdir, writeFile } = require("node:fs/promises");
 const path = require("node:path");
@@ -15,19 +25,38 @@ const { randomUUID, createHash } = require("node:crypto");
 const fs = require("node:fs");
 const { Pool } = require("pg");
 
-const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
-const UPLOADS_DIR = path.resolve(PROJECT_ROOT, "server", "uploads", "public");
+/**
+ * Locate the API root by walking up from scripts/ until prisma/data/catalog.json
+ * is found. Works both in the monorepo (<repo>/server) and in a deployment where
+ * the API repo itself is the web root (for example /var/www/api.example.com).
+ */
+function findApiRoot() {
+  let dir = path.resolve(__dirname, "..");
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (fs.existsSync(path.join(dir, "prisma", "data", "catalog.json"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.resolve(__dirname, "..");
+}
+
+const API_ROOT = findApiRoot();
+const WORKSPACE_ROOT = path.dirname(API_ROOT);
+const UPLOADS_DIR = path.resolve(API_ROOT, "uploads", "public");
 const MAP_FILE = path.resolve(__dirname, ".image-url-map.json");
 
 // New files are served from the public API host.
 const PUBLIC_API_URL = (process.env.PUBLIC_API_URL || "https://api.barwaqt.com").replace(/\/+$/, "");
 
-// Legacy images live in these frontend public dirs (first hit wins).
+// Legacy images live in frontend public dirs (first hit wins). Deployments that
+// only ship the API set IMAGE_SOURCE_DIR to the storefront's public folder.
 const SOURCE_DIRS = [
-  path.resolve(PROJECT_ROOT, "vendor_web", "public"),
-  path.resolve(PROJECT_ROOT, "admin", "public"),
-  path.resolve(PROJECT_ROOT, "web", "public")
-];
+  process.env.IMAGE_SOURCE_DIR,
+  ...[API_ROOT, WORKSPACE_ROOT].flatMap((root) =>
+    ["vendor_web", "admin", "web"].map((app) => path.join(root, app, "public"))
+  )
+].filter(Boolean);
 
 // The Prisma schema lives in the "barwaqt" schema, so the connection needs a
 // matching search_path; DATABASE_URL's ?schema= is Prisma-only and ignored by pg.
@@ -146,13 +175,13 @@ function collectSeedPaths() {
   };
 
   const catalog = JSON.parse(
-    fs.readFileSync(path.resolve(PROJECT_ROOT, "server", "prisma", "data", "catalog.json"), "utf8")
+    fs.readFileSync(path.join(API_ROOT, "prisma", "data", "catalog.json"), "utf8")
   );
   for (const product of catalog.products || []) add(product.image);
   for (const category of catalog.categories || []) add(category.image);
 
   const homepage = JSON.parse(
-    fs.readFileSync(path.resolve(PROJECT_ROOT, "server", "prisma", "homepage-default.json"), "utf8")
+    fs.readFileSync(path.join(API_ROOT, "prisma", "homepage-default.json"), "utf8")
   );
   add(homepage.heroMain?.image);
   add(homepage.heroSide?.image);
@@ -193,6 +222,8 @@ function rewriteJson(node, map, changed) {
 async function migrate({ dryRun }) {
   if (!DB_URL) throw new Error("DATABASE_URL is not set");
   console.log(`🔍 Image migration (dry-run=${dryRun}, schema=${DB_SCHEMA})`);
+  console.log(`📁 API root: ${API_ROOT}`);
+  console.log(`🖼️  Upload dir: ${UPLOADS_DIR}`);
 
   const map = await loadMap();
   const uploadIndex = buildUploadIndex();
