@@ -11,6 +11,7 @@ const schema = z.object({
   VEEVO_WHATSAPP_API_KEY: z.string().default(""),
   GOOGLE_MAPS_API_KEY: z.string().default(""),
   UPLOAD_DIR: z.string().default("uploads"),
+  PUBLIC_API_URL: z.union([z.url(), z.literal("")]).default(""),
   RETURN_WINDOW_DAYS: z.coerce.number().int().min(1).max(365).default(14),
   GOOGLE_CLIENT_ID: z.string().default(""),
   APPLE_CLIENT_ID: z.string().default(""),

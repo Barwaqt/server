@@ -1,14 +1,47 @@
-import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdir, writeFile, unlink, access } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { db } from "../config/database.js";
-import { env } from "../config/env.js";
+import {
+  uploadRoot,
+  publicUploadRoot,
+  publicFileUrl,
+} from "../config/paths.js";
 import { assert } from "../utils/error.js";
-const root = path.resolve(
-  fileURLToPath(new URL("../../", import.meta.url)),
-  env.UPLOAD_DIR,
-);
+const extensions = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+};
+// Images are public files served by express.static; documents stay private and
+// are only readable through the authenticated /uploads/:id/content route.
+function publicName(id, mimeType) {
+  return `${id}.${extensions[mimeType] ?? "bin"}`;
+}
+function publicFile(row) {
+  return path.join(publicUploadRoot, publicName(row.id, row.mimeType));
+}
+function privateFile(id) {
+  return path.join(uploadRoot, id);
+}
+function urlFor(row) {
+  return row.kind === "IMAGE"
+    ? publicFileUrl(publicName(row.id, row.mimeType))
+    : `/api/media/${row.id}`;
+}
+// Images uploaded before the public directory existed are stored without an
+// extension in the upload root. Keep reading them through the same route.
+async function fileFor(row) {
+  if (row.kind === "IMAGE") {
+    const file = publicFile(row);
+    try {
+      await access(file);
+      return file;
+    } catch {}
+  }
+  return privateFile(row.id);
+}
 export function detect(buffer) {
   if (
     buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
@@ -50,8 +83,15 @@ export async function create(user, input) {
     "Use PNG, JPEG or WebP images, or PDF documents",
   );
   const id = randomUUID();
-  await mkdir(root, { recursive: true });
-  await writeFile(path.join(root, id), buffer, { flag: "wx", mode: 0o600 });
+  const file =
+    input.kind === "IMAGE"
+      ? path.join(publicUploadRoot, publicName(id, mimeType))
+      : privateFile(id);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, buffer, {
+    flag: "wx",
+    mode: input.kind === "IMAGE" ? 0o644 : 0o600,
+  });
   try {
     const row = await db.upload.create({
       data: {
@@ -63,16 +103,16 @@ export async function create(user, input) {
         size: buffer.length,
       },
     });
-    return { ...row, url: `/api/media/${id}` };
+    return { ...row, url: urlFor(row) };
   } catch (e) {
-    await unlink(path.join(root, id)).catch(() => {});
+    await unlink(file).catch(() => {});
     throw e;
   }
 }
 export async function get(id) {
   const row = await db.upload.findUnique({ where: { id } });
   assert(row, 404, "File not found");
-  return { ...row, path: path.join(root, id) };
+  return { ...row, path: await fileFor(row) };
 }
 export async function list(user) {
   return (
@@ -81,7 +121,7 @@ export async function list(user) {
       orderBy: { createdAt: "desc" },
       take: 100,
     })
-  ).map((u) => ({ ...u, url: `/api/media/${u.id}` }));
+  ).map((u) => ({ ...u, url: urlFor(u) }));
 }
 export async function remove(user, id) {
   const row = await get(id);
@@ -90,11 +130,12 @@ export async function remove(user, id) {
     403,
     "File belongs to another account",
   );
-  const url = `/api/media/${id}`;
+  // Catalog rows may hold the public URL or the older frontend-proxy URL.
+  const urls = [...new Set([urlFor(row), `/api/media/${id}`])];
   assert(
-    !(await db.product.count({ where: { images: { has: url } } })) &&
-      !(await db.category.count({ where: { image: url } })) &&
-      !(await db.orderItem.count({ where: { image: url } })),
+    !(await db.product.count({ where: { images: { hasSome: urls } } })) &&
+      !(await db.category.count({ where: { image: { in: urls } } })) &&
+      !(await db.orderItem.count({ where: { image: { in: urls } } })),
     409,
     "This file is still referenced by catalog products or orders",
   );

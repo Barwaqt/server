@@ -24,7 +24,7 @@ npm run dev
 
 Migrations are additive; catalog images and existing layouts are retained. Each frontend's API_URL must point to the same API.
 
-UPLOAD_DIR defaults to server/uploads. Keep this on persistent storage and back it up with PostgreSQL; multiple API instances need a shared volume. Upload JSON contains raw base64 (no data URL prefix), maximum decoded size 5 MB. PNG/JPEG/WebP images are public; PDF files require owner/admin authentication. The Next.js /api/media/:id routes proxy the same storage for all three frontends. Product and category editors save returned media URLs.
+UPLOAD_DIR defaults to server/uploads. Keep this on persistent storage and back it up with PostgreSQL; multiple API instances need a shared volume. Upload JSON contains raw base64 (no data URL prefix), maximum decoded size 5 MB. PNG/JPEG/WebP images are written to the public subdirectory `$UPLOAD_DIR/public` and served by Express as static files at `/uploads/<id>.<ext>`, outside the API rate limiter and with cross-origin access allowed. Set PUBLIC_API_URL to the public API origin (for example `https://api.barwaqt.com`) so upload responses return absolute image URLs that work in every frontend and native client; when it is empty the API returns relative `/uploads/<file>` paths. PDF files stay private in `$UPLOAD_DIR` and require owner/admin authentication. The Next.js /api/media/:id routes and `/api/v1/uploads/:id/content` remain for older media references. Product and category editors save returned media URLs.
 
 RETURN_WINDOW_DAYS defaults to 14. Full-shipment customer returns support request, approval/rejection, physical receipt, optional restock and recorded external refund. Collection is coordinated by operations; reverse-rider assignment is not automated.
 

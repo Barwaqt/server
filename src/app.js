@@ -10,6 +10,7 @@ import { rateLimit } from "express-rate-limit";
 import pinoHttp from "pino-http";
 import { randomUUID } from "node:crypto";
 import { env } from "./config/env.js";
+import { publicUploadPath, publicUploadRoot } from "./config/paths.js";
 import { db } from "./config/database.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { ApiError } from "./utils/error.js";
@@ -48,6 +49,21 @@ app.use(
     },
     allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  }),
+);
+// Uploaded images are public files, so serve them before the API rate limiter;
+// image traffic must not consume the JSON request budget. Helmet's default
+// same-origin resource policy lets only the API origin embed them, so relax it
+// here to allow the storefront, vendor and admin frontends to render them.
+app.use(
+  publicUploadPath,
+  helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
+  express.static(publicUploadRoot, {
+    dotfiles: "ignore",
+    index: false,
+    redirect: false,
+    immutable: true,
+    maxAge: "365d",
   }),
 );
 app.use(

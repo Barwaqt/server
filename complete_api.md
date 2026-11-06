@@ -1364,7 +1364,7 @@ Vendor screens should display reviewStatus and rejectionReason for rejected list
 
 Customer catalog, category productIds, cart and wishlist reads omit unpublished products. Adding unavailable products is rejected; quote/checkout revalidates availability, so a stale unavailable cart item can cause 409. Refresh the cart/catalog and resolve unavailable items. Historical orders remain readable.
 
-For native clients, resolve `/api/media/<upload UUID>` through `https://api.barwaqt.com/api/v1/uploads/<upload UUID>/content`. Relative storefront assets such as `/shop/...`, `/product/...` and `/category/...` use the storefront origin `https://barwaqt.com`, not the API origin. Preserve absolute HTTPS image URLs.
+New image uploads return an absolute URL such as `https://api.barwaqt.com/uploads/<id>.webp`; older records may still hold `/api/media/<upload UUID>`, which resolves through `https://api.barwaqt.com/api/v1/uploads/<upload UUID>/content`. Relative storefront assets such as `/shop/...`, `/product/...` and `/category/...` use the storefront origin, not the API origin. Preserve absolute HTTPS image URLs.
 
 ## Integration walkthrough
 
@@ -1595,7 +1595,7 @@ filename 1–200 chars; kind IMAGE (default) or DOCUMENT. data is raw base64 wit
 
 RIDERS may upload only IMAGE; DOCUMENT uploads require ADMIN or an approved VENDOR. A rider uploads one delivery proof photo here per drop-off and then passes the returned `url` as `proofImage` in the `deliver` order action with the exact child `totalMinor`.
 
-**Success:** 201; `data:{id,ownerId,kind,filename,mimeType,size,createdAt,url}`. url is `/api/media/<id>`, supported by all three Next.js frontends. Save this URL in product images/category image separately. Riders upload one IMAGE here per delivery and pass its url as proofImage in the deliver action. For a mobile/native client, fetch binary content directly from `<API base>/uploads/<id>/content`; the relative media URL is a frontend proxy, not a Node API endpoint.
+**Success:** 201; `data:{id,ownerId,kind,filename,mimeType,size,createdAt,url}`. IMAGE files are written to the public upload directory and served directly as static files at `<API base>/uploads/<id>.<ext>`; set PUBLIC_API_URL so `url` is absolute (`https://api.barwaqt.com/uploads/<id>.<ext>`) and usable by browsers and native clients without knowing a frontend origin. DOCUMENT files stay private and return `/api/media/<id>`, readable only through the authenticated content route. Save this URL in product images/category image separately. Riders upload one IMAGE here per delivery and pass its url as proofImage in the deliver action.
 
 ### GET /api/v1/uploads
 
@@ -1603,13 +1603,13 @@ RIDERS may upload only IMAGE; DOCUMENT uploads require ADMIN or an approved VEND
 
 ### GET /api/v1/uploads/:id/content
 
-**Access:** Public for IMAGE; owner or ADMIN bearer token for DOCUMENT. Success: 200 binary body with correct Content-Type and X-Content-Type-Options:nosniff. PDFs are attachment/private/no-store. No JSON envelope on success. Missing metadata/file 404. Private files require authenticated owner/admin (401/403).
+**Access:** Public for IMAGE; owner or ADMIN bearer token for DOCUMENT. Success: 200 binary body with correct Content-Type and X-Content-Type-Options:nosniff. PDFs are attachment/private/no-store. No JSON envelope on success. Missing metadata/file 404. Private files require authenticated owner/admin (401/403). Images are also available directly from static storage at `/uploads/<id>.<ext>`; this route remains for older `/api/media/<id>` references.
 
 ### DELETE /api/v1/uploads/:id
 
 **Access:** Owner (approved VENDOR or RIDER) or ADMIN. Success: 204. Rejects 409 if image is referenced by a product, category or historical order item. Rejects 403 for another owner's file. Removes metadata and disk file.
 
-**Storage:** Set UPLOAD_DIR to a persistent directory (default server/uploads). Keep it backed up with PostgreSQL. Shared/replicated deployments need a shared persistent volume; disk uploads are not S3 replication. Migrations: run `npm run db:generate` and `npm run db:migrate`, then restart the API. RETURN_WINDOW_DAYS controls new customer return eligibility. No provider credentials are needed for these operations. Manual platform bank/wallet transfers are supported as described in Central platform payments; automated merchant gateways are not connected.
+**Storage:** Set UPLOAD_DIR to a persistent directory (default server/uploads). Images live in its `public/` subdirectory and are served by Express at `/uploads`; set PUBLIC_API_URL to the public API origin (for example `https://api.barwaqt.com`) so upload responses return absolute image URLs. Keep the directory backed up with PostgreSQL. Shared/replicated deployments need a shared persistent volume; disk uploads are not S3 replication. Migrations: run `npm run db:generate` and `npm run db:migrate`, then restart the API. RETURN_WINDOW_DAYS controls new customer return eligibility. No provider credentials are needed for these operations. Manual platform bank/wallet transfers are supported as described in Central platform payments; automated merchant gateways are not connected.
 
 ### GET /api/v1/admin/vendors/:id
 
