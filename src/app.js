@@ -66,6 +66,11 @@ app.use(
     maxAge: "365d",
   }),
 );
+// A miss here means the file is not in the public upload directory, not that the
+// route is missing; say so instead of falling through to the generic 404.
+app.use(publicUploadPath, (req, res, next) =>
+  next(new ApiError(404, "Upload not found")),
+);
 app.use(
   rateLimit({
     windowMs: 60000,

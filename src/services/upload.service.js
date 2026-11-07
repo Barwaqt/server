@@ -1,4 +1,11 @@
-import { mkdir, writeFile, unlink, access } from "node:fs/promises";
+import {
+  mkdir,
+  writeFile,
+  unlink,
+  access,
+  rename,
+  copyFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { db } from "../config/database.js";
@@ -30,17 +37,46 @@ function urlFor(row) {
     ? publicFileUrl(publicName(row.id, row.mimeType))
     : `/api/media/${row.id}`;
 }
+async function exists(file) {
+  try {
+    await access(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
 // Images uploaded before the public directory existed are stored without an
 // extension in the upload root. Keep reading them through the same route.
 async function fileFor(row) {
   if (row.kind === "IMAGE") {
     const file = publicFile(row);
-    try {
-      await access(file);
-      return file;
-    } catch {}
+    if (await exists(file)) return file;
   }
   return privateFile(row.id);
+}
+// Those same pre-public images would 404 at the static URL returned by urlFor(),
+// because the served path carries an extension the file does not have. Move them
+// into the public directory once at boot so that URL resolves to a real file.
+export async function adoptLegacyImages() {
+  const rows = await db.upload.findMany({
+    where: { kind: "IMAGE" },
+    select: { id: true, mimeType: true },
+  });
+  let adopted = 0;
+  for (const row of rows) {
+    const file = publicFile(row);
+    if (await exists(file)) continue;
+    const legacy = privateFile(row.id);
+    if (!(await exists(legacy))) continue;
+    await mkdir(publicUploadRoot, { recursive: true });
+    await rename(legacy, file).catch(async (e) => {
+      if (e.code !== "EXDEV") throw e;
+      await copyFile(legacy, file);
+      await unlink(legacy);
+    });
+    adopted += 1;
+  }
+  return adopted;
 }
 export function detect(buffer) {
   if (
