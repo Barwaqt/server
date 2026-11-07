@@ -7,10 +7,12 @@ export const uploadRoot = path.resolve(serverRoot, env.UPLOAD_DIR);
 // Public images are plain files served by express.static at /uploads.
 export const publicUploadRoot = path.join(uploadRoot, "public");
 export const publicUploadPath = "/uploads";
+// Production deployments must hand absolute image URLs to frontends and native
+// clients, so fall back to the public API host there. Everywhere else an empty
+// PUBLIC_API_URL keeps returning relative /uploads paths (http:// URLs would be
+// rejected by the catalog image validator).
 const defaultApiUrl =
-  env.NODE_ENV === "production"
-    ? "https://api.barwaqt.com"
-    : `http://localhost:${env.PORT || 4000}`;
+  env.NODE_ENV === "production" ? "https://api.barwaqt.com" : "";
 export const publicApiUrl = (env.PUBLIC_API_URL || defaultApiUrl).replace(
   /\/+$/,
   "",

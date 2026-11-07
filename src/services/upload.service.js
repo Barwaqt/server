@@ -12,6 +12,7 @@ import { db } from "../config/database.js";
 import {
   uploadRoot,
   publicUploadRoot,
+  publicApiUrl,
   publicFileUrl,
 } from "../config/paths.js";
 import { assert } from "../utils/error.js";
@@ -79,6 +80,9 @@ export async function adoptLegacyImages() {
   return adopted;
 }
 export async function adoptRelativeProductImages() {
+  // Without a public API URL relative paths stay relative, so there is nothing
+  // to normalize and no reason to rewrite every product row.
+  if (!publicApiUrl) return 0;
   const products = await db.product.findMany({
     select: { id: true, images: true },
   });
