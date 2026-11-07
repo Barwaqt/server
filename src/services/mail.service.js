@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
-import { assert } from "../utils/error.js";
+import { ApiError, assert } from "../utils/error.js";
 import {
   accountCreated,
   passwordChanged,
@@ -43,6 +43,13 @@ async function deliver(to, message) {
         "Auto-Submitted": "auto-generated",
       },
     });
+  } catch (error) {
+    // Signup is rolled back when the mail server is unreachable, so the caller needs a
+    // retryable answer naming the cause instead of an opaque internal server error.
+    throw new ApiError(
+      502,
+      `We could not send the email (${error.code || "SMTP error"}). Check the mail server settings and try again.`,
+    );
   } finally {
     mailer.close();
   }
