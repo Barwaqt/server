@@ -53,6 +53,8 @@ const PUBLIC_API_URL = (process.env.PUBLIC_API_URL || "https://api.barwaqt.com")
 // only ship the API set IMAGE_SOURCE_DIR to the storefront's public folder.
 const SOURCE_DIRS = [
   process.env.IMAGE_SOURCE_DIR,
+  "/var/www/barwaqt.com/public",
+  "/var/www/web/public",
   ...[API_ROOT, WORKSPACE_ROOT].flatMap((root) =>
     ["vendor_web", "admin", "web"].map((app) => path.join(root, app, "public"))
   )
@@ -131,16 +133,34 @@ function buildUploadIndex() {
 
 /** Returns the absolute URL for a legacy path, copying the file on first sight. */
 async function ingest(relPath, map, dryRun, problems, uploadIndex) {
-  if (map.has(relPath)) return map.get(relPath);
+  const existingMappedUrl = map.get(relPath);
+  const targetName = existingMappedUrl ? path.basename(existingMappedUrl) : null;
+  const targetFile = targetName ? path.join(UPLOADS_DIR, targetName) : null;
+
+  if (targetFile && fs.existsSync(targetFile)) {
+    return existingMappedUrl;
+  }
 
   const source = resolveSource(relPath);
   if (!source) {
     problems.push(`missing source file: ${relPath}`);
-    return null;
+    return existingMappedUrl || null;
   }
 
   const data = await fs.promises.readFile(source);
   const hash = createHash("sha256").update(data).digest("hex");
+
+  if (targetName) {
+    if (dryRun) {
+      problems.push(`would copy: ${relPath} -> ${targetName} (from ${source})`);
+      return existingMappedUrl;
+    }
+    await mkdir(UPLOADS_DIR, { recursive: true });
+    await writeFile(targetFile, data);
+    uploadIndex.set(hash, targetName);
+    console.log(`✅ ${relPath} → ${existingMappedUrl} (restored file)`);
+    return existingMappedUrl;
+  }
 
   // Already ingested in an earlier run: reuse that file.
   const existing = uploadIndex.get(hash);
