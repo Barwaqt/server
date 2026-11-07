@@ -222,22 +222,23 @@ function parseAddressComponents(components) {
 
   for (const c of components || []) {
     const types = c.types || [];
-    if (types.includes("street_number")) streetNumber = c.long_name;
-    else if (types.includes("route")) route = c.long_name;
+    const name = c.longText || c.long_name || "";
+    if (types.includes("street_number")) streetNumber = name;
+    else if (types.includes("route")) route = name;
     else if (
       types.includes("sublocality") ||
       types.includes("sublocality_level_1") ||
       types.includes("neighborhood")
     ) {
-      if (!zone) zone = c.long_name;
+      if (!zone) zone = name;
     } else if (types.includes("administrative_area_level_3") && !zone) {
-      zone = c.long_name;
+      zone = name;
     } else if (types.includes("locality")) {
-      city = c.long_name;
+      city = name;
     } else if (types.includes("administrative_area_level_2") && !city) {
-      city = c.long_name;
+      city = name;
     } else if (types.includes("country")) {
-      country = c.long_name;
+      country = name;
     }
   }
 
@@ -263,6 +264,48 @@ export async function searchLocations({ query, sessionToken }) {
   const cleanQuery = query.trim();
 
   if (mapsConfigured()) {
+    // 1. Try Google Places API (New) first (required for modern Google Cloud projects)
+    try {
+      const newRes = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": env.GOOGLE_MAPS_API_KEY,
+        },
+        body: JSON.stringify({
+          input: cleanQuery,
+          includedRegionCodes: ["pk"],
+          languageCode: "en",
+          ...(sessionToken ? { sessionToken } : {}),
+        }),
+        signal: AbortSignal.timeout(7000),
+      });
+
+      const newJson = await newRes.json();
+      if (newRes.ok && Array.isArray(newJson.suggestions)) {
+        return newJson.suggestions
+          .filter((s) => s.placePrediction)
+          .map((s) => {
+            const p = s.placePrediction;
+            const mainText = p.structuredFormat?.mainText?.text || p.text?.text || "";
+            const secondaryText = p.structuredFormat?.secondaryText?.text || "";
+            const parts = secondaryText.split(",").map((t) => t.trim()).filter(Boolean);
+            const city = parts.length > 0 ? parts[0] : mainText;
+            return {
+              placeId: p.placeId,
+              description: p.text?.text || `${mainText}, ${secondaryText}`,
+              mainText,
+              secondaryText,
+              city,
+              zone: mainText,
+            };
+          });
+      }
+    } catch {
+      // Fall through to Legacy Places API
+    }
+
+    // 2. Try Google Places API (Legacy)
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
     url.searchParams.set("input", cleanQuery);
     url.searchParams.set("components", "country:pk");
@@ -381,6 +424,38 @@ export async function getPlaceDetails({ placeId, sessionToken }) {
   const cleanId = placeId.trim();
 
   if (mapsConfigured() && !cleanId.startsWith("barwaqt-")) {
+    // 1. Try Google Places API (New) details first
+    try {
+      const newUrl = `https://places.googleapis.com/v1/places/${encodeURIComponent(cleanId)}`;
+      const newRes = await fetch(newUrl, {
+        headers: {
+          "X-Goog-Api-Key": env.GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location",
+          ...(sessionToken ? { "X-Goog-Session-Token": sessionToken } : {}),
+        },
+        signal: AbortSignal.timeout(7000),
+      });
+
+      const newJson = await newRes.json();
+      if (newRes.ok && (newJson.id || newJson.formattedAddress)) {
+        const parsed = parseAddressComponents(newJson.addressComponents);
+        return {
+          placeId: newJson.id || cleanId,
+          name: newJson.displayName?.text || "",
+          formattedAddress: newJson.formattedAddress || "",
+          street: parsed.street,
+          zone: parsed.zone,
+          city: parsed.city,
+          country: parsed.country,
+          latitude: newJson.location?.latitude || 0,
+          longitude: newJson.location?.longitude || 0,
+        };
+      }
+    } catch {
+      // Fall through to Legacy Place Details
+    }
+
+    // 2. Try Google Places API (Legacy)
     const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
     url.searchParams.set("place_id", cleanId);
     url.searchParams.set("fields", "place_id,name,formatted_address,geometry,address_components");
