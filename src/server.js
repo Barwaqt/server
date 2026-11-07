@@ -1,5 +1,8 @@
 import { startMarketingWorker } from "./services/marketing.service.js";
-import { adoptLegacyImages } from "./services/upload.service.js";
+import {
+  adoptLegacyImages,
+  adoptRelativeProductImages,
+} from "./services/upload.service.js";
 import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { db } from "./config/database.js";
@@ -8,6 +11,11 @@ const adoptedImages = await adoptLegacyImages();
 if (adoptedImages)
   console.log(
     `Moved ${adoptedImages} legacy image upload(s) into the public upload directory`,
+  );
+const adoptedProducts = await adoptRelativeProductImages();
+if (adoptedProducts)
+  console.log(
+    `Normalized ${adoptedProducts} product image(s) to absolute public URLs`,
   );
 const stopMarketingWorker = startMarketingWorker();
 const server = app.listen(env.PORT, () =>

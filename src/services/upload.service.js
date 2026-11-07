@@ -78,6 +78,32 @@ export async function adoptLegacyImages() {
   }
   return adopted;
 }
+export async function adoptRelativeProductImages() {
+  const products = await db.product.findMany({
+    select: { id: true, images: true },
+  });
+  let count = 0;
+  for (const p of products) {
+    if (
+      Array.isArray(p.images) &&
+      p.images.some(
+        (img) => typeof img === "string" && img.startsWith("/uploads/"),
+      )
+    ) {
+      const normalized = p.images.map((img) =>
+        typeof img === "string" && img.startsWith("/uploads/")
+          ? publicFileUrl(img.replace(/^\/uploads\/?/, ""))
+          : img,
+      );
+      await db.product.update({
+        where: { id: p.id },
+        data: { images: normalized },
+      });
+      count += 1;
+    }
+  }
+  return count;
+}
 export function detect(buffer) {
   if (
     buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))

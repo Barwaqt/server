@@ -3,6 +3,24 @@ import { descendantCategoryIds } from "../utils/category-tree.js";
 import { db, transaction } from "../config/database.js";
 import { pagination } from "../validators/common.validator.js";
 import { assert } from "../utils/error.js";
+import { publicApiUrl } from "../config/paths.js";
+
+export function normalizeImages(images) {
+  if (!Array.isArray(images)) return [];
+  return images.map((img) =>
+    typeof img === "string" && img.startsWith("/uploads/")
+      ? `${publicApiUrl}${img}`
+      : img,
+  );
+}
+
+export function normalizeProduct(p) {
+  if (!p) return p;
+  return {
+    ...p,
+    images: normalizeImages(p.images),
+  };
+}
 export async function categoryList() {
   const rows = await db.category.findMany({
     orderBy: { name: "asc" },
@@ -108,7 +126,7 @@ export async function products(q) {
     }),
     db.product.count({ where }),
   ]);
-  return { items, total, page: q.page, limit: q.limit };
+  return { items: items.map(normalizeProduct), total, page: q.page, limit: q.limit };
 }
 export async function product(id) {
   const result = await db.product.findFirst({
@@ -129,10 +147,10 @@ export async function product(id) {
     },
   });
   assert(result, 404, "Product not found");
-  return result;
+  return normalizeProduct(result);
 }
 export async function vendorProducts(user, q) {
-  return db.product.findMany({
+  const items = await db.product.findMany({
     where: {
       vendorId: user.vendor.id,
       ...(q.reviewStatus ? { reviewStatus: q.reviewStatus } : {}),
@@ -144,28 +162,36 @@ export async function vendorProducts(user, q) {
     ...pagination(q),
     orderBy: { createdAt: "desc" },
   });
+  return items.map(normalizeProduct);
 }
 export async function saveProduct(user, id, input) {
-  if (!id)
-    return db.product.create({
-      data: { ...input, vendorId: user.vendor.id, reviewStatus: "PENDING" },
+  const data = {
+    ...input,
+    ...(input.images ? { images: normalizeImages(input.images) } : {}),
+  };
+  if (!id) {
+    const created = await db.product.create({
+      data: { ...data, vendorId: user.vendor.id, reviewStatus: "PENDING" },
     });
+    return normalizeProduct(created);
+  }
   return transaction(async (tx) => {
     const owned = await tx.product.findFirst({
       where: { id, vendorId: user.vendor.id },
     });
     assert(owned, 404, "Product not found");
-    return tx.product.update({
+    const updated = await tx.product.update({
       where: { id },
       data: {
-        ...input,
-        ...reviewReset(owned, input),
+        ...data,
+        ...reviewReset(owned, data),
         reviewVersion: { increment: 1 },
-        ...(input.categoryId && input.categoryId !== owned.categoryId
+        ...(data.categoryId && data.categoryId !== owned.categoryId
           ? { catalogCategories: { set: [] } }
           : {}),
       },
     });
+    return normalizeProduct(updated);
   });
 }
 

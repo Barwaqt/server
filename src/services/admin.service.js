@@ -1,4 +1,5 @@
 import { reviewReset } from "../utils/product-review.js";
+import { normalizeProduct } from "./catalog.service.js";
 import bcrypt from "bcryptjs";
 import { db, transaction } from "../config/database.js";
 import { publicUser } from "../models/user.model.js";
@@ -181,7 +182,12 @@ export async function products(q) {
     }),
     db.product.count({ where }),
   ]);
-  return { items, total, page: q.page, limit: q.limit };
+  return {
+    items: items.map(normalizeProduct),
+    total,
+    page: q.page,
+    limit: q.limit,
+  };
 }
 export async function updateProduct(actor, id, input) {
   return transaction(async (tx) => {
@@ -462,6 +468,6 @@ export async function reviewProduct(actor, id, input) {
             : `${product.name}: ${input.reason}`,
       },
     });
-    return tx.product.findUnique({ where: { id } });
+    return normalizeProduct(await tx.product.findUnique({ where: { id } }));
   });
 }
