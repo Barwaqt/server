@@ -145,6 +145,72 @@ export const MOCK_LOCATIONS = [
     latitude: 24.7937,
     longitude: 67.0643,
   },
+  {
+    placeId: "barwaqt-mock-chitral-shahi",
+    name: "Shahi Bazaar",
+    formattedAddress: "Shahi Bazaar, Chitral, Khyber Pakhtunkhwa, Pakistan",
+    street: "Shahi Bazaar Road",
+    zone: "Shahi Bazaar",
+    city: "Chitral",
+    country: "Pakistan",
+    latitude: 35.8510,
+    longitude: 71.7864,
+  },
+  {
+    placeId: "barwaqt-mock-chitral-ataliq",
+    name: "Ataliq Bazaar",
+    formattedAddress: "Ataliq Bazaar, Chitral, Khyber Pakhtunkhwa, Pakistan",
+    street: "Ataliq Bridge Road",
+    zone: "Ataliq",
+    city: "Chitral",
+    country: "Pakistan",
+    latitude: 35.8532,
+    longitude: 71.7891,
+  },
+  {
+    placeId: "barwaqt-mock-chitral-drosh",
+    name: "Drosh Main Market",
+    formattedAddress: "Drosh, Lower Chitral, Khyber Pakhtunkhwa, Pakistan",
+    street: "Drosh Main Road",
+    zone: "Drosh",
+    city: "Chitral",
+    country: "Pakistan",
+    latitude: 35.5604,
+    longitude: 71.7963,
+  },
+  {
+    placeId: "barwaqt-mock-chitral-booni",
+    name: "Booni Bazaar",
+    formattedAddress: "Booni, Upper Chitral, Khyber Pakhtunkhwa, Pakistan",
+    street: "Mastuj Road, Booni",
+    zone: "Booni",
+    city: "Chitral",
+    country: "Pakistan",
+    latitude: 36.2731,
+    longitude: 72.0911,
+  },
+  {
+    placeId: "barwaqt-mock-pew-univ",
+    name: "University Road",
+    formattedAddress: "University Road, Peshawar, Khyber Pakhtunkhwa, Pakistan",
+    street: "University Road",
+    zone: "University Town",
+    city: "Peshawar",
+    country: "Pakistan",
+    latitude: 34.0086,
+    longitude: 71.5378,
+  },
+  {
+    placeId: "barwaqt-mock-swat-mingora",
+    name: "Mingora Bazaar",
+    formattedAddress: "Mingora, Swat, Khyber Pakhtunkhwa, Pakistan",
+    street: "Saidu Sharif Road",
+    zone: "Mingora",
+    city: "Swat",
+    country: "Pakistan",
+    latitude: 34.7758,
+    longitude: 72.3625,
+  },
 ];
 
 function parseAddressComponents(components) {
@@ -197,31 +263,39 @@ export async function searchLocations({ query, sessionToken }) {
   const cleanQuery = query.trim();
 
   if (mapsConfigured()) {
-    try {
-      const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
-      url.searchParams.set("input", cleanQuery);
-      url.searchParams.set("components", "country:pk");
-      url.searchParams.set("language", "en");
-      url.searchParams.set("key", env.GOOGLE_MAPS_API_KEY);
-      if (sessionToken) url.searchParams.set("sessiontoken", sessionToken);
+    const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
+    url.searchParams.set("input", cleanQuery);
+    url.searchParams.set("components", "country:pk");
+    url.searchParams.set("language", "en");
+    url.searchParams.set("key", env.GOOGLE_MAPS_API_KEY);
+    if (sessionToken) url.searchParams.set("sessiontoken", sessionToken);
 
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(7000) });
-      const json = await res.json();
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(7000) });
+    const json = await res.json();
 
-      if (json.status === "OK" && Array.isArray(json.predictions)) {
-        return json.predictions.map((p) => ({
+    if (json.status === "OK" && Array.isArray(json.predictions)) {
+      return json.predictions.map((p) => {
+        const mainText = p.structured_formatting?.main_text || p.description;
+        const secondaryText = p.structured_formatting?.secondary_text || "";
+        const parts = secondaryText.split(",").map((s) => s.trim()).filter(Boolean);
+        const cityCandidate = parts.length > 0 ? parts[0] : mainText;
+        return {
           placeId: p.place_id,
           description: p.description,
-          mainText: p.structured_formatting?.main_text || p.description,
-          secondaryText: p.structured_formatting?.secondary_text || "",
-        }));
-      }
-    } catch {
-      // Fall through to mock search if Google API fails or is unreachable
+          mainText,
+          secondaryText,
+          city: cityCandidate,
+          zone: mainText,
+        };
+      });
     }
+    if (json.status === "ZERO_RESULTS") {
+      return [];
+    }
+    assert(false, 502, `Google Maps error: ${json.error_message || json.status}`);
   }
 
-  // Fallback search across built-in Pakistani locations
+  // Only when mapsConfigured() is false (offline dev/testing without a key):
   const q = cleanQuery.toLowerCase();
   const matched = MOCK_LOCATIONS.filter(
     (loc) =>
@@ -232,8 +306,7 @@ export async function searchLocations({ query, sessionToken }) {
       loc.street.toLowerCase().includes(q),
   );
 
-  const results = matched.length > 0 ? matched : MOCK_LOCATIONS.slice(0, 5);
-  return results.map((loc) => ({
+  return matched.map((loc) => ({
     placeId: loc.placeId,
     description: loc.formattedAddress,
     mainText: loc.name,
@@ -261,35 +334,35 @@ export async function reverseGeocode({ latitude, longitude }) {
   );
 
   if (mapsConfigured()) {
-    try {
-      const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-      url.searchParams.set("latlng", `${lat},${lng}`);
-      url.searchParams.set("language", "en");
-      url.searchParams.set("key", env.GOOGLE_MAPS_API_KEY);
+    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+    url.searchParams.set("latlng", `${lat},${lng}`);
+    url.searchParams.set("language", "en");
+    url.searchParams.set("key", env.GOOGLE_MAPS_API_KEY);
 
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(7000) });
-      const json = await res.json();
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(7000) });
+    const json = await res.json();
 
-      if (json.status === "OK" && Array.isArray(json.results) && json.results.length > 0) {
-        const top = json.results[0];
-        const parsed = parseAddressComponents(top.address_components);
-        return {
-          formattedAddress: top.formatted_address,
-          street: parsed.street,
-          zone: parsed.zone,
-          city: parsed.city,
-          country: parsed.country,
-          latitude: lat,
-          longitude: lng,
-          placeId: top.place_id,
-        };
-      }
-    } catch {
-      // Fall through to mock reverse geocode
+    if (json.status === "OK" && Array.isArray(json.results) && json.results.length > 0) {
+      const top = json.results[0];
+      const parsed = parseAddressComponents(top.address_components);
+      return {
+        formattedAddress: top.formatted_address,
+        street: parsed.street,
+        zone: parsed.zone,
+        city: parsed.city,
+        country: parsed.country,
+        latitude: lat,
+        longitude: lng,
+        placeId: top.place_id,
+      };
     }
+    if (json.status === "ZERO_RESULTS") {
+      assert(false, 404, "No address found for these coordinates");
+    }
+    assert(false, 502, `Google Maps Geocode error: ${json.error_message || json.status}`);
   }
 
-  // Fallback: estimate from nearest known Pakistani point
+  // Fallback for offline dev/test only
   const nearest = findNearestMockLocation(lat, lng);
   return {
     formattedAddress: `${nearest.street}, ${nearest.zone}, ${nearest.city}, Pakistan`,
@@ -308,38 +381,36 @@ export async function getPlaceDetails({ placeId, sessionToken }) {
   const cleanId = placeId.trim();
 
   if (mapsConfigured() && !cleanId.startsWith("barwaqt-")) {
-    try {
-      const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
-      url.searchParams.set("place_id", cleanId);
-      url.searchParams.set("fields", "place_id,name,formatted_address,geometry,address_components");
-      url.searchParams.set("language", "en");
-      url.searchParams.set("key", env.GOOGLE_MAPS_API_KEY);
-      if (sessionToken) url.searchParams.set("sessiontoken", sessionToken);
+    const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+    url.searchParams.set("place_id", cleanId);
+    url.searchParams.set("fields", "place_id,name,formatted_address,geometry,address_components");
+    url.searchParams.set("language", "en");
+    url.searchParams.set("key", env.GOOGLE_MAPS_API_KEY);
+    if (sessionToken) url.searchParams.set("sessiontoken", sessionToken);
 
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(7000) });
-      const json = await res.json();
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(7000) });
+    const json = await res.json();
 
-      if (json.status === "OK" && json.result) {
-        const r = json.result;
-        const parsed = parseAddressComponents(r.address_components);
-        return {
-          placeId: r.place_id,
-          name: r.name || "",
-          formattedAddress: r.formatted_address || "",
-          street: parsed.street,
-          zone: parsed.zone,
-          city: parsed.city,
-          country: parsed.country,
-          latitude: r.geometry?.location?.lat || 0,
-          longitude: r.geometry?.location?.lng || 0,
-        };
-      }
-    } catch {
-      // Fall through
+    if (json.status === "OK" && json.result) {
+      const r = json.result;
+      const parsed = parseAddressComponents(r.address_components);
+      return {
+        placeId: r.place_id,
+        name: r.name || "",
+        formattedAddress: r.formatted_address || "",
+        street: parsed.street,
+        zone: parsed.zone,
+        city: parsed.city,
+        country: parsed.country,
+        latitude: r.geometry?.location?.lat || 0,
+        longitude: r.geometry?.location?.lng || 0,
+      };
     }
+    assert(false, 502, `Google Maps Place Details error: ${json.error_message || json.status}`);
   }
 
-  const found = MOCK_LOCATIONS.find((loc) => loc.placeId === cleanId) || MOCK_LOCATIONS[0];
+  const found = MOCK_LOCATIONS.find((loc) => loc.placeId === cleanId);
+  assert(found, 404, "Place details not found");
   return {
     placeId: found.placeId,
     name: found.name,
