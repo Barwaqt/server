@@ -54,12 +54,6 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       409,
       `${p.name} is unavailable`,
     );
-    assert(
-      p.vendor.city.toLowerCase() === address.city.toLowerCase() &&
-        p.vendor.zone.toLowerCase() === address.zone.toLowerCase(),
-      422,
-      `${p.vendor.name} delivers to ${p.vendor.zone}, ${p.vendor.city}. Your selected address is ${address.zone}, ${address.city}. Edit the address if its city or area is incorrect, or choose a vendor serving your location.`,
-    );
     assert(p.stock >= item.quantity, 409, `${p.name} has insufficient stock`);
     if (reserve) {
       const stock = await tx.product.updateMany({

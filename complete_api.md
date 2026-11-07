@@ -690,7 +690,7 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 
 **Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.
 
-Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. BANK_TRANSFER/JAZZCASH/EASYPAISA use configured active platform transfer accounts and require admin verification; disabled methods and CARD return 503. See Central platform payments. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Every vendor city AND zone must match address case-insensitively. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. No delivery code is generated: riders confirm delivery with an uploaded photo.
+Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. BANK_TRANSFER/JAZZCASH/EASYPAISA use configured active platform transfer accounts and require admin verification; disabled methods and CARD return 503. See Central platform payments. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Customers can purchase products from any vendor nationwide across Pakistan without city or zone restrictions. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. No delivery code is generated: riders confirm delivery with an uploaded photo.
 
 ### GET /api/v1/orders
 
@@ -1370,7 +1370,7 @@ New image uploads return an absolute URL such as `https://api.barwaqt.com/upload
 
 1. ADMIN logs in, creates category and vendor, and creates RIDER/DISPATCHER/FINANCE accounts as required. Keep each returned resource ID.
 2. VENDOR logs in and creates products with the category UUID and integer prices. ADMIN reviews the PENDING queue and approves each product using its current reviewVersion before customers can buy it. Rejections include rejectionReason; the vendor corrects content and resubmits.
-3. CUSTOMER registers and, when SMTP is configured, enters the 6-digit code emailed at signup before logging in. Then browse the catalog, create an address matching vendor city/zone, and set cart quantities with product UUIDs.
+3. CUSTOMER registers and, when SMTP is configured, enters the 6-digit code emailed at signup before logging in. Then browse the catalog, create a delivery address (any city or area nationwide across Pakistan), and set cart quantities with product UUIDs.
 4. CUSTOMER posts checkout with addressId and a fresh Idempotency-Key. Save parent `data.id` and each `data.vendorOrders[].id` separately (both are `barwaqt-######` numbers). Retry network failures with the same key and payload.
 5. VENDOR reads `/orders`, accepts each child, then marks it ready. RIDER starts a shift. ADMIN/DISPATCHER assigns an available rider to a ready child.
 6. RIDER marks pickup, updates location as needed, uploads a photo of the drop-off (`POST /api/v1/uploads`, kind IMAGE), then delivers with that `/api/media/<id>` URL as proofImage and the exact child totalMinor. For failed deliveries, dispatch retries or returns the child.
@@ -1445,7 +1445,7 @@ Same payload validation as checkout: addressId required; productIds optionally s
 
 Each quote vendorOrders entry contains `{vendorId,vendorName,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID or delivery proof.
 
-Validates the customer's current cart, owned address, stock, vendor approval, service city/zone and coupon. Same calculations as checkout; no stock reservation, coupon consumption, cart clearing or order creation. The quote is advisory, not a price/stock lock. Requote when inputs change; checkout revalidates atomically. Errors include 404 address, 422 empty cart/invalid coupon/unsupported area and 409 unavailable stock.
+Validates the customer's current cart, owned address, stock, vendor approval and coupon without vendor city/zone restrictions. Same calculations as checkout; no stock reservation, coupon consumption, cart clearing or order creation. The quote is advisory, not a price/stock lock. Requote when inputs change; checkout revalidates atomically. Errors include 404 address, 422 empty cart/invalid coupon and 409 unavailable stock.
 
 ### PATCH /api/v1/vendor/profile
 
