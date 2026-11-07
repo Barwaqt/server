@@ -1844,7 +1844,7 @@ Each message contains `id`, `phone`, `channel`, `status`, `providerId`, `error`,
 
 ## Google Maps & Location Services
 
-Base URL: `https://api.barwaqt.com/api/v1`. These endpoints power address lookup, location search, and GPS coordinate reverse-geocoding for both mobile apps and web applications. Configured with `GOOGLE_MAPS_API_KEY` in `server/.env`. When dummy credentials or development keys are active, the endpoints automatically provide built-in Pakistani city/zone fallbacks (Islamabad, Rawalpindi, Lahore, Karachi, Peshawar, Multan, etc.) so UI development works without requiring live Google billing.
+Base URL: `https://api.barwaqt.com/api/v1`. These endpoints power real-time address lookup, location search, and GPS coordinate reverse-geocoding for mobile apps, vendor portal, admin console, and storefront. Configured with `GOOGLE_MAPS_API_KEY` supporting Google Places API (New), Geocoding API, and Place Details API. When dummy credentials or development keys are active in offline test environments, the endpoints automatically provide built-in Pakistani city/zone fallbacks so UI development works without live Google billing.
 
 ### 1. GET /api/v1/maps/config
 
@@ -1855,7 +1855,7 @@ Returns client configuration and default map center for Pakistan. Never exposes 
 ```json
 {
   "data": {
-    "mapsConfigured": false,
+    "mapsConfigured": true,
     "defaultCenter": {
       "latitude": 33.6844,
       "longitude": 73.0479
@@ -1870,19 +1870,21 @@ Returns client configuration and default map center for Pakistan. Never exposes 
 **Access:** Public / Any.
 
 **Query parameters:**
-- `query` (or `q`): string (required, 1–200 characters) — address, area, or place name (e.g., `F-7`, `Gulberg`, `Clifton`).
+- `query` (or `q`): string (required, 1–200 characters) — address, area, or place name (e.g., `Chitral`, `Liberty Market`, `F-7`, `Clifton`).
 - `sessionToken`: string (optional) — Google Places session UUID for billing grouping.
 
-**Success:** 200; `data: [...]`. Array of matched place predictions:
+**Success:** 200; `data: [...]`. Array of matched place predictions in Pakistan with parsed `city` and `zone`:
 
 ```json
 {
   "data": [
     {
-      "placeId": "ChIJbU60gyn83zgR_qqxfD0GlDs",
-      "description": "F-7 Markaz, Islamabad, Islamabad Capital Territory, Pakistan",
-      "mainText": "F-7 Markaz",
-      "secondaryText": "Islamabad, Pakistan"
+      "placeId": "ChIJJ9brII1S2zgRD07arjb5Sw8",
+      "description": "Chitrāl, Pakistan",
+      "mainText": "Chitrāl",
+      "secondaryText": "Pakistan",
+      "city": "Chitrāl",
+      "zone": "Chitrāl"
     }
   ]
 }
