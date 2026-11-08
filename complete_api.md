@@ -462,14 +462,17 @@ Both required. currentPassword max 72; newPassword 12–72. Revokes all sessions
 | `featured` | `{enabled, title, badge, description, linkLabel, href, items:[card], promos:[{eyebrow, title, description, linkLabel, href}]}`; up to 8 cards and 2 promos. |
 | `flash`, each `productRows[]` | `{enabled, title, description, categorySlug, linkLabel, productIds}`; `productRows` max 20; `productIds` max 30 UUIDs. |
 | `banners` | `{enabled, items:[card]}`; up to 6 cards. |
+| `productPromos` | `{enabled, items:[productPromo]}`; up to 4 items. Clickable banners under the product details gallery. |
 | `upgrade` | panel. |
 | `benefits` | `{enabled, items:[{icon, title, description}]}`; up to 8 items. |
 | `searches` | `{enabled, title, terms:[text]}`; up to 100 terms. |
 | `footer` | `{columns:[{title, links:[{label, href}]}], title, description, linkLabel, href, copyright, paymentLabel}`; up to 6 columns and 12 links per column. |
 
-`panel` is `{enabled, eyebrow, title, highlight, description, image, alt, linkLabel, href}`. `card` is `{title, description, image, alt, linkLabel, href}`. `icon` is 1–8 characters. Title, link label, alt and copyright are 1–160 characters; eyebrow is max 100; highlight is max 160; descriptions are max 1,000; featured badge is max 100; payment label is max 200; image URLs are max 2,000. `categorySlug` uses lowercase letters, digits and hyphens; `all-products` is accepted as a category sentinel.
+`panel` is `{enabled, eyebrow, title, highlight, description, image, alt, linkLabel, href}`. `card` is `{title, description, image, alt, linkLabel, href}`. `productPromo` is `{image, alt, href}` — one banner shown on the product details page, linked to `href`. `icon` is 1–8 characters. Title, link label, alt and copyright are 1–160 characters; eyebrow is max 100; highlight is max 160; descriptions are max 1,000; featured badge is max 100; payment label is max 200; image URLs are max 2,000. `categorySlug` uses lowercase letters, digits and hyphens; `all-products` is accepted as a category sentinel.
 
 Publishing validates referenced category slugs and featured products. See `PUT /api/v1/admin/homepage`.
+
+A homepage document published before `productPromos` existed is returned with two default banners, so the field is always present in responses.
 
 ### GET /api/v1/catalog/categories
 
@@ -923,6 +926,7 @@ Own settlements only, newest first, max 100; no pagination query.
     "featured": {"enabled": true, "title": "Featured", "badge": "", "description": "", "linkLabel": "View all", "href": "/products", "items": [], "promos": []},
     "flash": {"enabled": false, "title": "Flash deals", "description": "", "categorySlug": "all-products", "linkLabel": "View all", "productIds": []},
     "banners": {"enabled": false, "items": []},
+    "productPromos": {"enabled": true, "items": [{"image": "/product/cashback.webp", "alt": "Cashback promotion", "href": "/category/deals"}]},
     "popularCategories": {"enabled": true, "title": "Popular", "linkLabel": "View all", "href": "/categories", "items": []},
     "productRows": [],
     "moreCategories": {"enabled": true, "title": "More", "linkLabel": "View all", "href": "/categories", "items": []},
@@ -2045,5 +2049,37 @@ During checkout (`POST /api/v1/customer/orders/checkout`), order items are group
 1. Item nets are allocated proportionally from the vendor order net total (`subtotal - discount`).
 2. Each item's commission is calculated using the vendor's rate for that product's category (`vendor.categoryCommissions[product.categoryId]`), falling back to `vendor.commissionBps`.
 3. Total `commissionMinor` is the exact sum of individual product commissions, and `payableMinor = net - commissionMinor`.
+
+## Product page promo banners (2026-11-08)
+
+The banners under the gallery on the product details page (`/product/:id`) are no longer hard-coded in the storefront. They are read from `content.productPromos` in the homepage document and published through the existing homepage endpoints.
+
+| Method / path | Result |
+| --- | --- |
+| GET `/api/v1/catalog/homepage` | Public; returns `content.productPromos` |
+| GET `/api/v1/admin/homepage` | ADMIN; same shape for the editor |
+| PUT `/api/v1/admin/homepage` | ADMIN; accepts `content.productPromos` with the current `version` |
+
+Example `productPromos` inside the published `content`:
+
+```json
+{
+  "productPromos": {
+    "enabled": true,
+    "items": [
+      {"image": "/product/cashback.webp", "alt": "Cashback promotion", "href": "/category/deals"},
+      {"image": "https://cdn.example.com/grocery-banner.webp", "alt": "Fresh groceries", "href": "/category/grocery"}
+    ]
+  }
+}
+```
+
+- `enabled: false` hides the banner block on every product page; the rest of the homepage is unaffected.
+- `items` accepts up to 4 banners, rendered in order and each wrapped in a link to `href`. `href` uses the normal homepage link rules (an internal path starting `/`), so it can target a category (`/category/deals`), a product (`/product/<uuid>`), a search (`/?q=rice`) or any internal page.
+- `image` is an uploaded `/uploads/...` path, another internal path such as `/product/cashback.webp`, or an HTTPS URL. Protocol-relative images (`//host/image.webp`) are rejected on publish.
+- `alt` is the image description (1–160 characters) and is also used as the link's accessible label.
+- Admin UI: Homepage → section dropdown → **Product page promo banners** → Add item → upload the image, set the description and link → Publish homepage.
+
+No migration is required. A homepage document published before this release is returned with two defaults (`/product/cashback.webp` → `/category/deals` and `/product/grocery-banner.webp` → `/category/grocery`), and the storefront falls back to those same static images if the field is absent. The section is persisted the first time an admin publishes the homepage.
 
 
