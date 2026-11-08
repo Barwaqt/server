@@ -41,6 +41,7 @@ export const heroCarousel = z.union([
 const card = z
   .object({ title: text, description, image, alt: text, ...link })
   .strict();
+const productPromo = z.object({ image, alt: text, href }).strict();
 const categories = z
   .object({
     enabled: z.boolean(),
@@ -90,6 +91,9 @@ export const homepageContent = z
     flash: row,
     banners: z
       .object({ enabled: z.boolean(), items: z.array(card).max(6) })
+      .strict(),
+    productPromos: z
+      .object({ enabled: z.boolean(), items: z.array(productPromo).max(4) })
       .strict(),
     popularCategories: categories,
     productRows: z.array(row).max(20),

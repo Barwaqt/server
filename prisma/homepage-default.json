@@ -184,6 +184,21 @@
       }
     ]
   },
+  "productPromos": {
+    "enabled": true,
+    "items": [
+      {
+        "image": "/product/cashback.webp",
+        "alt": "Welcome to Barwaqt — cashback promotion",
+        "href": "/category/deals"
+      },
+      {
+        "image": "/product/grocery-banner.webp",
+        "alt": "Discover fresh grocery favourites",
+        "href": "/category/grocery"
+      }
+    ]
+  },
   "popularCategories": {
     "enabled": true,
     "title": "Popular Categories",

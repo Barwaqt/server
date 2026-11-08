@@ -1,15 +1,24 @@
 import { heroCarousel } from "../validators/homepage.validator.js";
 import { db, transaction } from "../config/database.js";
 import { assert } from "../utils/error.js";
-export async function get() {
-  const row = await db.storefrontPage.findUnique({
-    where: { key: "homepage" },
-  });
-  assert(
-    row,
-    503,
-    "Homepage content is unavailable; apply database migrations",
-  );
+// Promo banners under the product details gallery are edited from the homepage
+// section. Documents published before that section existed fall back to these.
+const defaultProductPromos = {
+  enabled: true,
+  items: [
+    {
+      image: "/product/cashback.webp",
+      alt: "Welcome to Barwaqt — cashback promotion",
+      href: "/category/deals",
+    },
+    {
+      image: "/product/grocery-banner.webp",
+      alt: "Discover fresh grocery favourites",
+      href: "/category/grocery",
+    },
+  ],
+};
+function present(row) {
   return {
     content: {
       ...row.content,
@@ -20,10 +29,22 @@ export async function get() {
       },
       heroMain: heroCarousel.parse(row.content.heroMain),
       heroSide: heroCarousel.parse(row.content.heroSide),
+      productPromos: row.content.productPromos ?? defaultProductPromos,
     },
     version: row.version,
     updatedAt: row.updatedAt,
   };
+}
+export async function get() {
+  const row = await db.storefrontPage.findUnique({
+    where: { key: "homepage" },
+  });
+  assert(
+    row,
+    503,
+    "Homepage content is unavailable; apply database migrations",
+  );
+  return present(row);
 }
 export async function publish(user, input) {
   return transaction(async (tx) => {
@@ -78,19 +99,6 @@ export async function publish(user, input) {
     const row = await tx.storefrontPage.findUnique({
       where: { key: "homepage" },
     });
-    return {
-      content: {
-        ...row.content,
-        searches: {
-          ...row.content.searches,
-          limit: row.content.searches.limit ?? 10,
-          dynamic: row.content.searches.dynamic ?? true,
-        },
-        heroMain: heroCarousel.parse(row.content.heroMain),
-        heroSide: heroCarousel.parse(row.content.heroSide),
-      },
-      version: row.version,
-      updatedAt: row.updatedAt,
-    };
+    return present(row);
   });
 }
