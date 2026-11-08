@@ -32,6 +32,9 @@ export const page = z.object({
       "RETURNED",
     ])
     .optional(),
+  // Order section: "wspan" = repeat-cancellation customers (>=2 cancels),
+  // "regular" = everyone else. Omit for all orders.
+  section: z.enum(["wspan", "regular"]).optional(),
 });
 export const pagination = (q) => ({
   skip: (q.page - 1) * q.limit,

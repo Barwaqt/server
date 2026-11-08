@@ -691,7 +691,9 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 }
 ```
 
-**Success:** 201; `data: Order` including `vendorOrders`, their items and events. Replaying the same request also returns 201.
+**Success:** 201; `data: Order` including `vendorOrders`, their items and events, plus `isWspan: Boolean` and `cancelledShipments: Int`. Replaying the same request also returns 201.
+
+WSPAN flag: at checkout the server counts the customer's cancelled child orders (`VendorOrder.status = CANCELLED`). If the count is 2 or more, the new parent order is flagged `isWspan: true` with `cancelledShipments` set to that count, routing it to the separate WSPAN section (see `GET /api/v1/orders` `section` filter); otherwise `isWspan: false`. The flag is decided server-side from cancellation history at checkout time — the request payload is unchanged, and no client can set it. Existing orders keep their flag; cancelling an order after checkout does not re-flag it.
 
 Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digits, hyphen or underscore). addressId required; optional productIds is an array of 1–100 product UUIDs from the authenticated customer’s cart (omit to purchase the entire cart); couponCode optional max 30; paymentMethod defaults COD. BANK_TRANSFER/JAZZCASH/EASYPAISA use configured active platform transfer accounts and require admin verification; disabled methods and CARD return 503. See Central platform payments. Uses the server cart (1–100 distinct products), owned address, current prices/stock. Customers can purchase products from any vendor nationwide across Pakistan without city or zone restrictions. Reserves stock, applies coupon and configured delivery fee, splits into one child order per vendor, and removes only purchased cart items atomically; unchecked items remain. Retry the identical payload with the same key; changed payload returns 409. Start a new purchase with a new key. No delivery code is generated: riders confirm delivery with an uploaded photo.
 
@@ -699,13 +701,13 @@ Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digi
 
 **Access:** CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE.
 
-**Query:** page, limit; status filters child orders for non-customers; for customers it returns parent orders having at least one matching child (all children remain included). Other shared filters are ignored. Status: NEW/PREPARING/READY/ASSIGNED/PICKED_UP/DELIVERED/FAILED/CANCELLED/RETURNED.
+**Query:** page, limit; status filters child orders for non-customers; for customers it returns parent orders having at least one matching child (all children remain included). `section=wspan` returns only WSPAN orders (customers with 2+ prior cancellations, see checkout) and `section=regular` returns all other orders; omit for both. Other shared filters are ignored. Status: NEW/PREPARING/READY/ASSIGNED/PICKED_UP/DELIVERED/FAILED/CANCELLED/RETURNED.
 
 **Body:** None.
 
 **Success:** 200; `data: Order[]` for CUSTOMER, `data: VendorOrder[]` for all other roles.
 
-Customer sees own parent orders with children/items/events. Vendor sees own children; rider sees assigned children; admin/dispatch/finance see all children. Non-customer rows include items, events, and order `{address,currency,paymentMethod}`. Newest first. No total-count envelope.
+Customer sees own parent orders with children/items/events. Vendor sees own children; rider sees assigned children; admin/dispatch/finance see all children. Non-customer rows include items, events, and order `{address,currency,paymentMethod,isWspan,cancelledShipments}`. Customer parent orders include `isWspan` and `cancelledShipments` at the top level. Newest first. No total-count envelope. WSPAN orders use the same accept/reject/ready actions as regular orders (`POST /api/v1/orders/:id/actions`); only the `section` filter and the flag/badge differ.
 
 ### GET /api/v1/orders/:id
 
@@ -1338,7 +1340,7 @@ These are scalar response fields, not additional writable fields. Relations appe
 | CartItem | `userId: String`, `productId: String`, `quantity: Int` |
 | WishlistItem | `userId: String`, `productId: String` |
 | Coupon | `categoryIds: String[]`, `id: String`, `code: String`, `percentBps: Int`, `maxDiscountMinor: Int`, `minSubtotalMinor: Int`, `maxUses: Int`, `used: Int`, `active: Boolean`, `expiresAt: DateTime` |
-| Order | `id: String (barwaqt-######)`, `customerId: String`, `idempotencyKey: String`, `requestHash: String`, `address: Json`, `currency: String`, `paymentMethod: String`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `couponId: String?`, `createdAt: DateTime` |
+| Order | `id: String (barwaqt-######)`, `customerId: String`, `idempotencyKey: String`, `requestHash: String`, `address: Json`, `currency: String`, `paymentMethod: String`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `couponId: String?`, `isWspan: Boolean`, `cancelledShipments: Int`, `createdAt: DateTime` |
 | VendorOrder | `id: String (barwaqt-######)`, `orderId: String (barwaqt-######)`, `vendorId: String`, `status: OrderStatus`, `subtotalMinor: Int`, `discountMinor: Int`, `deliveryMinor: Int`, `totalMinor: Int`, `commissionMinor: Int`, `payableMinor: Int`, `riderId: String?`, `codCollectedMinor: Int`, `cashReceived: Boolean`, `deliveredAt: DateTime?`, `failureReason: String?`, `latitude: Float?`, `longitude: Float?`, `locationAt: DateTime?`, `settlementId: String?`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | OrderItem | `id: String`, `vendorOrderId: String`, `productId: String`, `name: String`, `unitPriceMinor: Int`, `quantity: Int`, `image: String?` |
 | OrderEvent | `id: String`, `vendorOrderId: String`, `actorId: String`, `status: OrderStatus`, `note: String?`, `createdAt: DateTime` |
@@ -1445,7 +1447,7 @@ Product IDs must already be in this customer's cart. Omitting `productIds` uses 
 
 Same payload validation as checkout: addressId required; productIds optionally selects 1–100 cart product UUIDs; couponCode optional; paymentMethod defaults COD. The result advertises COD plus configured active platform transfer methods. Unsupported/unconfigured methods fail at checkout.
 
-**Success:** 200; `data: {currency:"PKR", paymentMethods:["COD"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, vendorOrders}`.
+**Success:** 200; `data: {currency:"PKR", paymentMethods:["COD"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, vendorOrders, isWspan, cancelledShipments, section}` where `section` is `"wspan"` or `"regular"` — the section this checkout would be flagged into (see checkout).
 
 Each quote vendorOrders entry contains `{vendorId,vendorName,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID or delivery proof.
 

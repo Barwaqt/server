@@ -11,6 +11,18 @@ import { orderInclude, sanitizeOrder } from "../models/order.model.js";
 import { allocateOrderNumber } from "../utils/order-number.js";
 import { pagination } from "../validators/common.validator.js";
 const ended = ["DELIVERED", "CANCELLED", "RETURNED"];
+export const WSPAN_THRESHOLD = 2;
+// Orders from customers who have cancelled >= WSPAN_THRESHOLD shipments are
+// flagged isWspan and routed to the separate WSPAN section (admin/vendor).
+export async function cancelledShipments(tx, customerId) {
+  return tx.vendorOrder.count({
+    where: { order: { customerId }, status: "CANCELLED" },
+  });
+}
+async function wspaanFlag(tx, customerId) {
+  const cancelled = await cancelledShipments(tx, customerId);
+  return { cancelledShipments: cancelled, isWspan: cancelled >= WSPAN_THRESHOLD };
+}
 async function notify(tx, userId, title, body) {
   await tx.notification.create({ data: { userId, title, body } });
 }
@@ -127,7 +139,10 @@ async function prepareCheckout(tx, user, input, reserve = false) {
 export async function quote(user, input) {
   return transaction(async (tx) => {
     const p = await prepareCheckout(tx, user, input);
+    const wsp = await wspaanFlag(tx, user.id);
     return {
+      ...wsp,
+      section: wsp.isWspan ? "wspan" : "regular",
       currency: "PKR",
       paymentMethods: [
         "COD",
@@ -209,6 +224,7 @@ export async function checkout(user, input, key) {
           deliveryFee,
           fees,
         } = await prepareCheckout(tx, user, input, true);
+        const wsp = await wspaanFlag(tx, user.id);
         const { userId, ...snapshot } = address;
         const reserved = new Set();
         const parent = await tx.order.create({
@@ -233,6 +249,8 @@ export async function checkout(user, input, key) {
             deliveryMinor: deliveryFee,
             totalMinor: subtotal - discount + deliveryFee,
             couponId: coupon?.id,
+            isWspan: wsp.isWspan,
+            cancelledShipments: wsp.cancelledShipments,
           },
         });
         await createPayment(tx, parent, input.paymentMethod);
@@ -314,12 +332,14 @@ export async function checkout(user, input, key) {
   );
 }
 export async function list(user, q) {
+  const section = q.section; // "wspan" | "regular" | undefined
   if (user.role === "CUSTOMER")
     return (
       await db.order.findMany({
         where: {
           customerId: user.id,
           ...(q.status ? { vendorOrders: { some: { status: q.status } } } : {}),
+          ...(section ? { isWspan: section === "wspan" } : {}),
         },
         ...pagination(q),
         include: orderInclude,
@@ -333,6 +353,7 @@ export async function list(user, q) {
         ? { riderId: user.id }
         : {}),
     ...(q.status ? { status: q.status } : {}),
+    ...(section ? { order: { isWspan: section === "wspan" } } : {}),
   };
   return (
     await db.vendorOrder.findMany({
@@ -360,6 +381,8 @@ export async function list(user, q) {
             currency: true,
             paymentMethod: true,
             deliveryWindow: true,
+            isWspan: true,
+            cancelledShipments: true,
           },
         },
         events: { orderBy: { createdAt: "asc" } },
@@ -407,6 +430,8 @@ export async function get(user, id) {
           currency: true,
           paymentMethod: true,
           deliveryWindow: true,
+          isWspan: true,
+          cancelledShipments: true,
         },
       },
     },

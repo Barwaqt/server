@@ -212,10 +212,15 @@ model Order {
  totalMinor Int
  couponId String?
  coupon Coupon? @relation(fields:[couponId],references:[id])
+ // WSPAN: customer had cancelled >=2 shipments before this order.
+ // Such orders are routed to the separate WSPAN section in admin/vendor.
+ isWspan Boolean @default(false)
+ cancelledShipments Int @default(0)
  createdAt DateTime @default(now())
  vendorOrders VendorOrder[]
  @@unique([customerId,idempotencyKey])
  @@index([customerId,createdAt])
+ @@index([isWspan,createdAt])
 }
 model VendorOrder {
  returnRequest ReturnRequest?
