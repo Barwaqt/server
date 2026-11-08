@@ -9,4 +9,5 @@ notificationRouter.param("id", (req, res, next, value) => {
 });
 notificationRouter.use(authenticate);
 notificationRouter.get("/", c.list);
+notificationRouter.get("/badges", c.badges);
 notificationRouter.patch("/:id/read", c.markRead);
