@@ -159,6 +159,7 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/finance/refunds` | ADMIN, FINANCE |
 | POST | `/api/v1/finance/orders/:id/refunds` | ADMIN, FINANCE |
 | GET | `/api/v1/notifications` | Authenticated |
+| GET | `/api/v1/notifications/badges` | Authenticated |
 | PATCH | `/api/v1/notifications/:id/read` | Authenticated |
 | GET | `/api/v1/payments/accounts` | CUSTOMER, ADMIN, FINANCE |
 | PUT | `/api/v1/payments/accounts` | ADMIN |
@@ -1316,6 +1317,12 @@ id is the child order number (`barwaqt-######`). All fields required: positive a
 **Success:** 200; `data: Notification[]`, newest 100 owned notifications.
 
 Includes customer order status notifications. No pagination/unread filter or push/WebSocket endpoint.
+
+### GET /api/v1/notifications/badges
+
+**Access:** Authenticated. **Body:** None.
+
+**Success:** 200; `data: {notifications, orders?, products?, payments?, returns?, finance?}` — actionable pending counts for sidebar/menu badges. `notifications` (unread count) is returned for every role. ADMIN additionally gets `orders` (NEW child orders), `products` (PENDING product reviews), `payments` (SUBMITTED payment submissions), `returns` (REQUESTED return requests) and `finance` (PENDING settlements). VENDOR additionally gets `orders` (own NEW child orders), `products` (own REJECTED products), `returns` (own REQUESTED return requests) and `finance` (own PENDING settlements). CUSTOMER/RIDER/FINANCE/DISPATCHER receive only `notifications`. Counts are live at call time; clients typically poll every 30 seconds. No request payload and no other endpoint's payload changed.
 
 ### PATCH /api/v1/notifications/:id/read
 
