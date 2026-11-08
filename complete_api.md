@@ -2,7 +2,7 @@
 
 This document describes the endpoints implemented in `src/app.js` and `src/routes`, including service-level requirements. It describes the Node API directly; the Next.js authentication proxy has a different cookie-based interface.
 
-Last updated: 2026-10-30.
+Last updated: 2026-11-08.
 
 **Release scope:** This documents the checked-out source, not a verification of the live deployment. Product moderation requires migration `20261025120000_product_moderation` and the corresponding backend release. See [rollout instructions](docs/PRODUCT_REVIEW.md). The moderation contract below is authoritative when using older Postman templates.
 
