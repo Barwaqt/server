@@ -702,7 +702,7 @@ Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digi
 
 **Access:** CUSTOMER, VENDOR, RIDER, ADMIN, DISPATCHER, FINANCE.
 
-**Query:** page, limit; status filters child orders for non-customers; for customers it returns parent orders having at least one matching child (all children remain included). `section=wspan` returns only WSPAN orders (customers with 2+ prior cancellations, see checkout) and `section=regular` returns all other orders; omit for both. Other shared filters are ignored. Status: NEW/PREPARING/READY/ASSIGNED/PICKED_UP/DELIVERED/FAILED/CANCELLED/RETURNED.
+**Query:** page, limit; status filters child orders for non-customers; for customers it returns parent orders having at least one matching child (all children remain included). `section=wspan` returns only WSPAN orders (customers with 2+ prior cancellations, see checkout) and `section=regular` returns all other orders; omit for both. `search` (max 100) matches order ID by case-insensitive contains: for staff it matches the shipment (`VendorOrder`) ID or the parent `Order` ID; for customers it matches the parent `Order` ID. Other shared filters are ignored. Status: NEW/PREPARING/READY/ASSIGNED/PICKED_UP/DELIVERED/FAILED/CANCELLED/RETURNED.
 
 **Body:** None.
 
