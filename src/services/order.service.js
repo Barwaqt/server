@@ -333,6 +333,7 @@ export async function checkout(user, input, key) {
 }
 export async function list(user, q) {
   const section = q.section; // "wspan" | "regular" | undefined
+  const search = q.search?.trim();
   if (user.role === "CUSTOMER")
     return (
       await db.order.findMany({
@@ -340,6 +341,7 @@ export async function list(user, q) {
           customerId: user.id,
           ...(q.status ? { vendorOrders: { some: { status: q.status } } } : {}),
           ...(section ? { isWspan: section === "wspan" } : {}),
+          ...(search ? { id: { contains: search, mode: "insensitive" } } : {}),
         },
         ...pagination(q),
         include: orderInclude,
@@ -354,6 +356,14 @@ export async function list(user, q) {
         : {}),
     ...(q.status ? { status: q.status } : {}),
     ...(section ? { order: { isWspan: section === "wspan" } } : {}),
+    ...(search
+      ? {
+          OR: [
+            { id: { contains: search, mode: "insensitive" } },
+            { order: { id: { contains: search, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
   };
   return (
     await db.vendorOrder.findMany({
