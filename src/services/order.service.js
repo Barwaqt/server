@@ -10,6 +10,7 @@ import { allocate, percentage } from "../utils/money.js";
 import { orderInclude, sanitizeOrder } from "../models/order.model.js";
 import { allocateOrderNumber } from "../utils/order-number.js";
 import { pagination } from "../validators/common.validator.js";
+import { searchLocations, getPlaceDetails } from "./maps.service.js";
 const ended = ["DELIVERED", "CANCELLED", "RETURNED"];
 export const WSPAN_THRESHOLD = 2;
 // Orders from customers who have cancelled >= WSPAN_THRESHOLD shipments are
@@ -25,6 +26,50 @@ async function wspaanFlag(tx, customerId) {
 }
 async function notify(tx, userId, title, body) {
   await tx.notification.create({ data: { userId, title, body } });
+}
+// Customers who enter an address manually (no map pin) have null coordinates,
+// so vendor/admin/rider map links fall back to a text search and show an
+// approximate location. Geocode such addresses once at checkout (best
+// effort — checkout never fails because of geocoding) and persist the pin
+// on the saved address so the order snapshot and all map links are exact.
+async function ensureAddressPin(tx, address) {
+  if (
+    typeof address.latitude === "number" &&
+    typeof address.longitude === "number"
+  )
+    return address;
+  const query = [address.street, address.zone, address.city, "Pakistan"]
+    .filter(Boolean)
+    .join(", ");
+  if (!query) return address;
+  try {
+    const results = await searchLocations({ query });
+    const placeId = results[0]?.placeId;
+    if (!placeId) return address;
+    const details = await getPlaceDetails({ placeId });
+    if (
+      typeof details.latitude !== "number" ||
+      typeof details.longitude !== "number" ||
+      !details.latitude ||
+      !details.longitude
+    )
+      return address;
+    return await tx.address.update({
+      where: { id: address.id },
+      data: { latitude: details.latitude, longitude: details.longitude },
+    });
+  } catch {
+    // Geocoding is best-effort; the text address remains as the fallback.
+    return address;
+  }
+}
+// Run before the checkout transaction opens: geocoding performs external
+// HTTP calls that must not hold a DB transaction open.
+async function pinAddressBeforeCheckout(user, input) {
+  const address = await db.address.findFirst({
+    where: { id: input.addressId, userId: user.id },
+  });
+  if (address) await ensureAddressPin(db, address);
 }
 async function prepareCheckout(tx, user, input, reserve = false) {
   const address = await tx.address.findFirst({
@@ -137,6 +182,7 @@ async function prepareCheckout(tx, user, input, reserve = false) {
   };
 }
 export async function quote(user, input) {
+  await pinAddressBeforeCheckout(user, input);
   return transaction(async (tx) => {
     const p = await prepareCheckout(tx, user, input);
     const wsp = await wspaanFlag(tx, user.id);
@@ -179,6 +225,7 @@ export async function quote(user, input) {
 }
 
 export async function checkout(user, input, key) {
+  await pinAddressBeforeCheckout(user, input);
   assert(
     key && /^[a-zA-Z0-9_-]{8,100}$/.test(key),
     422,
