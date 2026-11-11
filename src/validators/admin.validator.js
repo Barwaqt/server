@@ -1,7 +1,11 @@
 import { vendorPayout } from "./vendor-payout.validator.js";
 import { z } from "zod";
 import { id, text, email, phone, password } from "./common.validator.js";
-import { product, vendorCategoryIds } from "./commerce.validator.js";
+import {
+  imageUrl,
+  product,
+  vendorCategoryIds,
+} from "./commerce.validator.js";
 
 const list = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -47,6 +51,7 @@ export const vendorUpdate = z
       .regex(/^[a-z0-9-]+$/)
       .max(180)
       .optional(),
+    logo: imageUrl.nullable().optional(),
     businessType: text.optional(),
     description: z.string().max(5000).optional(),
     city: text.optional(),

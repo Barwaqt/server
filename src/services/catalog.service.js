@@ -113,7 +113,9 @@ export async function products(q) {
       ...pagination(q),
       include: {
         category: true,
-        vendor: { select: { id: true, name: true, city: true, zone: true } },
+        vendor: {
+          select: { id: true, name: true, logo: true, city: true, zone: true },
+        },
       },
       orderBy:
         q.sort === "price-asc"
@@ -138,7 +140,9 @@ export async function product(id) {
     },
     include: {
       category: true,
-      vendor: { select: { id: true, name: true, city: true, zone: true } },
+      vendor: {
+        select: { id: true, name: true, logo: true, city: true, zone: true },
+      },
       reviews: {
         take: 50,
         orderBy: { createdAt: "desc" },
@@ -199,6 +203,7 @@ const publicVendor = {
   id: true,
   name: true,
   slug: true,
+  logo: true,
   description: true,
   businessType: true,
   city: true,

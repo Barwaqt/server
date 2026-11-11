@@ -65,6 +65,10 @@ export const vendorCategoryIds = z
     (values) => new Set(values).size === values.length,
     "Choose each category only once",
   );
+export const imageUrl = z
+  .string()
+  .max(2000)
+  .refine((v) => v === "" || /^https:\/\//.test(v) || /^\/(?!\/)/.test(v));
 export const vendor = z
   .object({
     email,
@@ -77,6 +81,7 @@ export const vendor = z
       .string()
       .regex(/^[a-z0-9-]+$/)
       .max(180),
+    logo: imageUrl.nullable().optional(),
     businessType: text.default("Retail"),
     description: z.string().max(5000).optional(),
     city: text,

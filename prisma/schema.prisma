@@ -83,6 +83,7 @@ model Vendor {
  owner User @relation(fields:[ownerId],references:[id])
  name String
  slug String @unique
+ logo String?
  description String @default("")
  businessType String
  city String
