@@ -33,10 +33,7 @@ const schema = z.object({
     .default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   DATABASE_URL: z.string().min(1),
-  JWT_SECRET: z
-    .string()
-    .min(32)
-    .default("ci-only-secret-at-least-32-characters-long"),
+  JWT_SECRET: z.string().min(32),
   CORS_ORIGINS: z
     .string()
     .default("http://localhost:3000,http://localhost:3001"),

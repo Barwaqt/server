@@ -497,45 +497,29 @@ export async function reviewProduct(actor, id, input) {
             : `${product.name}: ${input.reason}`,
       },
     });
-    // Email notification for approved products is now handed off to
-    // sendProductApprovedEmail(). Failures are logged but do not block the review,
-    // because the vendor already has the in-app notification above.
-    if (input.decision === "APPROVED" && env.SMTP_HOST && env.SMTP_FROM) {
-      const owner = product.vendor.owner;
-      if (!owner) {
-        console.error(
-          `[mail] product-approved skipped: no owner for product ${product.id}; vendor=${product.vendor?.id} ownerId=${product.vendor?.ownerId}`,
-        );
-      } else if (typeof owner.email !== "string" || !owner.email) {
-        console.error(
-          `[mail] product-approved skipped: owner has no email for product ${product.id}; owner=${owner.id}`,
-        );
-      } else {
-        try {
-          await sendProductApprovedEmail(owner.email, {
-            vendorName:
-              `${owner.firstName || ""} ${owner.lastName || ""}`.trim() ||
-              undefined,
-            productName: product.name,
-            productDescription: product.description || undefined,
-            productPrice: product.priceMinor
-              ? `PKR ${(product.priceMinor / 100).toFixed(2)}`
-              : undefined,
-            productCategory: product.category?.name || undefined,
-            productStock: product.stock,
-            url: `${baseUrl}/vendor/products/${product.id}`,
-          });
-          console.info(
-            `[mail] product-approved sent to ${owner.email} for product ${product.id}`,
-          );
-        } catch (err) {
-          console.error(
-            `[mail] product-approved failed for product ${product.id} to ${owner.email}:`,
-            err && err.message,
-          );
-          // Email failure should not block the review.
-        }
-      }
+    // Email notification for approved products. Failures are logged but do not
+    // block the review, because the vendor already has the in-app notification above.
+    if (
+      input.decision === "APPROVED" &&
+      env.SMTP_HOST &&
+      env.SMTP_FROM &&
+      product.vendor.owner
+    ) {
+      sendProductApprovedEmail(product.vendor.owner.email, {
+        vendorName:
+          `${product.vendor.owner.firstName || ""} ${product.vendor.owner.lastName || ""}`.trim() ||
+          undefined,
+        productName: product.name,
+        productDescription: product.description || undefined,
+        productPrice: product.priceMinor
+          ? `PKR ${(product.priceMinor / 100).toFixed(2)}`
+          : undefined,
+        productCategory: product.category?.name || undefined,
+        productStock: product.stock,
+        url: `${baseUrl}/vendor/products/${product.id}`,
+      }).catch(() => {
+        // Email failure should not block the review.
+      });
     }
     return normalizeProduct(await tx.product.findUnique({ where: { id } }));
   });
