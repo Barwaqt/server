@@ -452,6 +452,8 @@ export async function reviewProduct(actor, id, input) {
       409,
       "Only pending products can be reviewed",
     );
+    const reason = input.reason || null;
+
     const result = await tx.product.updateMany({
       where: {
         id,
@@ -460,7 +462,7 @@ export async function reviewProduct(actor, id, input) {
       },
       data: {
         reviewStatus: input.decision,
-        rejectionReason: input.decision === "REJECTED" ? input.reason : null,
+        rejectionReason: input.decision === "REJECTED" ? reason : null,
         reviewedAt: new Date(),
         reviewedById: actor.id,
         reviewVersion: { increment: 1 },
@@ -478,7 +480,7 @@ export async function reviewProduct(actor, id, input) {
         entityId: id,
         metadata: {
           reviewVersion: input.reviewVersion,
-          ...(input.reason ? { reason: input.reason } : {}),
+          ...(reason ? { reason } : {}),
         },
       },
     });
@@ -495,43 +497,44 @@ export async function reviewProduct(actor, id, input) {
             : `${product.name}: ${input.reason}`,
       },
     });
-    // Send email notification for approved products. Failures are logged but do not
-    // block the review, because the vendor already has the in-app notification above.
+    // Email notification for approved products is now handed off to
+    // sendProductApprovedEmail(). Failures are logged but do not block the review,
+    // because the vendor already has the in-app notification above.
     if (input.decision === "APPROVED" && env.SMTP_HOST && env.SMTP_FROM) {
       const owner = product.vendor.owner;
       if (!owner) {
         console.error(
-          `[mail] product-approved: no owner for product ${product.id}; vendor=${product.vendor?.id} ownerId=${product.vendor?.ownerId}`,
+          `[mail] product-approved skipped: no owner for product ${product.id}; vendor=${product.vendor?.id} ownerId=${product.vendor?.ownerId}`,
         );
       } else if (typeof owner.email !== "string" || !owner.email) {
         console.error(
-          `[mail] product-approved: owner has no email for product ${product.id}; owner=${owner.id}`,
+          `[mail] product-approved skipped: owner has no email for product ${product.id}; owner=${owner.id}`,
         );
       } else {
-        sendProductApprovedEmail(owner.email, {
-          vendorName:
-            `${owner.firstName || ""} ${owner.lastName || ""}`.trim() ||
-            undefined,
-          productName: product.name,
-          productDescription: product.description || undefined,
-          productPrice: product.priceMinor
-            ? `PKR ${(product.priceMinor / 100).toFixed(2)}`
-            : undefined,
-          productCategory: product.category?.name || undefined,
-          productStock: product.stock,
-          url: `${baseUrl}/vendor/products/${product.id}`,
-        })
-          .then(() => {
-            console.info(
-              `[mail] product-approved sent to ${owner.email} for product ${product.id}`,
-            );
-          })
-          .catch((err) => {
-            console.error(
-              `[mail] product-approved failed for product ${product.id} to ${owner.email}:`,
-              err && err.message,
-            );
+        try {
+          await sendProductApprovedEmail(owner.email, {
+            vendorName:
+              `${owner.firstName || ""} ${owner.lastName || ""}`.trim() ||
+              undefined,
+            productName: product.name,
+            productDescription: product.description || undefined,
+            productPrice: product.priceMinor
+              ? `PKR ${(product.priceMinor / 100).toFixed(2)}`
+              : undefined,
+            productCategory: product.category?.name || undefined,
+            productStock: product.stock,
+            url: `${baseUrl}/vendor/products/${product.id}`,
           });
+          console.info(
+            `[mail] product-approved sent to ${owner.email} for product ${product.id}`,
+          );
+        } catch (err) {
+          console.error(
+            `[mail] product-approved failed for product ${product.id} to ${owner.email}:`,
+            err && err.message,
+          );
+          // Email failure should not block the review.
+        }
       }
     }
     return normalizeProduct(await tx.product.findUnique({ where: { id } }));

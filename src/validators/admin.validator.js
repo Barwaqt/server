@@ -83,6 +83,7 @@ export const productReview = z.discriminatedUnion("decision", [
     .object({
       decision: z.literal("APPROVED"),
       reviewVersion: z.number().int().positive(),
+      reason: z.string().trim().max(2000).optional(),
     })
     .strict(),
   z
