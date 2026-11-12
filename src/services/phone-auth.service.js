@@ -199,16 +199,21 @@ export async function verify({ challengeId, code }) {
     if (pending.purpose === "signup") {
       if (await findPhoneUser(tx, pending.phone)) return null;
       const data = pending.pending;
-      user = await tx.user.create({
-        data: {
-          phone: pending.phone,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          passwordHash: data.passwordHash,
-          role: "CUSTOMER",
-          phoneVerifiedAt: new Date(),
-        },
-      });
+      try {
+        user = await tx.user.create({
+          data: {
+            phone: pending.phone,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            passwordHash: data.passwordHash,
+            role: "CUSTOMER",
+            phoneVerifiedAt: new Date(),
+          },
+        });
+      } catch (error) {
+        if (error.code === "P2002") return null;
+        throw error;
+      }
     } else {
       user = pending.userId
         ? await tx.user.findUnique({ where: { id: pending.userId } })
