@@ -143,10 +143,113 @@ export function accountCreated({
   };
 }
 
+export function vendorOnboarding({
+  name,
+  email,
+  password,
+  shopName,
+  businessType,
+  categories,
+  city,
+  zone,
+  url,
+} = {}) {
+  return {
+    subject: "Welcome to Barwaqt — your vendor account is ready",
+    ...renderEmail({
+      preview: "Your vendor account has been created. Sign in and start selling.",
+      eyebrow: "Vendor onboarding",
+      heading: `Welcome to Barwaqt, ${name ?? "vendor"}!`,
+      paragraphs: [
+        greeting(name),
+        `Your vendor account for **${shopName ?? "your store"}** is now active. You can sign in and start adding products right away.`,
+        "Keep this email safe — it contains your sign-in details and store information.",
+      ],
+      action: url ? { label: "Sign in to your vendor dashboard", url } : undefined,
+      details: [
+        { label: "Full name", value: name || "" },
+        { label: "Email", value: email || "" },
+        { label: "Password", value: password || "set during signup" },
+        { label: "Shop name", value: shopName || "" },
+        { label: "Business type", value: businessType || "" },
+        { label: "Category", value: (categories && categories[0]) || "" },
+        ...(categories && categories.length > 1
+          ? [{ label: "Additional categories", value: categories.slice(1).join(", ") }]
+          : []),
+        { label: "City", value: city || "" },
+        { label: "Zone", value: zone || "" },
+      ],
+      steps: [
+        "Sign in with your email and password",
+        "Set a strong password from account settings after your first sign-in",
+        "Add your first products from the Products tab in your vendor dashboard",
+        "Track orders and payouts from your dashboard once customers start ordering",
+      ],
+      chips: [
+        { label: "Vendor account" },
+        { label: "Ready to sell" },
+      ],
+      note: "Store your password safely and never share it. Barwaqt staff will never ask for your password by email or phone.",
+      footerNote: "Questions? Reply to this email or reach the Barwaqt support team.",
+    }),
+  };
+}
+
+export function productApproved({
+  vendorName,
+  productName,
+  productDescription,
+  productPrice,
+  productCategory,
+  productStock,
+  url,
+} = {}) {
+  return {
+    subject: "Congratulations — your product is approved on Barwaqt!",
+    ...renderEmail({
+      preview: "Your product is live and visible to customers.",
+      eyebrow: "Product approved",
+      heading: `Great news, ${vendorName ?? "vendor"}!`,
+      paragraphs: [
+        greeting(vendorName),
+        `Your product **${productName ?? "your product"}** has been approved and is now visible to customers on Barwaqt.`,
+        productDescription
+          ? `Here are the details of your approved product:`
+          : "Your product is now live for customers to browse and order.",
+      ],
+      action: url
+        ? { label: "View product in your dashboard", url }
+        : undefined,
+      details: [
+        { label: "Product name", value: productName || "" },
+        ...(productDescription
+          ? [{ label: "Description", value: productDescription }]
+          : []),
+        ...(productPrice
+          ? [{ label: "Price", value: productPrice }]
+          : []),
+        { label: "Category", value: productCategory || "" },
+        ...(productStock !== undefined
+          ? [{ label: "Stock", value: String(productStock) }]
+          : []),
+      ],
+      chips: [
+        { label: "Approved" },
+        { label: "Live on Barwaqt" },
+      ],
+      note:
+        "Your product will appear in search and category listings. Keep your stock updated and respond quickly to customer orders for the best seller ratings.",
+      footerNote: "Want to make changes? Update your product from your vendor dashboard.",
+    }),
+  };
+}
+
 export const templates = {
   verifyEmail,
   resetPassword,
   passwordChanged,
   welcome,
   accountCreated,
+  vendorOnboarding,
+  productApproved,
 };

@@ -5,6 +5,12 @@ import { db, transaction } from "../config/database.js";
 import { publicUser } from "../models/user.model.js";
 import { assert } from "../utils/error.js";
 import { pagination } from "../validators/common.validator.js";
+import {
+  sendVendorOnboardingEmail,
+  sendProductApprovedEmail,
+} from "../services/mail.service.js";
+import { env } from "../config/env.js";
+import { baseUrl } from "../config/app.js";
 export async function createVendor(actor, input) {
   const { email, password, phone, firstName, lastName, ...vendor } = input;
   const passwordHash = await bcrypt.hash(password, 12);
@@ -64,6 +70,25 @@ export async function createVendor(actor, input) {
         entityId: result.id,
       },
     });
+    // Send onboarding email with full credentials and store details.
+    if (env.SMTP_HOST && env.SMTP_FROM) {
+      const categoryNames = categoryIds.map(
+        (id) => categories.find((c) => c.id === id)?.name || "",
+      );
+      sendVendorOnboardingEmail(owner.email, {
+        name: `${owner.firstName || ""} ${owner.lastName || ``}`.trim() || undefined,
+        email: owner.email,
+        password,
+        shopName: result.name,
+        businessType: result.businessType,
+        categories: categoryNames,
+        city: result.city,
+        zone: result.zone,
+        url: baseUrl,
+      }).catch(() => {
+        // Email failure should not block vendor creation.
+      });
+    }
     return {
       ...result,
       categories: categoryIds.map((id) => {
@@ -468,6 +493,29 @@ export async function reviewProduct(actor, id, input) {
             : `${product.name}: ${input.reason}`,
       },
     });
+    // Send email notification for approved products.
+    if (
+      input.decision === "APPROVED" &&
+      env.SMTP_HOST &&
+      env.SMTP_FROM &&
+      product.vendor.owner
+    ) {
+      sendProductApprovedEmail(product.vendor.owner.email, {
+        vendorName:
+          `${product.vendor.owner.firstName || ""} ${product.vendor.owner.lastName || ""}`.trim() ||
+          undefined,
+        productName: product.name,
+        productDescription: product.description || undefined,
+        productPrice: product.priceMinor
+          ? `PKR ${(product.priceMinor / 100).toFixed(2)}`
+          : undefined,
+        productCategory: product.category?.name || undefined,
+        productStock: product.stock,
+        url: `${baseUrl}/vendor/products/${product.id}`,
+      }).catch(() => {
+        // Email failure should not block the review.
+      });
+    }
     return normalizeProduct(await tx.product.findUnique({ where: { id } }));
   });
 }

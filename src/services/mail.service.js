@@ -7,6 +7,8 @@ import {
   resetPassword,
   verifyEmail,
   welcome,
+  vendorOnboarding,
+  productApproved,
 } from "../emails/templates.js";
 
 export const mailReady = () => Boolean(env.SMTP_HOST && env.SMTP_FROM);
@@ -99,5 +101,60 @@ export async function sendAccountCreatedEmail(
   await deliver(email, {
     ...accountCreated({ name, email, temporaryPassword, url, role }),
     entityId: `account-created:${email}`,
+  });
+}
+
+export async function sendVendorOnboardingEmail(
+  email,
+  {
+    name = "",
+    password = "",
+    shopName = "",
+    businessType = "",
+    categories = [],
+    city = "",
+    zone = "",
+    url = "",
+  } = {},
+) {
+  await deliver(email, {
+    ...vendorOnboarding({
+      name,
+      email,
+      password,
+      shopName,
+      businessType,
+      categories,
+      city,
+      zone,
+      url,
+    }),
+    entityId: `vendor-onboarding:${email}`,
+  });
+}
+
+export async function sendProductApprovedEmail(
+  email,
+  {
+    vendorName = "",
+    productName = "",
+    productDescription = "",
+    productPrice = "",
+    productCategory = "",
+    productStock,
+    url = "",
+  } = {},
+) {
+  await deliver(email, {
+    ...productApproved({
+      vendorName,
+      productName,
+      productDescription,
+      productPrice,
+      productCategory,
+      productStock,
+      url,
+    }),
+    entityId: `product-approved:${email}`,
   });
 }
