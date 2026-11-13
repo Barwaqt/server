@@ -493,9 +493,11 @@ No pagination or separate hierarchy endpoint. Nullable parentSlug describes the 
 
 **Body:** None.
 
-**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone}`.
+**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one.
 
 Only APPROVED, active products from APPROVED vendors are returned; default sorting is newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`.
+
+`stock` is the exact on-hand count. It is returned for cart limits and availability checks, but customer-facing surfaces (product cards, product details, cart) present it only as in stock or out of stock — the count is never shown to shoppers.
 
 ### GET /api/v1/catalog/products/:id
 
@@ -503,7 +505,7 @@ Only APPROVED, active products from APPROVED vendors are returned; default sorti
 
 **Body:** None.
 
-**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone}`, and up to 50 newest reviews `{rating,comment,createdAt}`.
+**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
 
 id is product UUID. Pending, rejected or inactive products, and products from suspended vendors, return 404.
 
@@ -960,6 +962,7 @@ Requires the full homepage `content` object and the current positive integer `ve
   "lastName": "Ahmed",
   "name": "Gulberg Market",
   "slug": "gulberg-market",
+  "logo": "https://example.com/gulberg-market.png",
   "description": "Local groceries",
   "city": "Lahore",
   "zone": "Gulberg",
@@ -980,7 +983,7 @@ Requires the full homepage `content` object and the current positive integer `ve
 
 **Success:** 201; `data: Vendor` (not a session).
 
-Required: email, password, phone, firstName, name, slug, city, zone, address, at least one category (`categoryIds` or `categoryId`), and bankDetails. Optional: lastName text, description max 5,000, businessType (defaults to primary category name or "Retail"), commissionBps (0–10,000), and categoryCommissions object mapping category UUID to rate in basis points. Categories without an explicit override inherit their category default rate. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. The owner account is created email-verified, so it can sign in immediately without the customer verification flow. Owner signs in using assigned credentials. No public vendor registration.
+Required: email, password, phone, firstName, name, slug, city, zone, address, at least one category (`categoryIds` or `categoryId`), and bankDetails. Optional: lastName text, description max 5,000, businessType (defaults to primary category name or "Retail"), logo (nullable; HTTPS URL or single-leading-slash internal path, max 2,000 characters), commissionBps (0–10,000), and categoryCommissions object mapping category UUID to rate in basis points. Categories without an explicit override inherit their category default rate. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. The owner account is created email-verified, so it can sign in immediately without the customer verification flow. Owner signs in using assigned credentials. No public vendor registration.
 
 ### GET /api/v1/admin/vendors
 
@@ -1008,7 +1011,7 @@ id is vendor UUID. Unlike the public `/catalog/vendors/:id`, this returns suspen
 
 **Access:** ADMIN.
 
-All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset links and verification codes. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Optional categoryId assigns a category and adopts its commission. Optional bankDetails replaces the payout account using the creation rules. Categorized vendors cannot override commissionBps; change the rate under Categories. Legacy vendors without an assigned category retain their rate until assigned, and can still use commissionBps (integer 0–10,000). Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters.
+All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset links and verification codes. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Optional categoryId assigns a category and adopts its commission. Optional bankDetails replaces the payout account using the creation rules. Categorized vendors cannot override commissionBps; change the rate under Categories. Legacy vendors without an assigned category retain their rate until assigned, and can still use commissionBps (integer 0–10,000). Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters. Logo is the image shown beside the vendor name in the catalog and on product pages: an HTTPS URL or a single-leading-slash internal path, max 2,000 characters; send `null` (or an empty string) to remove it.
 
 **Example JSON body:**
 
@@ -1016,6 +1019,7 @@ All fields are optional; provide at least one. Owner fields are nested under `ow
 {
   "name": "Gulberg Market",
   "slug": "gulberg-market",
+  "logo": "https://example.com/gulberg-market.png",
   "businessType": "Grocery",
   "description": "Local groceries",
   "city": "Lahore",
@@ -1340,7 +1344,7 @@ These are scalar response fields, not additional writable fields. Relations appe
 
 | Record | Scalar fields |
 |---|---|
-| Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `categoryId: String?`, `commissionBps: Int`, `bankDetails: Json`, `createdAt: DateTime` |
+| Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `logo: String?`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `categoryId: String?`, `commissionBps: Int`, `bankDetails: Json`, `createdAt: DateTime` |
 | Category | `id: String`, `name: String`, `slug: String`, `commissionBps: Int` |
 | Product | `id: String`, `vendorId: String`, `categoryId: String`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `reviewStatus: PENDING | APPROVED | REJECTED`, `rejectionReason: String?`, `reviewedAt: DateTime?`, `reviewedById: String?`, `reviewVersion: Int`, `images: String[]`, `attributes: Json`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | Address | `id: String`, `userId: String`, `kind: String`, `firstName: String`, `lastName: String`, `phone: String`, `city: String`, `zone: String`, `street: String`, `building: String`, `apartment: String`, `directions: String`, `latitude: Float?`, `longitude: Float?`, `createdAt: DateTime` |
@@ -1428,13 +1432,13 @@ curl -X POST 'https://api.barwaqt.com/api/v1/orders/checkout' \
 
 **Query:** page (default 1), limit (default 20, max 100), search (vendor name contains), city, zone (case-insensitive exact match). String filters max 100.
 
-**Success:** 200; `data: {items, total, page, limit}`. Items have `{id,name,slug,description,businessType,city,zone}`. Only APPROVED vendors, sorted by name; owner/bank/commission fields are never included.
+**Success:** 200; `data: {items, total, page, limit}`. Items have `{id,name,slug,logo,description,businessType,city,zone}` (`logo` nullable). Only APPROVED vendors, sorted by name; owner/bank/commission fields are never included.
 
 ### GET /api/v1/catalog/vendors/:vendorId
 
 **Access:** Public. **Body:** None. The path value is the vendor UUID **or** its slug.
 
-**Success:** 200; `data: {id,name,slug,description,businessType,city,zone}`. Missing/suspended vendor returns 404. Fetch its products using `/catalog/products?vendorId=<id>`.
+**Success:** 200; `data: {id,name,slug,logo,description,businessType,city,zone}` (`logo` nullable). Missing/suspended vendor returns 404. Fetch its products using `/catalog/products?vendorId=<id>`.
 
 ### POST /api/v1/orders/quote
 
