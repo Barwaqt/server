@@ -12,8 +12,35 @@ import {
 
 import { env } from "../config/env.js";
 
+// Express delivery only makes sense with an ETA, and disabling it must not
+// leave a stale promise behind for the storefront to show.
+function applyDeliveryFields(fields, current = {}) {
+  if (
+    fields.expressDelivery === undefined &&
+    fields.expressEtaMinutes === undefined &&
+    fields.standardDeliveryDays === undefined
+  )
+    return;
+  const express =
+    fields.expressDelivery !== undefined
+      ? fields.expressDelivery
+      : !!current.expressDelivery;
+  const eta =
+    fields.expressEtaMinutes !== undefined
+      ? fields.expressEtaMinutes
+      : (current.expressEtaMinutes ?? null);
+  assert(
+    !express || (Number.isInteger(eta) && eta > 0),
+    422,
+    "Express delivery needs a delivery time in minutes",
+  );
+  fields.expressDelivery = express;
+  fields.expressEtaMinutes = express ? eta : null;
+}
+
 export async function createVendor(actor, input) {
   const { email, password, phone, firstName, lastName, ...vendor } = input;
+  applyDeliveryFields(vendor);
   const passwordHash = await bcrypt.hash(password, 12);
   const categoryIds = [
     ...new Set(
@@ -299,6 +326,7 @@ export async function updateVendor(actor, id, input) {
       include: { owner: true },
     });
     assert(current, 404, "Vendor not found");
+    applyDeliveryFields(fields, current);
     const currentCategoryIds = categoryIdsOf(current);
     const categoryIds = fields.categoryIds
       ? [...new Set(fields.categoryIds)]

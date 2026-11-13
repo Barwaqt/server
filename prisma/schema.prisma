@@ -96,6 +96,11 @@ model Vendor {
  commissionBps Int @default(1000)
  categoryCommissions Json @default("{}")
  bankDetails Json @default("{}")
+ // Delivery options offered to customers: express (with an ETA in minutes)
+ // and standard (within 1-7 days). Admin sets them when onboarding the vendor.
+ expressDelivery Boolean @default(false)
+ expressEtaMinutes Int?
+ standardDeliveryDays Int @default(7)
  createdAt DateTime @default(now())
  products Product[]
  orders VendorOrder[]
@@ -213,6 +218,10 @@ model Order {
  totalMinor Int
  couponId String?
  coupon Coupon? @relation(fields:[couponId],references:[id])
+ // Delivery option the customer chose at checkout (EXPRESS or STANDARD) and
+ // the promised ETA in minutes, snapshotted so vendor edits never rewrite history.
+ deliveryOption String @default("STANDARD")
+ deliveryEtaMinutes Int?
  // WSPAN: customer had cancelled >=2 shipments before this order.
  // Such orders are routed to the separate WSPAN section in admin/vendor.
  isWspan Boolean @default(false)
@@ -231,6 +240,8 @@ model VendorOrder {
  vendorId String
  vendor Vendor @relation(fields:[vendorId],references:[id])
  status OrderStatus @default(NEW)
+ deliveryOption String @default("STANDARD")
+ deliveryEtaMinutes Int?
  subtotalMinor Int
  discountMinor Int
  deliveryMinor Int

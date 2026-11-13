@@ -114,7 +114,16 @@ export async function products(q) {
       include: {
         category: true,
         vendor: {
-          select: { id: true, name: true, logo: true, city: true, zone: true },
+          select: {
+            id: true,
+            name: true,
+            logo: true,
+            city: true,
+            zone: true,
+            expressDelivery: true,
+            expressEtaMinutes: true,
+            standardDeliveryDays: true,
+          },
         },
       },
       orderBy:
@@ -141,7 +150,16 @@ export async function product(id) {
     include: {
       category: true,
       vendor: {
-        select: { id: true, name: true, logo: true, city: true, zone: true },
+        select: {
+          id: true,
+          name: true,
+          logo: true,
+          city: true,
+          zone: true,
+          expressDelivery: true,
+          expressEtaMinutes: true,
+          standardDeliveryDays: true,
+        },
       },
       reviews: {
         take: 50,
@@ -208,6 +226,9 @@ const publicVendor = {
   businessType: true,
   city: true,
   zone: true,
+  expressDelivery: true,
+  expressEtaMinutes: true,
+  standardDeliveryDays: true,
 };
 export async function vendors(q) {
   const where = {

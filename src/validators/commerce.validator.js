@@ -82,6 +82,9 @@ export const vendor = z
       .regex(/^[a-z0-9-]+$/)
       .max(180),
     logo: imageUrl.nullable().optional(),
+    expressDelivery: z.boolean().optional(),
+    expressEtaMinutes: z.number().int().min(15).max(1440).nullable().optional(),
+    standardDeliveryDays: z.number().int().min(1).max(7).optional(),
     businessType: text.default("Retail"),
     description: z.string().max(5000).optional(),
     city: text,
@@ -134,6 +137,7 @@ export const checkout = z
   .object({
     addressId: id,
     deliverySlotId: id.optional(),
+    deliveryOption: z.enum(["EXPRESS", "STANDARD"]).default("STANDARD"),
     productIds: z.array(id).min(1).max(100).optional(),
     couponCode: z.string().max(30).optional(),
     paymentMethod: z

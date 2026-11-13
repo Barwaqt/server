@@ -11,6 +11,10 @@ import { orderInclude, sanitizeOrder } from "../models/order.model.js";
 import { allocateOrderNumber } from "../utils/order-number.js";
 import { pagination } from "../validators/common.validator.js";
 import { searchLocations, getPlaceDetails } from "./maps.service.js";
+import {
+  resolveDeliveryOption,
+  vendorEtaMinutes,
+} from "../utils/delivery-options.js";
 const ended = ["DELIVERED", "CANCELLED", "RETURNED"];
 export const WSPAN_THRESHOLD = 2;
 // Orders from customers who have cancelled >= WSPAN_THRESHOLD shipments are
@@ -168,7 +172,12 @@ async function prepareCheckout(tx, user, input, reserve = false) {
   }
   const deliveryFee = await deliveryFeeMinor(tx);
   const fees = allocate(deliveryFee, subtotals);
+  const delivery = resolveDeliveryOption(
+    groups.map((items) => items[0].product.vendor),
+    input.deliveryOption,
+  );
   return {
+    delivery,
     deliverySlot,
     address,
     groups,
@@ -201,6 +210,10 @@ export async function quote(user, input) {
       ],
       addressId: p.address.id,
       deliverySlot: p.deliverySlot,
+      deliveryOption: p.delivery.option,
+      deliveryEtaMinutes: p.delivery.etaMinutes,
+      deliveryLabel: p.delivery.label,
+      deliveryOptions: p.delivery.options,
       subtotalMinor: p.subtotal,
       discountMinor: p.discount,
       deliveryMinor: p.deliveryFee,
@@ -208,6 +221,11 @@ export async function quote(user, input) {
       vendorOrders: p.groups.map((items, i) => ({
         vendorId: items[0].product.vendorId,
         vendorName: items[0].product.vendor.name,
+        deliveryOption: p.delivery.option,
+        deliveryEtaMinutes: vendorEtaMinutes(
+          items[0].product.vendor,
+          p.delivery.option,
+        ),
         subtotalMinor: p.subtotals[i],
         discountMinor: p.discounts[i],
         deliveryMinor: p.fees[i],
@@ -260,6 +278,7 @@ export async function checkout(user, input, key) {
           return sanitizeOrder(previous);
         }
         const {
+          delivery,
           deliverySlot,
           address,
           groups,
@@ -279,6 +298,8 @@ export async function checkout(user, input, key) {
             id: await allocateOrderNumber(tx, reserved),
             customerId: user.id,
             paymentMethod: input.paymentMethod,
+            deliveryOption: delivery.option,
+            deliveryEtaMinutes: delivery.etaMinutes,
             idempotencyKey: key,
             requestHash,
             address: snapshot,
@@ -327,6 +348,8 @@ export async function checkout(user, input, key) {
               id: await allocateOrderNumber(tx, reserved),
               orderId: parent.id,
               vendorId: vendor.id,
+              deliveryOption: delivery.option,
+              deliveryEtaMinutes: vendorEtaMinutes(vendor, delivery.option),
               subtotalMinor: subtotals[i],
               discountMinor: discounts[i],
               deliveryMinor: fees[i],
