@@ -11,7 +11,6 @@ import {
 } from "../services/mail.service.js";
 
 import { env } from "../config/env.js";
-import { baseUrl } from "../config/app.js";
 
 export async function createVendor(actor, input) {
   const { email, password, phone, firstName, lastName, ...vendor } = input;
@@ -86,7 +85,7 @@ export async function createVendor(actor, input) {
         categories: categoryNames,
         city: result.city,
         zone: result.zone,
-        url: baseUrl,
+        url: new URL("/", env.VENDOR_WEB_URL).toString(),
       }).catch(() => {
         // Email failure should not block vendor creation.
       });
@@ -516,7 +515,7 @@ export async function reviewProduct(actor, id, input) {
           : undefined,
         productCategory: product.category?.name || undefined,
         productStock: product.stock,
-        url: `${baseUrl}/vendor/products/${product.id}`,
+        url: new URL(`/product/${product.id}`, env.WEB_URL).toString(),
       }).catch(() => {
         // Email failure should not block the review.
       });

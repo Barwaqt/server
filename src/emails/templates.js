@@ -218,7 +218,7 @@ export function productApproved({
           : "Your product is now live for customers to browse and order.",
       ],
       action: url
-        ? { label: "View product in your dashboard", url }
+        ? { label: "View product on Barwaqt", url }
         : undefined,
       details: [
         { label: "Product name", value: productName || "" },
