@@ -444,7 +444,7 @@ export async function reviewProduct(actor, id, input) {
   return transaction(async (tx) => {
     const product = await tx.product.findUnique({
       where: { id },
-      include: { vendor: { owner: true } },
+      include: { category: true, vendor: { include: { owner: true } } },
     });
     assert(product, 404, "Product not found");
     assert(
