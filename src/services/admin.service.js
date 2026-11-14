@@ -78,7 +78,9 @@ export async function createVendor(actor, input) {
         (id) => categories.find((c) => c.id === id)?.name || "",
       );
       sendVendorOnboardingEmail(owner.email, {
-        name: `${owner.firstName || ""} ${owner.lastName || ``}`.trim() || undefined,
+        name:
+          `${owner.firstName || ""} ${owner.lastName || ``}`.trim() ||
+          undefined,
         email: owner.email,
         password,
         shopName: result.name,
@@ -217,17 +219,20 @@ export async function products(q) {
   };
 }
 export async function updateProduct(actor, id, input) {
+  // Variants are managed by the vendor's product form, not the admin console.
+  const fields = { ...input };
+  delete fields.variants;
   return transaction(async (tx) => {
     const owned = await tx.product.findUnique({ where: { id } });
     assert(owned, 404, "Product not found");
-    applyProductDeliveryFields(input, owned);
+    applyProductDeliveryFields(fields, owned);
     const result = await tx.product.update({
       where: { id },
       data: {
-        ...input,
-        ...reviewReset(owned, input),
+        ...fields,
+        ...reviewReset(owned, fields),
         reviewVersion: { increment: 1 },
-        ...(input.categoryId && input.categoryId !== owned.categoryId
+        ...(fields.categoryId && fields.categoryId !== owned.categoryId
           ? { catalogCategories: { set: [] } }
           : {}),
       },
@@ -237,7 +242,7 @@ export async function updateProduct(actor, id, input) {
         actorId: actor.id,
         action: "PRODUCT_UPDATED",
         entityId: id,
-        metadata: input,
+        metadata: fields,
       },
     });
     return result;

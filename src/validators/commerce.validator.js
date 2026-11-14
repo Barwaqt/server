@@ -33,6 +33,14 @@ export const addressFromLocation = z
     directions: z.string().max(500).default(""),
   })
   .strict();
+export const productVariant = z
+  .object({
+    id: id.optional(),
+    name: z.string().trim().min(1).max(120),
+    priceMinor: minor.positive(),
+    stock: z.number().int().min(0).max(1000000),
+  })
+  .strict();
 export const product = z
   .object({
     name: text,
@@ -54,6 +62,7 @@ export const product = z
       .max(12)
       .default([]),
     attributes: z.record(z.string().max(50), z.string().max(500)).default({}),
+    variants: z.array(productVariant).max(50).optional(),
     expressDelivery: z.boolean().optional(),
     expressEtaMinutes: z.number().int().min(15).max(1440).nullable().optional(),
     standardDeliveryDays: z.number().int().min(1).max(7).optional(),
@@ -92,7 +101,9 @@ export const vendor = z
     address: text,
     categoryId: id.optional(),
     categoryIds: vendorCategoryIds.optional(),
-    categoryCommissions: z.record(id, z.number().int().min(0).max(10000)).optional(),
+    categoryCommissions: z
+      .record(id, z.number().int().min(0).max(10000))
+      .optional(),
     commissionBps: z.number().int().min(0).max(10000).optional(),
     bankDetails: vendorPayout,
   })
@@ -169,5 +180,8 @@ export const action = z
   .strict();
 export const assign = z.object({ riderId: id }).strict();
 export const quantity = z
-  .object({ quantity: z.number().int().min(0).max(99) })
+  .object({
+    quantity: z.number().int().min(0).max(99),
+    variantId: id.nullable().optional(),
+  })
   .strict();

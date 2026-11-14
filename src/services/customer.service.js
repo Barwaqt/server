@@ -72,9 +72,10 @@ export const cart = (user) =>
           },
         },
       },
+      variant: true,
     },
   });
-export async function updateCart(user, productId, quantity) {
+export async function updateCart(user, productId, { quantity, variantId }) {
   if (!quantity)
     return db.cartItem.deleteMany({ where: { userId: user.id, productId } });
   const product = await db.product.findFirst({
@@ -86,11 +87,25 @@ export async function updateCart(user, productId, quantity) {
     },
   });
   assert(product, 404, "Product not found");
-  assert(product.stock >= quantity, 409, "Insufficient stock");
+  const variants = await db.productVariant.findMany({ where: { productId } });
+  assert(
+    !variants.length || variantId,
+    422,
+    "Choose a variant for this product",
+  );
+  const variant = variantId
+    ? variants.find((item) => item.id === variantId)
+    : null;
+  assert(!variantId || variant, 404, "Variant not found");
+  assert(
+    (variant ? variant.stock : product.stock) >= quantity,
+    409,
+    "Insufficient stock",
+  );
   return db.cartItem.upsert({
     where: { userId_productId: { userId: user.id, productId } },
-    create: { userId: user.id, productId, quantity },
-    update: { quantity },
+    create: { userId: user.id, productId, quantity, variantId: variant?.id },
+    update: { quantity, variantId: variant?.id ?? null },
   });
 }
 export const wishlist = (user) =>

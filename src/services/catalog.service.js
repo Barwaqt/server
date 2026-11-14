@@ -22,6 +22,49 @@ export function normalizeProduct(p) {
     images: normalizeImages(p.images),
   };
 }
+const variantInclude = { variants: { orderBy: { createdAt: "asc" } } };
+function assertVariantNames(variants) {
+  const names = variants.map((variant) => variant.name.trim().toLowerCase());
+  assert(
+    new Set(names).size === names.length,
+    422,
+    "Variant names must be unique",
+  );
+}
+// Keep the listing price and stock in step with its variants so cards and
+// filters stay accurate. Variants without stock still count towards the price.
+function variantTotals(variants) {
+  if (!variants.length) return {};
+  return {
+    priceMinor: Math.min(...variants.map((variant) => variant.priceMinor)),
+    stock: variants.reduce((sum, variant) => sum + variant.stock, 0),
+  };
+}
+async function syncVariants(tx, productId, variants) {
+  assertVariantNames(variants);
+  const kept = variants
+    .filter((variant) => variant.id)
+    .map((variant) => variant.id);
+  await tx.productVariant.deleteMany({
+    where: { productId, ...(kept.length ? { id: { notIn: kept } } : {}) },
+  });
+  for (const variant of variants) {
+    const data = {
+      name: variant.name.trim(),
+      priceMinor: variant.priceMinor,
+      stock: variant.stock,
+    };
+    if (variant.id) {
+      const updated = await tx.productVariant.updateMany({
+        where: { id: variant.id, productId },
+        data,
+      });
+      assert(updated.count, 404, "Variant not found");
+    } else {
+      await tx.productVariant.create({ data: { ...data, productId } });
+    }
+  }
+}
 export async function categoryList() {
   const rows = await db.category.findMany({
     orderBy: { name: "asc" },
@@ -42,7 +85,7 @@ export async function categoryList() {
   }));
 }
 export async function categoriesFiltered(input) {
-  const ids = input.ids ? input.ids.split(',').filter(Boolean) : null;
+  const ids = input.ids ? input.ids.split(",").filter(Boolean) : null;
   const rows = await db.category.findMany({
     where: ids ? { id: { in: ids } } : undefined,
     orderBy: { name: "asc" },
@@ -123,6 +166,7 @@ export async function products(q) {
             zone: true,
           },
         },
+        ...variantInclude,
       },
       orderBy:
         q.sort === "price-asc"
@@ -135,7 +179,12 @@ export async function products(q) {
     }),
     db.product.count({ where }),
   ]);
-  return { items: items.map(normalizeProduct), total, page: q.page, limit: q.limit };
+  return {
+    items: items.map(normalizeProduct),
+    total,
+    page: q.page,
+    limit: q.limit,
+  };
 }
 export async function product(id) {
   const result = await db.product.findFirst({
@@ -161,6 +210,7 @@ export async function product(id) {
         orderBy: { createdAt: "desc" },
         select: { rating: true, comment: true, createdAt: true },
       },
+      ...variantInclude,
     },
   });
   assert(result, 404, "Product not found");
@@ -177,38 +227,58 @@ export async function vendorProducts(user, q) {
       ...(q.categoryId ? { categoryId: q.categoryId } : {}),
     },
     ...pagination(q),
+    include: variantInclude,
     orderBy: { createdAt: "desc" },
   });
   return items.map(normalizeProduct);
 }
 export async function saveProduct(user, id, input) {
+  const { variants, ...fields } = input;
   const data = {
-    ...input,
-    ...(input.images ? { images: normalizeImages(input.images) } : {}),
+    ...fields,
+    ...(fields.images ? { images: normalizeImages(fields.images) } : {}),
   };
   if (!id) {
     applyProductDeliveryFields(data);
-    const created = await db.product.create({
-      data: { ...data, vendorId: user.vendor.id, reviewStatus: "PENDING" },
+    return transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: { ...data, vendorId: user.vendor.id, reviewStatus: "PENDING" },
+      });
+      if (variants?.length) {
+        await syncVariants(tx, created.id, variants);
+        await tx.product.update({
+          where: { id: created.id },
+          data: variantTotals(variants),
+        });
+      }
+      return normalizeProduct(
+        await tx.product.findUnique({
+          where: { id: created.id },
+          include: variantInclude,
+        }),
+      );
     });
-    return normalizeProduct(created);
   }
   return transaction(async (tx) => {
     const owned = await tx.product.findFirst({
       where: { id, vendorId: user.vendor.id },
+      include: variantInclude,
     });
     assert(owned, 404, "Product not found");
     applyProductDeliveryFields(data, owned);
+    if (variants) await syncVariants(tx, id, variants);
     const updated = await tx.product.update({
       where: { id },
       data: {
         ...data,
-        ...reviewReset(owned, data),
+        ...(variants ? variantTotals(variants) : {}),
+        ...reviewReset(owned, { ...data, ...(variants ? { variants } : {}) }),
         reviewVersion: { increment: 1 },
         ...(data.categoryId && data.categoryId !== owned.categoryId
           ? { catalogCategories: { set: [] } }
           : {}),
       },
+      include: variantInclude,
     });
     return normalizeProduct(updated);
   });

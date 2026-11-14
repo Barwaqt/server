@@ -44,7 +44,7 @@ export const cart = async (req, res) =>
   res.json({ data: await s.cart(req.user) });
 export const updateCart = async (req, res) =>
   res.json({
-    data: await s.updateCart(req.user, req.params.id, req.input.body.quantity),
+    data: await s.updateCart(req.user, req.params.id, req.input.body),
   });
 export const wishlist = async (req, res) =>
   res.json({ data: await s.wishlist(req.user) });

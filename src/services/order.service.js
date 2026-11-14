@@ -26,7 +26,10 @@ export async function cancelledShipments(tx, customerId) {
 }
 async function wspaanFlag(tx, customerId) {
   const cancelled = await cancelledShipments(tx, customerId);
-  return { cancelledShipments: cancelled, isWspan: cancelled >= WSPAN_THRESHOLD };
+  return {
+    cancelledShipments: cancelled,
+    isWspan: cancelled >= WSPAN_THRESHOLD,
+  };
 }
 async function notify(tx, userId, title, body) {
   await tx.notification.create({ data: { userId, title, body } });
@@ -75,6 +78,7 @@ async function pinAddressBeforeCheckout(user, input) {
   });
   if (address) await ensureAddressPin(db, address);
 }
+const unitPrice = (item) => item.variant?.priceMinor ?? item.product.priceMinor;
 async function prepareCheckout(tx, user, input, reserve = false) {
   const address = await tx.address.findFirst({
     where: { id: input.addressId, userId: user.id },
@@ -86,8 +90,13 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       ...(input.productIds ? { productId: { in: input.productIds } } : {}),
     },
     include: {
+      variant: true,
       product: {
-        include: { vendor: true, catalogCategories: { select: { id: true } } },
+        include: {
+          vendor: true,
+          catalogCategories: { select: { id: true } },
+          variants: { select: { id: true } },
+        },
       },
     },
   });
@@ -115,8 +124,21 @@ async function prepareCheckout(tx, user, input, reserve = false) {
       409,
       `${p.name} is unavailable`,
     );
-    assert(p.stock >= item.quantity, 409, `${p.name} has insufficient stock`);
+    assert(
+      !p.variants.length || item.variant,
+      409,
+      `${p.name}: choose an available variant`,
+    );
+    const available = item.variant ? item.variant.stock : p.stock;
+    assert(available >= item.quantity, 409, `${p.name} has insufficient stock`);
     if (reserve) {
+      if (item.variant) {
+        const variantStock = await tx.productVariant.updateMany({
+          where: { id: item.variant.id, stock: { gte: item.quantity } },
+          data: { stock: { decrement: item.quantity } },
+        });
+        assert(variantStock.count, 409, `${p.name} has insufficient stock`);
+      }
       const stock = await tx.product.updateMany({
         where: {
           id: p.id,
@@ -134,7 +156,7 @@ async function prepareCheckout(tx, user, input, reserve = false) {
   }
   const groups = [...grouped.values()];
   const subtotals = groups.map((items) =>
-    items.reduce((s, i) => s + i.product.priceMinor * i.quantity, 0),
+    items.reduce((s, i) => s + unitPrice(i) * i.quantity, 0),
   );
   const subtotal = subtotals.reduce((a, b) => a + b, 0);
   assert(subtotal <= 1000000000, 422, "Order exceeds the maximum value");
@@ -232,9 +254,11 @@ export async function quote(user, input) {
         totalMinor: p.subtotals[i] - p.discounts[i] + p.fees[i],
         items: items.map((item) => ({
           productId: item.productId,
+          variantId: item.variantId,
+          variantName: item.variant?.name ?? null,
           name: item.product.name,
           quantity: item.quantity,
-          unitPriceMinor: item.product.priceMinor,
+          unitPriceMinor: unitPrice(item),
           images: item.product.images,
         })),
       })),
@@ -331,14 +355,12 @@ export async function checkout(user, input, key) {
             typeof vendor.categoryCommissions === "object"
               ? vendor.categoryCommissions
               : {};
-          const itemTotals = items.map(
-            (it) => it.product.priceMinor * it.quantity,
-          );
+          const itemTotals = items.map((it) => unitPrice(it) * it.quantity);
           const itemNets = allocate(net, itemTotals);
           const commission = itemNets.reduce((sum, itemNet, j) => {
             const prod = items[j].product;
             const rate =
-              (prod.categoryId && commissions[prod.categoryId] !== undefined)
+              prod.categoryId && commissions[prod.categoryId] !== undefined
                 ? commissions[prod.categoryId]
                 : (vendor.commissionBps ?? 1000);
             return sum + percentage(itemNet, rate);
@@ -362,8 +384,10 @@ export async function checkout(user, input, key) {
               items: {
                 create: items.map((item) => ({
                   productId: item.productId,
+                  variantId: item.variantId,
+                  variantName: item.variant?.name ?? null,
                   name: item.product.name,
-                  unitPriceMinor: item.product.priceMinor,
+                  unitPriceMinor: unitPrice(item),
                   quantity: item.quantity,
                   image: item.product.images[0],
                 })),
@@ -704,11 +728,17 @@ export async function transition(actor, id, input) {
     if (ownVendor)
       assert(actor.vendor.status === "APPROVED", 403, "Vendor suspended");
     if (["CANCELLED", "RETURNED"].includes(status))
-      for (const item of order.items)
+      for (const item of order.items) {
         await tx.product.update({
           where: { id: item.productId },
           data: { stock: { increment: item.quantity } },
         });
+        if (item.variantId)
+          await tx.productVariant.updateMany({
+            where: { id: item.variantId },
+            data: { stock: { increment: item.quantity } },
+          });
+      }
     const updated = await tx.vendorOrder.update({
       where: { id },
       data: {

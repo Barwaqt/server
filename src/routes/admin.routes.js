@@ -52,15 +52,13 @@ adminRouter.post(
   rateLimit({ windowMs: 3600000, limit: 20 }),
   validate(marketing.campaignInput),
   async (req, res) =>
-    res
-      .status(202)
-      .json({
-        data: await marketing.createCampaign(
-          req.user,
-          req.input.body,
-          req.get("Idempotency-Key"),
-        ),
-      }),
+    res.status(202).json({
+      data: await marketing.createCampaign(
+        req.user,
+        req.input.body,
+        req.get("Idempotency-Key"),
+      ),
+    }),
 );
 adminRouter.get("/support", async (req, res) =>
   res.json({ data: await getSupport() }),
@@ -92,7 +90,11 @@ adminRouter.post(
   validate(productReview),
   c.reviewProduct,
 );
-adminRouter.patch("/products/:id", validate(productUpdate), c.updateProduct);
+adminRouter.patch(
+  "/products/:id",
+  validate(productUpdate, "body", { partial: true }),
+  c.updateProduct,
+);
 adminRouter.get("/staff", validate(staffQuery, "query"), c.staff);
 adminRouter.patch("/staff/:id", validate(staffUpdate), c.updateStaff);
 adminRouter.post("/staff", validate(staff), c.createStaff);

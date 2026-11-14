@@ -47,5 +47,9 @@ vendorRouter.get(
   c.vendorProducts,
 );
 vendorRouter.post("/products", validate(product), c.create);
-vendorRouter.patch("/products/:id", validate(product.partial()), c.update);
+vendorRouter.patch(
+  "/products/:id",
+  validate(product.partial(), "body", { partial: true }),
+  c.update,
+);
 vendorRouter.get("/settlements", finance.settlements);

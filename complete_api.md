@@ -2,7 +2,7 @@
 
 This document describes the endpoints implemented in `src/app.js` and `src/routes`, including service-level requirements. It describes the Node API directly; the Next.js authentication proxy has a different cookie-based interface.
 
-Last updated: 2026-11-08.
+Last updated: 2026-11-14.
 
 **Release scope:** This documents the checked-out source, not a verification of the live deployment. Product moderation requires migration `20261025120000_product_moderation` and the corresponding backend release. See [rollout instructions](docs/PRODUCT_REVIEW.md). The moderation contract below is authoritative when using older Postman templates.
 
@@ -493,7 +493,7 @@ No pagination or separate hierarchy endpoint. Nullable parentSlug describes the 
 
 **Body:** None.
 
-**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one. Delivery fields are set per product: the item advertises express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days.
+**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one, plus `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock}`; empty when the product has none). Cards show the lowest variant price and the summed variant stock. Delivery fields are set per product: the item advertises express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days.
 
 Only APPROVED, active products from APPROVED vendors are returned; default sorting is newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`.
 
@@ -505,7 +505,7 @@ Only APPROVED, active products from APPROVED vendors are returned; default sorti
 
 **Body:** None.
 
-**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
+**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock}`; empty when the product has none), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
 
 id is product UUID. Pending, rejected or inactive products, and products from suspended vendors, return 404.
 
@@ -613,7 +613,7 @@ Only deletes an owned address. Missing/non-owned IDs also return 204.
 
 **Body:** None.
 
-**Success:** 200; `data: CartItem[]`, each including product and product.vendor `{id,name,status,city,zone}`.
+**Success:** 200; `data: CartItem[]`, each including product, product.vendor `{id,name,status,city,zone}` and the selected `variant` (`null` when the product has no variants). A cart row stores at most one variant per product; choosing another variant replaces the row's variant.
 
 No totals envelope; checkout calculates authoritative prices and totals.
 
@@ -625,13 +625,14 @@ No totals envelope; checkout calculates authoritative prices and totals.
 
 ```json
 {
-  "quantity": 2
+  "quantity": 2,
+  "variantId": "22222222-2222-4222-8222-222222222222"
 }
 ```
 
-**Success:** 200; `data: {userId,productId,quantity}`; quantity 0 returns `data: {count}`.
+**Success:** 200; `data: {userId,productId,quantity,variantId}`; quantity 0 returns `data: {count}`.
 
-id is PRODUCT UUID, not cart item ID. quantity required integer 0–99. Sets absolute quantity, not an increment. Zero removes the item. Positive quantities require active product, approved vendor and sufficient stock. Cart does not reserve stock.
+id is PRODUCT UUID, not cart item ID. quantity required integer 0–99. Sets absolute quantity, not an increment. Zero removes the item. variantId is optional for products without variants and required when the product has variants; it must belong to that product. Positive quantities require active product, approved vendor and sufficient stock of the selected variant (or of the product when it has no variants). Cart does not reserve stock.
 
 ### GET /api/v1/customer/wishlist
 
@@ -697,7 +698,7 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 
 **Success:** 201; `data: Order` including `vendorOrders`, their items and events, plus `isWspan: Boolean`, `cancelledShipments: Int`, `deliveryOption` (`EXPRESS` or `STANDARD`) and `deliveryEtaMinutes`. Each `VendorOrder` snapshots the same option with that vendor's own promised ETA. Replaying the same request also returns 201.
 
-Delivery option: `deliveryOption` is optional and defaults to `STANDARD`. `EXPRESS` is only accepted when every product in the purchase offers express delivery; otherwise the request returns 422 (`Express delivery is not available for every product in this order`). Each child order's ETA is the slowest product in that vendor's group. The platform delivery fee does not change with the option. The chosen option and ETA are snapshotted on the parent order and on each child order, so later product changes never rewrite placed orders.
+Delivery option: `deliveryOption` is optional and defaults to `STANDARD`. `EXPRESS` is only accepted when every product in the purchase offers express delivery; otherwise the request returns 422 (`Express delivery is not available for every product in this order`). Each child order's ETA is the slowest product in that vendor's group. The platform delivery fee does not change with the option. The chosen option and ETA are snapshotted on the parent order and on each child order, so later product changes never rewrite placed orders. Each item snapshots `variantId` and `variantName` (both null for a product without variants) alongside the variant's `unitPriceMinor`, so later variant edits or deletion never rewrite placed orders.
 
 WSPAN flag: at checkout the server counts the customer's cancelled child orders (`VendorOrder.status = CANCELLED`). If the count is 2 or more, the new parent order is flagged `isWspan: true` with `cancelledShipments` set to that count, routing it to the separate WSPAN section (see `GET /api/v1/orders` `section` filter); otherwise `isWspan: false`. The flag is decided server-side from cancellation history at checkout time — the request payload is unchanged, and no client can set it. Existing orders keep their flag; cancelling an order after checkout does not re-flag it.
 
@@ -713,7 +714,7 @@ Required header: `Idempotency-Key: checkout-20261012-001` (8–100 letters, digi
 
 **Success:** 200; `data: Order[]` for CUSTOMER, `data: VendorOrder[]` for all other roles.
 
-Customer sees own parent orders with children/items/events. Vendor sees own children; rider sees assigned children; admin/dispatch/finance see all children. Non-customer rows include items, events, and order `{address,currency,paymentMethod,isWspan,cancelledShipments}`. Customer parent orders include `isWspan` and `cancelledShipments` at the top level. Newest first. No total-count envelope. WSPAN orders use the same accept/reject/ready actions as regular orders (`POST /api/v1/orders/:id/actions`); only the `section` filter and the flag/badge differ.
+Customer sees own parent orders with children/items/events. Vendor sees own children; rider sees assigned children; admin/dispatch/finance see all children. Non-customer rows include items, events, and order `{address,currency,paymentMethod,isWspan,cancelledShipments}`. Every order item includes `{id,productId,variantId,variantName,name,image,quantity,unitPriceMinor}`; `variantId` is null after the variant is deleted and `variantName` retains the snapshot. Customer parent orders include `isWspan` and `cancelledShipments` at the top level. Newest first. No total-count envelope. WSPAN orders use the same accept/reject/ready actions as regular orders (`POST /api/v1/orders/:id/actions`); only the `section` filter and the flag/badge differ.
 
 ### GET /api/v1/orders/:id
 
@@ -826,7 +827,7 @@ products is a count. orders is `[{status,_count}]`. delivered is `{_sum:{subtota
 
 **Body:** None.
 
-**Success:** 200; `data: Product[]`, newest first, including inactive owned products.
+**Success:** 200; `data: Product[]`, newest first, including inactive owned products. Each product includes its `variants` (oldest first) and current review fields.
 
 No total-count wrapper. All review states are included unless reviewStatus is supplied. Use reviewStatus, not status, to filter moderation.
 
@@ -852,6 +853,18 @@ No total-count wrapper. All review states are included unless reviewStatus is su
     "weight": "5kg",
     "brand": "Example"
   },
+  "variants": [
+    {
+      "name": "Size: 5kg",
+      "priceMinor": 125000,
+      "stock": 30
+    },
+    {
+      "name": "Size: 10kg",
+      "priceMinor": 235000,
+      "stock": 20
+    }
+  ],
   "expressDelivery": true,
   "expressEtaMinutes": 120,
   "standardDeliveryDays": 3,
@@ -861,7 +874,7 @@ No total-count wrapper. All review states are included unless reviewStatus is su
 
 **Success:** 201; `data: Product`.
 
-Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), expressDelivery boolean (default false), expressEtaMinutes nullable integer 15–1440 (required while expressDelivery is true; turning express off clears it), standardDeliveryDays integer 1–7 (default 7), active boolean (default true). Delivery options belong to each product: express is only offered at checkout when every product in the basket supports it, and the ETA shown is the slowest product's. Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
+Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. When `variants` is supplied, those two values are derived by the server instead: priceMinor becomes the lowest variant price and stock the sum of variant stock. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), variants up to 50 rows `{id?, name, priceMinor, stock}` where name is 1–120 characters and unique per product (case-insensitive), priceMinor is positive, stock is 0–1,000,000, expressDelivery boolean (default false), expressEtaMinutes nullable integer 15–1440 (required while expressDelivery is true; turning express off clears it), standardDeliveryDays integer 1–7 (default 7), active boolean (default true). Delivery options belong to each product: express is only offered at checkout when every product in the basket supports it, and the ETA shown is the slowest product's. Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
 
 ### PATCH /api/v1/vendor/products/:id
 
@@ -879,7 +892,7 @@ Required: name text, slug, categoryId UUID of existing category, positive priceM
 
 **Success:** 200; `data: Product`.
 
-id must belong to caller’s vendor. Same fields/rules as product creation, all optional. Supplied stock is absolute; supplied images/attributes replace those values. Set active false to unpublish; no product DELETE route. Sending delivery fields follows the same rules as creation; setting `expressDelivery: false` clears `expressEtaMinutes`. Content or delivery changes reset approval as described in Product publication rules below.
+id must belong to caller’s vendor. Same fields/rules as product creation, all optional. Supplied stock is absolute; supplied images/attributes/variants replace those values. Variant rows without an `id` are created, rows with an owned `id` are updated, and omitted ids are deleted. When variants are supplied, priceMinor and stock are derived from them as on creation. Set active false to unpublish; no product DELETE route. Sending delivery fields follows the same rules as creation; setting `expressDelivery: false` clears `expressEtaMinutes`. Content or delivery changes reset approval as described in Product publication rules below.
 
 ### GET /api/v1/vendor/settlements
 
@@ -911,7 +924,7 @@ Own settlements only, newest first, max 100; no pagination query.
 
 **Body:** None.
 
-**Success:** 200; the customer summary above plus `orders: {items, total, page, limit}`. Each order contains `{id, createdAt, totalMinor, paymentMethod, currency, vendorOrders}`; each vendor order contains `{id, status, totalMinor, vendor:{name}, items:[{id,productId,name,image,quantity,unitPriceMinor}]}`. Missing customers and non-CUSTOMER ids return 404.
+**Success:** 200; the customer summary above plus `orders: {items, total, page, limit}`. Each order contains `{id, createdAt, totalMinor, paymentMethod, currency, vendorOrders}`; each vendor order contains `{id, status, totalMinor, vendor:{name}, items:[{id,productId,variantId,variantName,name,image,quantity,unitPriceMinor}]}`. Missing customers and non-CUSTOMER ids return 404.
 
 ### GET /api/v1/admin/homepage
 
@@ -1381,7 +1394,7 @@ PublicUser contains only `id, email, phone, role, firstName, lastName, profile, 
 
 ## Product publication rules for mobile clients
 
-Changing name, slug, categoryId, description, priceMinor, images or attributes via either vendor or admin PATCH resets reviewStatus to PENDING and clears rejectionReason/reviewedAt/reviewedById. Supplying any of these content fields for a REJECTED product resubmits it even if unchanged. Stock/active-only updates preserve review outcome. Every product update increments reviewVersion. active=true never bypasses approval.
+Changing name, slug, categoryId, description, priceMinor, images, attributes or variants via either vendor or admin PATCH resets reviewStatus to PENDING and clears rejectionReason/reviewedAt/reviewedById. Supplying any of these content fields for a REJECTED product resubmits it even if unchanged. Stock/active-only updates preserve review outcome. Every product update increments reviewVersion. active=true never bypasses approval.
 
 Vendor screens should display reviewStatus and rejectionReason for rejected listings. After resubmitting, refresh and show PENDING until an administrator decides. Product approval and vendor account approval are separate.
 
@@ -1652,7 +1665,7 @@ RIDERS may upload only IMAGE; DOCUMENT uploads require ADMIN or an approved VEND
 {"active":false}
 ```
 
-Accepts a subset of the vendor product creation fields (name, slug, categoryId, description, priceMinor, stock, images, attributes, active), with the same validation. Changes are audited. Content edits reset moderation to PENDING; active=true does not approve. Success: 200 Product.
+Accepts a subset of the vendor product creation fields (name, slug, categoryId, description, priceMinor, stock, images, attributes, active), with the same validation; `variants` is vendor-managed and is ignored by the admin console. Changes are audited. Content edits reset moderation to PENDING; active=true does not approve. Success: 200 Product.
 
 ### GET /api/v1/admin/staff
 
