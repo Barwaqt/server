@@ -5,3 +5,16 @@ export function resolveDeliveryFee(content, fallback) {
   const value = content?.deliveryFeeMinor;
   return Number.isInteger(value) && value >= 0 ? value : fallback;
 }
+
+// Standard uses the original deliveryFeeMinor field. Express falls back to the
+// standard fee until an admin saves a separate express price.
+export function resolveDeliveryFees(content, fallback) {
+  const standard = resolveDeliveryFee(content, fallback);
+  return {
+    STANDARD: standard,
+    EXPRESS: resolveDeliveryFee(
+      { deliveryFeeMinor: content?.expressDeliveryFeeMinor },
+      standard,
+    ),
+  };
+}

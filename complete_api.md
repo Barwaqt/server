@@ -698,7 +698,7 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 
 **Success:** 201; `data: Order` including `vendorOrders`, their items and events, plus `isWspan: Boolean`, `cancelledShipments: Int`, `deliveryOption` (`EXPRESS` or `STANDARD`) and `deliveryEtaMinutes`. Each `VendorOrder` snapshots the same option with that vendor's own promised ETA. Replaying the same request also returns 201.
 
-Delivery option: `deliveryOption` is optional and defaults to `STANDARD`. `EXPRESS` is only accepted when every product in the purchase offers express delivery; otherwise the request returns 422 (`Express delivery is not available for every product in this order`). Each child order's ETA is the slowest product in that vendor's group. The platform delivery fee does not change with the option. The chosen option and ETA are snapshotted on the parent order and on each child order, so later product changes never rewrite placed orders. Each item snapshots `variantId` and `variantName` (both null for a product without variants) alongside the variant's `unitPriceMinor`, so later variant edits or deletion never rewrite placed orders.
+Delivery option: `deliveryOption` is optional and defaults to `STANDARD`. `EXPRESS` is only accepted when every product in the purchase offers express delivery; otherwise the request returns 422 (`Express delivery is not available for every product in this order`). Each child order's ETA is the slowest product in that vendor's group. The delivery fee is the admin-configured fee for the chosen option: Standard uses `deliveryFeeMinor`, Express uses `expressDeliveryFeeMinor`. The chosen option and ETA are snapshotted on the parent order and on each child order, so later product changes never rewrite placed orders. Each item snapshots `variantId` and `variantName` (both null for a product without variants) alongside the variant's `unitPriceMinor`, so later variant edits or deletion never rewrite placed orders.
 
 WSPAN flag: at checkout the server counts the customer's cancelled child orders (`VendorOrder.status = CANCELLED`). If the count is 2 or more, the new parent order is flagged `isWspan: true` with `cancelledShipments` set to that count, routing it to the separate WSPAN section (see `GET /api/v1/orders` `section` filter); otherwise `isWspan: false`. The flag is decided server-side from cancellation history at checkout time — the request payload is unchanged, and no client can set it. Existing orders keep their flag; cancelling an order after checkout does not re-flag it.
 
@@ -1479,7 +1479,7 @@ Same payload validation as checkout: addressId required; productIds optionally s
 
 **Success:** 200; `data: {currency:"PKR", paymentMethods:["COD"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, deliveryOption, deliveryEtaMinutes, deliveryLabel, deliveryOptions, vendorOrders, isWspan, cancelledShipments, section}` where `section` is `"wspan"` or `"regular"` — the section this checkout would be flagged into (see checkout).
 
-`deliveryOptions` is the list this basket may choose from: `[{option:"EXPRESS", etaMinutes, label}]` only when every product in the basket offers express, plus `{option:"STANDARD", etaMinutes, label}`. ETAs are the slowest product's for the order, and `label` is ready-to-display text such as `Express delivery within 2 hours`. `deliveryOption` echoes the requested option (defaults `STANDARD`) with its `deliveryEtaMinutes`/`deliveryLabel`; requesting `EXPRESS` for a basket that does not support it returns 422. The fee is the same for both options.
+`deliveryOptions` is the list this basket may choose from: `[{option:"EXPRESS", etaMinutes, label, feeMinor}]` only when every product in the basket offers express, plus `{option:"STANDARD", etaMinutes, label, feeMinor}`. ETAs are the slowest product's for the order, and `label` is ready-to-display text such as `Express delivery within 2 hours`. `feeMinor` is the admin-configured charge for that speed. `deliveryOption` echoes the requested option (defaults `STANDARD`) with its `deliveryEtaMinutes`/`deliveryLabel`; requesting `EXPRESS` for a basket that does not support it returns 422. `deliveryMinor` is the fee for the selected option.
 
 Each quote vendorOrders entry contains `{vendorId,vendorName,deliveryOption,deliveryEtaMinutes,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; `deliveryEtaMinutes` there is that vendor group's own promise (the slowest of its products). Items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID or delivery proof.
 
@@ -1783,20 +1783,20 @@ All fields are required strings; use an empty string to remove a contact. Phone 
 ADMIN only. No body. Returns the platform settings:
 
 ```json
-{"deliveryFeeMinor":15000}
+{"deliveryFeeMinor":15000,"expressDeliveryFeeMinor":30000}
 ```
 
-`deliveryFeeMinor` is the delivery fee charged per order, in minor units (PKR paisa). Until an admin saves a value, it falls back to the server `DELIVERY_FEE_MINOR` configuration (default 15000).
+`deliveryFeeMinor` is the Standard delivery fee charged per order, in minor units (PKR paisa), and `expressDeliveryFeeMinor` is the Express fee. Until an admin saves a value, each falls back to the server `DELIVERY_FEE_MINOR` configuration (default 15000); Express falls back to the saved Standard fee when it has no value of its own.
 
 ### PUT /api/v1/admin/settings
 
 ADMIN only. Replaces the settings and records SETTINGS_UPDATED in the audit log. Example body:
 
 ```json
-{"deliveryFeeMinor":15000}
+{"deliveryFeeMinor":15000,"expressDeliveryFeeMinor":30000}
 ```
 
-`deliveryFeeMinor` is required, a non-negative integer up to 1,000,000 (PKR 0–10,000); set 0 for free delivery. Quote and checkout charge this fee once per order and split it across the order's vendors by subtotal. Success 200 `{data:{deliveryFeeMinor}}`; invalid input 422; wrong role 403.
+`deliveryFeeMinor` is required and `expressDeliveryFeeMinor` is optional; both are non-negative integers up to 1,000,000 (PKR 0–10,000). Set 0 for free delivery. Quote and checkout charge the selected speed's fee once per order and split it across the order's vendors by subtotal. Success 200 `{data:{deliveryFeeMinor,expressDeliveryFeeMinor}}`; invalid input 422; wrong role 403.
 
 ### POST /api/v1/catalog/searches
 

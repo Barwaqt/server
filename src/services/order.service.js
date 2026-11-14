@@ -3,7 +3,7 @@ import { descendantCategoryIds } from "../utils/category-tree.js";
 import { createPayment, syncPayment } from "./payment.service.js";
 import { reserveSlot, releaseCancelledSlot } from "./delivery.service.js";
 import { db, transaction } from "../config/database.js";
-import { deliveryFeeMinor } from "./settings.service.js";
+import { deliveryFeesMinor } from "./settings.service.js";
 import { assert, ApiError } from "../utils/error.js";
 import { hashToken } from "../utils/security.js";
 import { allocate, percentage } from "../utils/money.js";
@@ -192,14 +192,21 @@ async function prepareCheckout(tx, user, input, reserve = false) {
         data: { used: { increment: 1 } },
       });
   }
-  const deliveryFee = await deliveryFeeMinor(tx);
-  const fees = allocate(deliveryFee, subtotals);
+  const deliveryFees = await deliveryFeesMinor(tx);
   const delivery = resolveDeliveryOption(
     groups.flatMap((items) => items.map((item) => item.product)),
     input.deliveryOption,
   );
+  const deliveryFee = deliveryFees[delivery.option];
+  const fees = allocate(deliveryFee, subtotals);
   return {
-    delivery,
+    delivery: {
+      ...delivery,
+      options: delivery.options.map((choice) => ({
+        ...choice,
+        feeMinor: deliveryFees[choice.option],
+      })),
+    },
     deliverySlot,
     address,
     groups,

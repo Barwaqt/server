@@ -64,15 +64,22 @@ test("admins set the delivery fee and quote prices the order with it", async () 
   );
   assert.deepEqual(await ok(call("get", "/admin/settings", admin)), {
     deliveryFeeMinor: env.DELIVERY_FEE_MINOR,
+    expressDeliveryFeeMinor: env.DELIVERY_FEE_MINOR,
   });
   assert.equal(
     (await call("put", "/admin/settings", admin, { deliveryFeeMinor: -1 }))
       .status,
     422,
   );
-  await ok(call("put", "/admin/settings", admin, { deliveryFeeMinor: 25000 }));
+  await ok(
+    call("put", "/admin/settings", admin, {
+      deliveryFeeMinor: 25000,
+      expressDeliveryFeeMinor: 35000,
+    }),
+  );
   assert.deepEqual(await ok(call("get", "/admin/settings", admin)), {
     deliveryFeeMinor: 25000,
+    expressDeliveryFeeMinor: 35000,
   });
 
   const vendor = await db.vendor.create({
@@ -118,6 +125,7 @@ test("admins set the delivery fee and quote prices the order with it", async () 
     call("post", "/orders/quote", buyer, { addressId: address.id }),
   );
   assert.equal(quote.deliveryMinor, 25000);
+  assert.equal(quote.deliveryOptions[0].feeMinor, 25000);
   assert.equal(quote.totalMinor, 10000 + 25000);
   assert.equal(
     (await db.auditLog.count({ where: { action: "SETTINGS_UPDATED" } })) > 0,

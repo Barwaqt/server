@@ -1,5 +1,5 @@
 import { settingsInput } from "../validators/settings.validator.js";
-import { resolveDeliveryFee } from "../utils/delivery-fee.js";
+import { resolveDeliveryFees } from "../utils/delivery-fee.js";
 import { db, transaction } from "../config/database.js";
 import { env } from "../config/env.js";
 export { settingsInput };
@@ -8,25 +8,34 @@ export async function getSettings() {
   const row = await db.storefrontPage.findUnique({
     where: { key: SETTINGS_KEY },
   });
+  const fees = resolveDeliveryFees(row?.content, env.DELIVERY_FEE_MINOR);
   return {
-    deliveryFeeMinor: resolveDeliveryFee(row?.content, env.DELIVERY_FEE_MINOR),
+    deliveryFeeMinor: fees.STANDARD,
+    expressDeliveryFeeMinor: fees.EXPRESS,
   };
 }
-// Reads the configured delivery fee, accepting either the shared client or a
+// Reads the configured fees, accepting either the shared client or a
 // transaction so quote and checkout price an order the same way.
-export async function deliveryFeeMinor(client) {
+export async function deliveryFeesMinor(client) {
   const row = await client.storefrontPage.findUnique({
     where: { key: SETTINGS_KEY },
     select: { content: true },
   });
-  return resolveDeliveryFee(row?.content, env.DELIVERY_FEE_MINOR);
+  return resolveDeliveryFees(row?.content, env.DELIVERY_FEE_MINOR);
 }
 export async function saveSettings(user, input) {
   return transaction(async (tx) => {
-    const row = await tx.storefrontPage.upsert({
+    const existing = await tx.storefrontPage.findUnique({
       where: { key: SETTINGS_KEY },
-      create: { key: SETTINGS_KEY, content: input },
-      update: { content: input, version: { increment: 1 } },
+      select: { content: true },
+    });
+    // Express is optional so older clients that only send the standard fee do
+    // not wipe a previously saved express price.
+    const content = { ...existing?.content, ...input };
+    await tx.storefrontPage.upsert({
+      where: { key: SETTINGS_KEY },
+      create: { key: SETTINGS_KEY, content },
+      update: { content, version: { increment: 1 } },
     });
     await tx.auditLog.create({
       data: {
@@ -35,6 +44,10 @@ export async function saveSettings(user, input) {
         entityId: SETTINGS_KEY,
       },
     });
-    return row.content;
+    const fees = resolveDeliveryFees(content, env.DELIVERY_FEE_MINOR);
+    return {
+      deliveryFeeMinor: fees.STANDARD,
+      expressDeliveryFeeMinor: fees.EXPRESS,
+    };
   });
 }

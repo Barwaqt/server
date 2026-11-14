@@ -37,6 +37,12 @@ test("stores advertise delivery options and customers choose one at checkout", a
     },
   });
   const at = (await login(admin.email)).accessToken;
+  await ok(
+    call("put", "/admin/settings", at, {
+      deliveryFeeMinor: 20000,
+      expressDeliveryFeeMinor: 30000,
+    }),
+  );
   const category = await ok(
     call("post", "/admin/categories", at, {
       name: `Delivery ${suffix}`,
@@ -146,6 +152,8 @@ test("stores advertise delivery options and customers choose one at checkout", a
     ["STANDARD"],
   );
   assert.equal(mixed.deliveryEtaMinutes, 7 * 1440);
+  assert.equal(mixed.deliveryMinor, 20000);
+  assert.equal(mixed.deliveryOptions[0].feeMinor, 20000);
   assert.equal(
     mixed.deliveryLabel,
     "Standard delivery within 7 days",
@@ -167,6 +175,11 @@ test("stores advertise delivery options and customers choose one at checkout", a
     [120, 3 * 1440],
   );
   assert.equal(quote.deliveryOption, "EXPRESS");
+  assert.equal(quote.deliveryMinor, 30000);
+  assert.deepEqual(
+    quote.deliveryOptions.map((entry) => entry.feeMinor),
+    [30000, 20000],
+  );
   assert.equal(quote.vendorOrders[0].deliveryEtaMinutes, 120);
 
   const order = await ok(
@@ -180,10 +193,11 @@ test("stores advertise delivery options and customers choose one at checkout", a
   assert.equal(order.deliveryEtaMinutes, 120);
   assert.equal(order.vendorOrders[0].deliveryOption, "EXPRESS");
   assert.equal(order.vendorOrders[0].deliveryEtaMinutes, 120);
+  assert.equal(order.deliveryMinor, 30000);
   assert.equal(
     order.vendorOrders[0].deliveryMinor,
     order.deliveryMinor,
-    "the delivery fee does not change with the option",
+    "the express fee is split across the order's vendors",
   );
 
   // Express needs a promise, and the standard window stays within a week.

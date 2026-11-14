@@ -197,6 +197,7 @@ export async function products(q) {
       ...pagination(q),
       include: {
         category: true,
+        variants: { orderBy: { createdAt: "asc" } },
         vendor: {
           select: {
             id: true,
