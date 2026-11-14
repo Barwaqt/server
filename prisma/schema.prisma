@@ -95,7 +95,8 @@ model Vendor {
  categoryIds String[] @default([])
  commissionBps Int @default(1000)
  categoryCommissions Json @default("{}")
- bankDetails Json @default("{}")  createdAt DateTime @default(now())
+ bankDetails Json @default("{}")
+ createdAt DateTime @default(now())
  products Product[]
  orders VendorOrder[]
  settlements Settlement[]
@@ -134,7 +135,8 @@ model Product {
  description String @default("")
  priceMinor Int
  stock Int @default(0)
- active Boolean @default(true)  images String[]
+ active Boolean @default(true)
+  images String[]
   attributes Json @default("{}")
   // Delivery options offered for this product: express (with an ETA in
   // minutes) and standard (within 1-7 days). The vendor sets them per product.
