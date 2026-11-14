@@ -22,41 +22,68 @@ export function etaLabel(option, minutes) {
   return `${option === EXPRESS ? "Express" : "Standard"} delivery within ${durationLabel(option, minutes)}`;
 }
 
-// ETA promised by one vendor for the chosen option, in minutes.
-export function vendorEtaMinutes(vendor, option) {
-  if (option === EXPRESS) return vendor.expressEtaMinutes;
-  return standardDays(vendor) * 1440;
+// ETA promised for a set of products on the chosen option, in minutes. The
+// slowest product wins so the promise holds for everything in the basket.
+export function productsEtaMinutes(products, option) {
+  if (option === EXPRESS)
+    return Math.max(
+      ...products.map((product) => Number(product.expressEtaMinutes) || 0),
+    );
+  return Math.max(...products.map(standardDays)) * 1440;
 }
 
-export function standardDays(vendor) {
-  const days = Number(vendor.standardDeliveryDays);
+// Express must carry an ETA; turning it off clears any stale promise.
+export function applyProductDeliveryFields(fields, current = {}) {
+  if (
+    fields.expressDelivery === undefined &&
+    fields.expressEtaMinutes === undefined &&
+    fields.standardDeliveryDays === undefined
+  )
+    return;
+  const express =
+    fields.expressDelivery !== undefined
+      ? fields.expressDelivery
+      : !!current.expressDelivery;
+  const eta =
+    fields.expressEtaMinutes !== undefined
+      ? fields.expressEtaMinutes
+      : (current.expressEtaMinutes ?? null);
+  if (express && !(Number.isInteger(eta) && eta > 0))
+    throw new ApiError(
+      422,
+      "Express delivery needs a delivery time in minutes",
+    );
+  fields.expressDelivery = express;
+  fields.expressEtaMinutes = express ? eta : null;
+}
+
+export function standardDays(product) {
+  const days = Number(product.standardDeliveryDays);
   if (!Number.isFinite(days)) return MAX_STANDARD_DAYS;
   return Math.min(MAX_STANDARD_DAYS, Math.max(1, Math.round(days)));
 }
 
-export function vendorsOfferExpress(vendors) {
-  return vendors.every(
-    (vendor) => vendor.expressDelivery && Number(vendor.expressEtaMinutes) > 0,
+export function productsOfferExpress(products) {
+  return products.every(
+    (product) =>
+      product.expressDelivery && Number(product.expressEtaMinutes) > 0,
   );
 }
 
-// Options offered for a basket: express only when every store in the basket
-// supports it, and always a standard option. ETAs are the slowest vendor's so
-// the promise holds for the whole order.
-export function deliveryChoices(vendors) {
+// Options offered for a basket: express only when every product supports it,
+// and always a standard option. ETAs are the slowest product's so the promise
+// holds for the whole order.
+export function deliveryChoices(products) {
   const options = [];
-  if (vendorsOfferExpress(vendors)) {
-    const minutes = Math.max(
-      ...vendors.map((vendor) => Number(vendor.expressEtaMinutes)),
-    );
+  if (productsOfferExpress(products)) {
+    const minutes = productsEtaMinutes(products, EXPRESS);
     options.push({
       option: EXPRESS,
       etaMinutes: minutes,
       label: etaLabel(EXPRESS, minutes),
     });
   }
-  const minutes =
-    Math.max(...vendors.map((vendor) => standardDays(vendor))) * 1440;
+  const minutes = productsEtaMinutes(products, STANDARD);
   options.push({
     option: STANDARD,
     etaMinutes: minutes,
@@ -65,13 +92,13 @@ export function deliveryChoices(vendors) {
   return options;
 }
 
-export function resolveDeliveryOption(vendors, requested = STANDARD) {
-  const options = deliveryChoices(vendors);
+export function resolveDeliveryOption(products, requested = STANDARD) {
+  const options = deliveryChoices(products);
   const chosen = options.find((entry) => entry.option === requested);
   if (!chosen)
     throw new ApiError(
       422,
-      "Express delivery is not available for every store in this order",
+      "Express delivery is not available for every product in this order",
     );
   return { ...chosen, options };
 }

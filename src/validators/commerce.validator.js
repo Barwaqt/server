@@ -54,6 +54,9 @@ export const product = z
       .max(12)
       .default([]),
     attributes: z.record(z.string().max(50), z.string().max(500)).default({}),
+    expressDelivery: z.boolean().optional(),
+    expressEtaMinutes: z.number().int().min(15).max(1440).nullable().optional(),
+    standardDeliveryDays: z.number().int().min(1).max(7).optional(),
     active: z.boolean().default(true),
   })
   .strict();
@@ -82,9 +85,6 @@ export const vendor = z
       .regex(/^[a-z0-9-]+$/)
       .max(180),
     logo: imageUrl.nullable().optional(),
-    expressDelivery: z.boolean().optional(),
-    expressEtaMinutes: z.number().int().min(15).max(1440).nullable().optional(),
-    standardDeliveryDays: z.number().int().min(1).max(7).optional(),
     businessType: text.default("Retail"),
     description: z.string().max(5000).optional(),
     city: text,

@@ -7,6 +7,9 @@ const reviewedFields = [
   "priceMinor",
   "images",
   "attributes",
+  "expressDelivery",
+  "expressEtaMinutes",
+  "standardDeliveryDays",
 ];
 export function reviewReset(product, input) {
   const submitted = reviewedFields.some((key) => Object.hasOwn(input, key));

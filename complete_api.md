@@ -493,7 +493,7 @@ No pagination or separate hierarchy endpoint. Nullable parentSlug describes the 
 
 **Body:** None.
 
-**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone,logo,expressDelivery,expressEtaMinutes,standardDeliveryDays}`; `logo` is null when the vendor has not uploaded one, and the delivery fields advertise the store's promised options — express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days.
+**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one. Delivery fields are set per product: the item advertises express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days.
 
 Only APPROVED, active products from APPROVED vendors are returned; default sorting is newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`.
 
@@ -505,7 +505,7 @@ Only APPROVED, active products from APPROVED vendors are returned; default sorti
 
 **Body:** None.
 
-**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo,expressDelivery,expressEtaMinutes,standardDeliveryDays}` (`logo` nullable; delivery fields as in the listing), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
+**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
 
 id is product UUID. Pending, rejected or inactive products, and products from suspended vendors, return 404.
 
@@ -697,7 +697,7 @@ id is product UUID. Both fields required: rating integer 1–5, comment trimmed 
 
 **Success:** 201; `data: Order` including `vendorOrders`, their items and events, plus `isWspan: Boolean`, `cancelledShipments: Int`, `deliveryOption` (`EXPRESS` or `STANDARD`) and `deliveryEtaMinutes`. Each `VendorOrder` snapshots the same option with that vendor's own promised ETA. Replaying the same request also returns 201.
 
-Delivery option: `deliveryOption` is optional and defaults to `STANDARD`. `EXPRESS` is only accepted when every vendor in the purchase offers express delivery; otherwise the request returns 422 (`Express delivery is not available for every store in this order`). The platform delivery fee does not change with the option. The chosen option and ETA are snapshotted on the parent order and on each child order, so later vendor changes never rewrite placed orders.
+Delivery option: `deliveryOption` is optional and defaults to `STANDARD`. `EXPRESS` is only accepted when every product in the purchase offers express delivery; otherwise the request returns 422 (`Express delivery is not available for every product in this order`). Each child order's ETA is the slowest product in that vendor's group. The platform delivery fee does not change with the option. The chosen option and ETA are snapshotted on the parent order and on each child order, so later product changes never rewrite placed orders.
 
 WSPAN flag: at checkout the server counts the customer's cancelled child orders (`VendorOrder.status = CANCELLED`). If the count is 2 or more, the new parent order is flagged `isWspan: true` with `cancelledShipments` set to that count, routing it to the separate WSPAN section (see `GET /api/v1/orders` `section` filter); otherwise `isWspan: false`. The flag is decided server-side from cancellation history at checkout time — the request payload is unchanged, and no client can set it. Existing orders keep their flag; cancelling an order after checkout does not re-flag it.
 
@@ -852,13 +852,16 @@ No total-count wrapper. All review states are included unless reviewStatus is su
     "weight": "5kg",
     "brand": "Example"
   },
+  "expressDelivery": true,
+  "expressEtaMinutes": 120,
+  "standardDeliveryDays": 3,
   "active": true
 }
 ```
 
 **Success:** 201; `data: Product`.
 
-Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), active boolean (default true). Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
+Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), expressDelivery boolean (default false), expressEtaMinutes nullable integer 15–1440 (required while expressDelivery is true; turning express off clears it), standardDeliveryDays integer 1–7 (default 7), active boolean (default true). Delivery options belong to each product: express is only offered at checkout when every product in the basket supports it, and the ETA shown is the slowest product's. Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
 
 ### PATCH /api/v1/vendor/products/:id
 
@@ -876,7 +879,7 @@ Required: name text, slug, categoryId UUID of existing category, positive priceM
 
 **Success:** 200; `data: Product`.
 
-id must belong to caller’s vendor. Same fields/rules as product creation, all optional. Supplied stock is absolute; supplied images/attributes replace those values. Set active false to unpublish; no product DELETE route. Content changes reset approval as described in Product publication rules below.
+id must belong to caller’s vendor. Same fields/rules as product creation, all optional. Supplied stock is absolute; supplied images/attributes replace those values. Set active false to unpublish; no product DELETE route. Sending delivery fields follows the same rules as creation; setting `expressDelivery: false` clears `expressEtaMinutes`. Content or delivery changes reset approval as described in Product publication rules below.
 
 ### GET /api/v1/vendor/settlements
 
@@ -966,9 +969,6 @@ Requires the full homepage `content` object and the current positive integer `ve
   "name": "Gulberg Market",
   "slug": "gulberg-market",
   "logo": "https://example.com/gulberg-market.png",
-  "expressDelivery": true,
-  "expressEtaMinutes": 120,
-  "standardDeliveryDays": 7,
   "description": "Local groceries",
   "city": "Lahore",
   "zone": "Gulberg",
@@ -989,7 +989,7 @@ Requires the full homepage `content` object and the current positive integer `ve
 
 **Success:** 201; `data: Vendor` (not a session).
 
-Required: email, password, phone, firstName, name, slug, city, zone, address, at least one category (`categoryIds` or `categoryId`), and bankDetails. Optional: lastName text, description max 5,000, businessType (defaults to primary category name or "Retail"), logo (nullable; HTTPS URL or single-leading-slash internal path, max 2,000 characters), expressDelivery (boolean, default false), expressEtaMinutes (nullable integer 15–1440, required while expressDelivery is true), standardDeliveryDays (integer 1–7, default 7), commissionBps (0–10,000), and categoryCommissions object mapping category UUID to rate in basis points. Categories without an explicit override inherit their category default rate. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. The owner account is created email-verified, so it can sign in immediately without the customer verification flow. Owner signs in using assigned credentials. No public vendor registration.
+Required: email, password, phone, firstName, name, slug, city, zone, address, at least one category (`categoryIds` or `categoryId`), and bankDetails. Optional: lastName text, description max 5,000, businessType (defaults to primary category name or "Retail"), logo (nullable; HTTPS URL or single-leading-slash internal path, max 2,000 characters), commissionBps (0–10,000), and categoryCommissions object mapping category UUID to rate in basis points. Categories without an explicit override inherit their category default rate. bankDetails requires method BANK_TRANSFER/EASYPAISA/JAZZCASH, accountTitle (1–200 characters), accountNumber (5–100 characters, stored as text), and bankName for BANK_TRANSFER. Wallet provider names are normalized automatically. Creates owner role VENDOR and vendor status APPROVED. The owner account is created email-verified, so it can sign in immediately without the customer verification flow. Owner signs in using assigned credentials. No public vendor registration.
 
 ### GET /api/v1/admin/vendors
 
@@ -1017,7 +1017,7 @@ id is vendor UUID. Unlike the public `/catalog/vendors/:id`, this returns suspen
 
 **Access:** ADMIN.
 
-All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset links and verification codes. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Optional categoryId assigns a category and adopts its commission. Optional bankDetails replaces the payout account using the creation rules. Categorized vendors cannot override commissionBps; change the rate under Categories. Legacy vendors without an assigned category retain their rate until assigned, and can still use commissionBps (integer 0–10,000). Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters. Logo is the image shown beside the vendor name in the catalog and on product pages: an HTTPS URL or a single-leading-slash internal path, max 2,000 characters; send `null` (or an empty string) to remove it. Delivery options set what the storefront offers at checkout: expressDelivery turns the express option on, expressEtaMinutes is the promised express time in minutes (15–1440, required while express is on; turning express off clears it), and standardDeliveryDays is the standard promise (1–7, default 7). Express is only offered to a customer when every store in the basket supports it, and the ETA shown is the slowest store's.
+All fields are optional; provide at least one. Owner fields are nested under `owner`. Optional `owner.password` (12–72 characters) resets the password; omit it to keep the current password. Email or password changes revoke existing sessions and outstanding reset links and verification codes. Owner role and IDs cannot be changed. Duplicate email, phone or slug returns 409 and rolls back the entire update. Optional categoryId assigns a category and adopts its commission. Optional bankDetails replaces the payout account using the creation rules. Categorized vendors cannot override commissionBps; change the rate under Categories. Legacy vendors without an assigned category retain their rate until assigned, and can still use commissionBps (integer 0–10,000). Status is APPROVED or SUSPENDED. Name, address, city, zone, business type and first name are trimmed nonempty text up to 200 characters; last name may be empty. Description allows 5,000 characters. Slug uses lowercase letters, digits and hyphens, up to 180 characters. Logo is the image shown beside the vendor name in the catalog and on product pages: an HTTPS URL or a single-leading-slash internal path, max 2,000 characters; send `null` (or an empty string) to remove it. Delivery options are per product now: set them on each product with `POST`/`PATCH /api/v1/vendor/products`.
 
 **Example JSON body:**
 
@@ -1026,9 +1026,6 @@ All fields are optional; provide at least one. Owner fields are nested under `ow
   "name": "Gulberg Market",
   "slug": "gulberg-market",
   "logo": "https://example.com/gulberg-market.png",
-  "expressDelivery": true,
-  "expressEtaMinutes": 120,
-  "standardDeliveryDays": 5,
   "businessType": "Grocery",
   "description": "Local groceries",
   "city": "Lahore",
@@ -1353,9 +1350,9 @@ These are scalar response fields, not additional writable fields. Relations appe
 
 | Record | Scalar fields |
 |---|---|
-| Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `logo: String?`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `categoryId: String?`, `commissionBps: Int`, `bankDetails: Json`, `expressDelivery: Boolean`, `expressEtaMinutes: Int?`, `standardDeliveryDays: Int`, `createdAt: DateTime` |
+| Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `logo: String?`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `categoryId: String?`, `commissionBps: Int`, `bankDetails: Json`, `createdAt: DateTime` |
 | Category | `id: String`, `name: String`, `slug: String`, `commissionBps: Int` |
-| Product | `id: String`, `vendorId: String`, `categoryId: String`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `reviewStatus: PENDING | APPROVED | REJECTED`, `rejectionReason: String?`, `reviewedAt: DateTime?`, `reviewedById: String?`, `reviewVersion: Int`, `images: String[]`, `attributes: Json`, `createdAt: DateTime`, `updatedAt: DateTime` |
+| Product | `id: String`, `vendorId: String`, `categoryId: String`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `reviewStatus: PENDING | APPROVED | REJECTED`, `rejectionReason: String?`, `reviewedAt: DateTime?`, `reviewedById: String?`, `reviewVersion: Int`, `images: String[]`, `attributes: Json`, `expressDelivery: Boolean`, `expressEtaMinutes: Int?`, `standardDeliveryDays: Int`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | Address | `id: String`, `userId: String`, `kind: String`, `firstName: String`, `lastName: String`, `phone: String`, `city: String`, `zone: String`, `street: String`, `building: String`, `apartment: String`, `directions: String`, `latitude: Float?`, `longitude: Float?`, `createdAt: DateTime` |
 | CartItem | `userId: String`, `productId: String`, `quantity: Int` |
 | WishlistItem | `userId: String`, `productId: String` |
@@ -1441,13 +1438,13 @@ curl -X POST 'https://api.barwaqt.com/api/v1/orders/checkout' \
 
 **Query:** page (default 1), limit (default 20, max 100), search (vendor name contains), city, zone (case-insensitive exact match). String filters max 100.
 
-**Success:** 200; `data: {items, total, page, limit}`. Items have `{id,name,slug,logo,description,businessType,city,zone,expressDelivery,expressEtaMinutes,standardDeliveryDays}` (`logo` nullable). Only APPROVED vendors, sorted by name; owner/bank/commission fields are never included.
+**Success:** 200; `data: {items, total, page, limit}`. Items have `{id,name,slug,logo,description,businessType,city,zone}` (`logo` nullable). Only APPROVED vendors, sorted by name; owner/bank/commission fields are never included.
 
 ### GET /api/v1/catalog/vendors/:vendorId
 
 **Access:** Public. **Body:** None. The path value is the vendor UUID **or** its slug.
 
-**Success:** 200; `data: {id,name,slug,logo,description,businessType,city,zone,expressDelivery,expressEtaMinutes,standardDeliveryDays}` (`logo` nullable). Missing/suspended vendor returns 404. Fetch its products using `/catalog/products?vendorId=<id>`.
+**Success:** 200; `data: {id,name,slug,logo,description,businessType,city,zone}` (`logo` nullable). Missing/suspended vendor returns 404. Fetch its products using `/catalog/products?vendorId=<id>`.
 
 ### POST /api/v1/orders/quote
 
@@ -1469,9 +1466,9 @@ Same payload validation as checkout: addressId required; productIds optionally s
 
 **Success:** 200; `data: {currency:"PKR", paymentMethods:["COD"], addressId, subtotalMinor, discountMinor, deliveryMinor, totalMinor, deliveryOption, deliveryEtaMinutes, deliveryLabel, deliveryOptions, vendorOrders, isWspan, cancelledShipments, section}` where `section` is `"wspan"` or `"regular"` — the section this checkout would be flagged into (see checkout).
 
-`deliveryOptions` is the list this basket may choose from: `[{option:"EXPRESS", etaMinutes, label}]` only when every store in the basket offers express, plus `{option:"STANDARD", etaMinutes, label}`. ETAs are the slowest vendor's for the order, and `label` is ready-to-display text such as `Express delivery within 2 hours`. `deliveryOption` echoes the requested option (defaults `STANDARD`) with its `deliveryEtaMinutes`/`deliveryLabel`; requesting `EXPRESS` for a basket that does not support it returns 422. The fee is the same for both options.
+`deliveryOptions` is the list this basket may choose from: `[{option:"EXPRESS", etaMinutes, label}]` only when every product in the basket offers express, plus `{option:"STANDARD", etaMinutes, label}`. ETAs are the slowest product's for the order, and `label` is ready-to-display text such as `Express delivery within 2 hours`. `deliveryOption` echoes the requested option (defaults `STANDARD`) with its `deliveryEtaMinutes`/`deliveryLabel`; requesting `EXPRESS` for a basket that does not support it returns 422. The fee is the same for both options.
 
-Each quote vendorOrders entry contains `{vendorId,vendorName,deliveryOption,deliveryEtaMinutes,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; `deliveryEtaMinutes` there is that vendor's own promise. Items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID or delivery proof.
+Each quote vendorOrders entry contains `{vendorId,vendorName,deliveryOption,deliveryEtaMinutes,subtotalMinor,discountMinor,deliveryMinor,totalMinor,items}`; `deliveryEtaMinutes` there is that vendor group's own promise (the slowest of its products). Items contain `{productId,name,quantity,unitPriceMinor,images}`. Quote entries are NOT persisted orders and have no order ID or delivery proof.
 
 Validates the customer's current cart, owned address, stock, vendor approval and coupon without vendor city/zone restrictions. Same calculations as checkout; no stock reservation, coupon consumption, cart clearing or order creation. The quote is advisory, not a price/stock lock. Requote when inputs change; checkout revalidates atomically. Errors include 404 address, 422 empty cart/invalid coupon and 409 unavailable stock.
 
@@ -1483,7 +1480,7 @@ Validates the customer's current cart, owned address, stock, vendor approval and
 {"name":"Gulberg Market","description":"Fresh everyday groceries","address":"Main Boulevard, Building A"}
 ```
 
-At least one field required. name/address trimmed 1–200; description up to 5,000. All three optional individually. Other fields rejected, including status, commissionBps, ownerId, bankDetails, city, zone and the delivery options (admin sets those through `POST`/`PATCH /api/v1/admin/vendors`; read them from `GET /api/v1/vendor/profile`). Changes are audited; owner account email uses separate account administration, not this route.
+At least one field required. name/address trimmed 1–200; description up to 5,000. All three optional individually. Other fields rejected, including status, commissionBps, ownerId, bankDetails, city, zone and delivery options (delivery options are per product — set them through `POST`/`PATCH /api/v1/vendor/products`). Changes are audited; owner account email uses separate account administration, not this route.
 
 **Success:** 200; `data: Vendor`. Never accepts another vendor's ID; derives ownership from session.
 

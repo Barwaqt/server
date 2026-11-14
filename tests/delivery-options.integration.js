@@ -62,7 +62,6 @@ test("stores advertise delivery options and customers choose one at checkout", a
           accountTitle: "Test vendor",
           accountNumber: "03001234567",
         },
-        ...delivery,
       }),
     );
     row.token = (await login(email)).accessToken;
@@ -74,6 +73,7 @@ test("stores advertise delivery options and customers choose one at checkout", a
         priceMinor: 50000,
         stock: 5,
         images: ["/shop/item.png"],
+        ...delivery,
       }),
     );
     await ok(
@@ -90,17 +90,17 @@ test("stores advertise delivery options and customers choose one at checkout", a
     standardDeliveryDays: 3,
   });
   const slow = await vendor(2, { standardDeliveryDays: 7 });
-  assert.equal(fast.expressDelivery, true);
-  assert.equal(fast.expressEtaMinutes, 120);
-  assert.equal(fast.standardDeliveryDays, 3);
-  assert.equal(slow.expressDelivery, false);
+  assert.equal(fast.product.expressDelivery, true);
+  assert.equal(fast.product.expressEtaMinutes, 120);
+  assert.equal(fast.product.standardDeliveryDays, 3);
+  assert.equal(slow.product.expressDelivery, false);
 
   const published = await ok(
     call("get", `/catalog/products/${fast.product.id}`),
   );
-  assert.equal(published.vendor.expressDelivery, true);
-  assert.equal(published.vendor.expressEtaMinutes, 120);
-  assert.equal(published.vendor.standardDeliveryDays, 3);
+  assert.equal(published.expressDelivery, true);
+  assert.equal(published.expressEtaMinutes, 120);
+  assert.equal(published.standardDeliveryDays, 3);
 
   const customerEmail = `delivery-customer-${suffix}@test.local`;
   await ok(
@@ -125,7 +125,7 @@ test("stores advertise delivery options and customers choose one at checkout", a
       call("put", `/customer/cart/${row.product.id}`, ct, { quantity: 1 }),
     );
 
-  // A basket mixing express and non-express stores cannot ask for express.
+  // A basket mixing express and non-express products cannot ask for express.
   assert.equal(
     (
       await call("post", "/orders/quote", ct, {
@@ -152,7 +152,7 @@ test("stores advertise delivery options and customers choose one at checkout", a
     "the slowest store sets the promise for the whole order",
   );
 
-  // With only the express store in the basket, both options are offered.
+  // With only the express product in the basket, both options are offered.
   await ok(
     call("put", `/customer/cart/${slow.product.id}`, ct, { quantity: 0 }),
   );
@@ -189,7 +189,7 @@ test("stores advertise delivery options and customers choose one at checkout", a
   // Express needs a promise, and the standard window stays within a week.
   assert.equal(
     (
-      await call("patch", `/admin/vendors/${fast.id}`, at, {
+      await call("patch", `/vendor/products/${fast.product.id}`, fast.token, {
         expressDelivery: true,
         expressEtaMinutes: null,
       })
@@ -198,14 +198,16 @@ test("stores advertise delivery options and customers choose one at checkout", a
   );
   assert.equal(
     (
-      await call("patch", `/admin/vendors/${fast.id}`, at, {
+      await call("patch", `/vendor/products/${fast.product.id}`, fast.token, {
         standardDeliveryDays: 9,
       })
     ).status,
     422,
   );
   const standardOnly = await ok(
-    call("patch", `/admin/vendors/${fast.id}`, at, { expressDelivery: false }),
+    call("patch", `/vendor/products/${fast.product.id}`, fast.token, {
+      expressDelivery: false,
+    }),
   );
   assert.equal(standardOnly.expressDelivery, false);
   assert.equal(standardOnly.expressEtaMinutes, null);

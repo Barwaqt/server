@@ -7,17 +7,17 @@ import {
 } from "../src/utils/delivery-options.js";
 import { checkout } from "../src/validators/commerce.validator.js";
 
-const vendor = (overrides = {}) => ({
+const product = (overrides = {}) => ({
   expressDelivery: true,
   expressEtaMinutes: 120,
   standardDeliveryDays: 7,
   ...overrides,
 });
 
-test("standard delivery is always offered and uses the slowest vendor", () => {
+test("standard delivery is always offered and uses the slowest product", () => {
   const options = deliveryChoices([
-    vendor({ expressDelivery: false, standardDeliveryDays: 3 }),
-    vendor({ standardDeliveryDays: 7 }),
+    product({ expressDelivery: false, standardDeliveryDays: 3 }),
+    product({ standardDeliveryDays: 7 }),
   ]);
   assert.deepEqual(options, [
     {
@@ -28,10 +28,10 @@ test("standard delivery is always offered and uses the slowest vendor", () => {
   ]);
 });
 
-test("express is offered only when every vendor supports it", () => {
+test("express is offered only when every product supports it", () => {
   const options = deliveryChoices([
-    vendor({ expressEtaMinutes: 90 }),
-    vendor({ expressEtaMinutes: 240 }),
+    product({ expressEtaMinutes: 90 }),
+    product({ expressEtaMinutes: 240 }),
   ]);
   assert.deepEqual(
     options.map((entry) => entry.option),
@@ -45,7 +45,7 @@ test("requesting express for a mixed basket is rejected", () => {
   assert.throws(
     () =>
       resolveDeliveryOption(
-        [vendor(), vendor({ expressDelivery: false })],
+        [product(), product({ expressDelivery: false })],
         "EXPRESS",
       ),
     (error) => error.status === 422,
@@ -54,7 +54,9 @@ test("requesting express for a mixed basket is rejected", () => {
 
 test("express must be configured with an ETA", () => {
   assert.deepEqual(
-    deliveryChoices([vendor({ expressEtaMinutes: null })]).map((o) => o.option),
+    deliveryChoices([product({ expressEtaMinutes: null })]).map(
+      (o) => o.option,
+    ),
     ["STANDARD"],
   );
 });

@@ -12,8 +12,8 @@ import { allocateOrderNumber } from "../utils/order-number.js";
 import { pagination } from "../validators/common.validator.js";
 import { searchLocations, getPlaceDetails } from "./maps.service.js";
 import {
+  productsEtaMinutes,
   resolveDeliveryOption,
-  vendorEtaMinutes,
 } from "../utils/delivery-options.js";
 const ended = ["DELIVERED", "CANCELLED", "RETURNED"];
 export const WSPAN_THRESHOLD = 2;
@@ -173,7 +173,7 @@ async function prepareCheckout(tx, user, input, reserve = false) {
   const deliveryFee = await deliveryFeeMinor(tx);
   const fees = allocate(deliveryFee, subtotals);
   const delivery = resolveDeliveryOption(
-    groups.map((items) => items[0].product.vendor),
+    groups.flatMap((items) => items.map((item) => item.product)),
     input.deliveryOption,
   );
   return {
@@ -222,8 +222,8 @@ export async function quote(user, input) {
         vendorId: items[0].product.vendorId,
         vendorName: items[0].product.vendor.name,
         deliveryOption: p.delivery.option,
-        deliveryEtaMinutes: vendorEtaMinutes(
-          items[0].product.vendor,
+        deliveryEtaMinutes: productsEtaMinutes(
+          items.map((item) => item.product),
           p.delivery.option,
         ),
         subtotalMinor: p.subtotals[i],
@@ -349,7 +349,10 @@ export async function checkout(user, input, key) {
               orderId: parent.id,
               vendorId: vendor.id,
               deliveryOption: delivery.option,
-              deliveryEtaMinutes: vendorEtaMinutes(vendor, delivery.option),
+              deliveryEtaMinutes: productsEtaMinutes(
+                items.map((item) => item.product),
+                delivery.option,
+              ),
               subtotalMinor: subtotals[i],
               discountMinor: discounts[i],
               deliveryMinor: fees[i],

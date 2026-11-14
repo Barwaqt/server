@@ -52,9 +52,6 @@ export const vendorUpdate = z
       .max(180)
       .optional(),
     logo: imageUrl.nullable().optional(),
-    expressDelivery: z.boolean().optional(),
-    expressEtaMinutes: z.number().int().min(15).max(1440).nullable().optional(),
-    standardDeliveryDays: z.number().int().min(1).max(7).optional(),
     businessType: text.optional(),
     description: z.string().max(5000).optional(),
     city: text.optional(),

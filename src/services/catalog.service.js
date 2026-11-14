@@ -4,6 +4,7 @@ import { db, transaction } from "../config/database.js";
 import { pagination } from "../validators/common.validator.js";
 import { assert } from "../utils/error.js";
 import { publicApiUrl } from "../config/paths.js";
+import { applyProductDeliveryFields } from "../utils/delivery-options.js";
 
 export function normalizeImages(images) {
   if (!Array.isArray(images)) return [];
@@ -120,9 +121,6 @@ export async function products(q) {
             logo: true,
             city: true,
             zone: true,
-            expressDelivery: true,
-            expressEtaMinutes: true,
-            standardDeliveryDays: true,
           },
         },
       },
@@ -156,9 +154,6 @@ export async function product(id) {
           logo: true,
           city: true,
           zone: true,
-          expressDelivery: true,
-          expressEtaMinutes: true,
-          standardDeliveryDays: true,
         },
       },
       reviews: {
@@ -192,6 +187,7 @@ export async function saveProduct(user, id, input) {
     ...(input.images ? { images: normalizeImages(input.images) } : {}),
   };
   if (!id) {
+    applyProductDeliveryFields(data);
     const created = await db.product.create({
       data: { ...data, vendorId: user.vendor.id, reviewStatus: "PENDING" },
     });
@@ -202,6 +198,7 @@ export async function saveProduct(user, id, input) {
       where: { id, vendorId: user.vendor.id },
     });
     assert(owned, 404, "Product not found");
+    applyProductDeliveryFields(data, owned);
     const updated = await tx.product.update({
       where: { id },
       data: {
@@ -226,9 +223,6 @@ const publicVendor = {
   businessType: true,
   city: true,
   zone: true,
-  expressDelivery: true,
-  expressEtaMinutes: true,
-  standardDeliveryDays: true,
 };
 export async function vendors(q) {
   const where = {
