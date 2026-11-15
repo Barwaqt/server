@@ -1,6 +1,8 @@
-import { db } from "../config/database.js";
+import { randomUUID } from "node:crypto";
+import { db, transaction } from "../config/database.js";
 import { assert } from "../utils/error.js";
 import { pagination } from "../validators/common.validator.js";
+const visible = { role: "CUSTOMER", deletedAt: null };
 const profile = {
   id: true,
   firstName: true,
@@ -30,7 +32,7 @@ async function summary(customer) {
 export async function customers(query) {
   const terms = query.search?.trim().split(/\s+/).filter(Boolean) || [];
   const where = {
-    role: "CUSTOMER",
+    ...visible,
     AND: terms.map((term) => ({
       OR: ["firstName", "lastName", "email", "phone"].map((field) => ({
         [field]: { contains: term, mode: "insensitive" },
@@ -55,7 +57,7 @@ export async function customers(query) {
 }
 export async function customer(id, query) {
   const person = await db.user.findFirst({
-    where: { id, role: "CUSTOMER" },
+    where: { id, ...visible },
     select: profile,
   });
   assert(person, 404, "Customer not found");
@@ -101,4 +103,47 @@ export async function customer(id, query) {
       limit: query.limit,
     },
   };
+}
+// Orders, payments and refunds are financial records, so a customer is never
+// hard-deleted. Their account is anonymised and closed instead: personal data
+// is removed, every session is revoked and the row disappears from the admin
+// customer list while past orders keep working for vendors and finance.
+export async function deleteCustomer(actor, id) {
+  return transaction(async (tx) => {
+    const person = await tx.user.findFirst({
+      where: { id, ...visible },
+      select: { id: true },
+    });
+    assert(person, 404, "Customer not found");
+    await Promise.all([
+      tx.session.deleteMany({ where: { userId: id } }),
+      tx.passwordReset.deleteMany({ where: { userId: id } }),
+      tx.emailVerification.deleteMany({ where: { userId: id } }),
+      tx.cartItem.deleteMany({ where: { userId: id } }),
+      tx.wishlistItem.deleteMany({ where: { userId: id } }),
+      tx.address.deleteMany({ where: { userId: id } }),
+      tx.notification.deleteMany({ where: { userId: id } }),
+    ]);
+    await tx.user.update({
+      where: { id },
+      data: {
+        firstName: "Deleted",
+        lastName: "Customer",
+        email: null,
+        phone: null,
+        googleSubject: null,
+        appleSubject: null,
+        passwordHash: randomUUID(),
+        profile: {},
+        active: false,
+        emailVerifiedAt: null,
+        phoneVerifiedAt: null,
+        deletedAt: new Date(),
+      },
+    });
+    await tx.auditLog.create({
+      data: { actorId: actor.id, action: "CUSTOMER_DELETED", entityId: id },
+    });
+    return { id, deleted: true };
+  });
 }

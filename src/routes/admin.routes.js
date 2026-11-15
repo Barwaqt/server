@@ -78,6 +78,9 @@ adminRouter.get("/customers", validate(page, "query"), async (req, res) =>
 adminRouter.get("/customers/:id", validate(page, "query"), async (req, res) =>
   res.json({ data: await customers.customer(req.params.id, req.input.query) }),
 );
+adminRouter.delete("/customers/:id", async (req, res) =>
+  res.json({ data: await customers.deleteCustomer(req.user, req.params.id) }),
+);
 adminRouter.get("/homepage", homepage.get);
 adminRouter.put("/homepage", validate(publishHomepage), homepage.publish);
 adminRouter.post("/vendors", validate(vendor), c.createVendor);

@@ -125,6 +125,7 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/vendor/settlements` | Approved VENDOR |
 | GET | `/api/v1/admin/customers` | ADMIN |
 | GET | `/api/v1/admin/customers/:id` | ADMIN |
+| DELETE | `/api/v1/admin/customers/:id` | ADMIN |
 | GET | `/api/v1/admin/homepage` | ADMIN |
 | PUT | `/api/v1/admin/homepage` | ADMIN |
 | POST | `/api/v1/admin/vendors` | ADMIN |
@@ -937,6 +938,14 @@ Own settlements only, newest first, max 100; no pagination query.
 **Body:** None.
 
 **Success:** 200; the customer summary above plus `orders: {items, total, page, limit}`. Each order contains `{id, createdAt, totalMinor, paymentMethod, currency, vendorOrders}`; each vendor order contains `{id, status, totalMinor, vendor:{name}, items:[{id,productId,variantId,variantName,name,image,quantity,unitPriceMinor}]}`. Missing customers and non-CUSTOMER ids return 404.
+
+### DELETE /api/v1/admin/customers/:id
+
+**Access:** ADMIN.
+
+**Body:** None.
+
+**Success:** 200; `data: {id, deleted: true}`. Deleting a customer removes their account: addresses, cart, wishlist, notifications, password resets, verification records and sessions are cleared, the password, email, phone and social logins are erased, and the row is anonymised, deactivated and marked deleted. The customer disappears from the admin customer list and marketing imports and can never sign in again. Orders, payments, refunds and reviews are retained so vendor, finance and audit history stay intact (retained reviews show as "Deleted Customer"). The action is recorded in the audit log as CUSTOMER_DELETED. Missing, non-CUSTOMER and already-deleted ids return 404.
 
 ### GET /api/v1/admin/homepage
 
