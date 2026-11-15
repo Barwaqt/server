@@ -507,6 +507,8 @@ Only APPROVED, active products from APPROVED vendors are returned; default sorti
 
 **Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock,image,options}`; empty when the product has none), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
 
+The customer image gallery shows `images` first, then each variant's `image` appended in variant order and de-duplicated against the product images, so vendor variant/color photos are browsable without selecting the variant. Selecting a variant still switches the main image to that variant's photo.
+
 id is product UUID. Pending, rejected or inactive products, and products from suspended vendors, return 404.
 
 ## Customer profile, addresses, cart, wishlist, reviews
