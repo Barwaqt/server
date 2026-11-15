@@ -39,6 +39,13 @@ export const productVariant = z
     name: z.string().trim().min(1).max(120),
     priceMinor: minor.positive(),
     stock: z.number().int().min(0).max(1000000),
+    image: z
+      .string()
+      .max(2000)
+      .refine((v) => /^https:\/\//.test(v) || /^\/(?!\/)/.test(v))
+      .nullable()
+      .optional(),
+    options: z.record(z.string().max(50), z.string().max(100)).optional(),
   })
   .strict();
 export const product = z

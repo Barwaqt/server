@@ -493,7 +493,7 @@ No pagination or separate hierarchy endpoint. Nullable parentSlug describes the 
 
 **Body:** None.
 
-**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one, plus `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock}`; empty when the product has none). Cards show the lowest variant price and the summed variant stock. Delivery fields are set per product: the item advertises express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days.
+**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category and vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one, plus `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock,image,options}`; empty when the product has none). Cards show the lowest variant price and the summed variant stock. Delivery fields are set per product: the item advertises express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days.
 
 Only APPROVED, active products from APPROVED vendors are returned; default sorting is newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`.
 
@@ -505,7 +505,7 @@ Only APPROVED, active products from APPROVED vendors are returned; default sorti
 
 **Body:** None.
 
-**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock}`; empty when the product has none), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
+**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock,image,options}`; empty when the product has none), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
 
 id is product UUID. Pending, rejected or inactive products, and products from suspended vendors, return 404.
 
@@ -855,14 +855,24 @@ No total-count wrapper. All review states are included unless reviewStatus is su
   },
   "variants": [
     {
-      "name": "Size: 5kg",
+      "name": "Color: White / Size: 5kg",
       "priceMinor": 125000,
-      "stock": 30
+      "stock": 30,
+      "image": "https://example.com/rice-5kg.jpg",
+      "options": {
+        "Color": "White",
+        "Size": "5kg"
+      }
     },
     {
-      "name": "Size: 10kg",
+      "name": "Color: White / Size: 10kg",
       "priceMinor": 235000,
-      "stock": 20
+      "stock": 20,
+      "image": "https://example.com/rice-10kg.jpg",
+      "options": {
+        "Color": "White",
+        "Size": "10kg"
+      }
     }
   ],
   "expressDelivery": true,
@@ -874,7 +884,7 @@ No total-count wrapper. All review states are included unless reviewStatus is su
 
 **Success:** 201; `data: Product`.
 
-Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. When `variants` is supplied, those two values are derived by the server instead: priceMinor becomes the lowest variant price and stock the sum of variant stock. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), variants up to 50 rows `{id?, name, priceMinor, stock}` where name is 1–120 characters and unique per product (case-insensitive), priceMinor is positive, stock is 0–1,000,000, expressDelivery boolean (default false), expressEtaMinutes nullable integer 15–1440 (required while expressDelivery is true; turning express off clears it), standardDeliveryDays integer 1–7 (default 7), active boolean (default true). Delivery options belong to each product: express is only offered at checkout when every product in the basket supports it, and the ETA shown is the slowest product's. Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
+Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. When `variants` is supplied, those two values are derived by the server instead: priceMinor becomes the lowest variant price and stock the sum of variant stock. Optional: description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), variants up to 50 rows `{id?, name, priceMinor, stock, image?, options?}` where name is 1–120 characters and unique per product (case-insensitive), priceMinor is positive, stock is 0–1,000,000, optional nullable image string (max 2,000; HTTPS URL or single-leading-slash path) for variant/color photos, optional options string map (keys max 50, values max 100) storing structured variant dimensions (e.g. {"Size": "M", "Color": "Navy Blue"}), expressDelivery boolean (default false), expressEtaMinutes nullable integer 15–1440 (required while expressDelivery is true; turning express off clears it), standardDeliveryDays integer 1–7 (default 7), active boolean (default true). Delivery options belong to each product: express is only offered at checkout when every product in the basket supports it, and the ETA shown is the slowest product's. Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
 
 ### PATCH /api/v1/vendor/products/:id
 

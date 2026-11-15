@@ -20,6 +20,17 @@ export function normalizeProduct(p) {
   return {
     ...p,
     images: normalizeImages(p.images),
+    ...(p.variants
+      ? {
+          variants: p.variants.map((v) => ({
+            ...v,
+            image:
+              typeof v.image === "string" && v.image.startsWith("/uploads/")
+                ? `${publicApiUrl}${v.image}`
+                : v.image,
+          })),
+        }
+      : {}),
   };
 }
 const variantInclude = { variants: { orderBy: { createdAt: "asc" } } };
@@ -53,6 +64,8 @@ async function syncVariants(tx, productId, variants) {
       name: variant.name.trim(),
       priceMinor: variant.priceMinor,
       stock: variant.stock,
+      image: variant.image ?? null,
+      options: variant.options ?? {},
     };
     if (variant.id) {
       const updated = await tx.productVariant.updateMany({

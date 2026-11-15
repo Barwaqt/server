@@ -396,7 +396,7 @@ export async function checkout(user, input, key) {
                   name: item.product.name,
                   unitPriceMinor: unitPrice(item),
                   quantity: item.quantity,
-                  image: item.product.images[0],
+                  image: item.variant?.image || item.product.images[0],
                 })),
               },
               events: { create: { actorId: user.id, status: "NEW" } },
