@@ -25,7 +25,7 @@ This file is the human-readable contract; the collection is its importable reque
 - Datetimes are ISO 8601 strings; nullable database fields can be `null`.
 - Unless stated otherwise, success is `{ "data": ... }`. Arrays are not automatically paginated envelopes. `204` has no response body.
 - Request bodies use strict validation: unknown fields are rejected. Optional does not imply nullable. GET requests and endpoints marked **None** need no body.
-- Global rate limit: 300 requests/minute per IP. Each sensitive `/auth` POST action (register, login, forgot-password, reset-password, verify-email, resend-verification, challenge, social, link-provider, change-password) also has its own 30 requests/15 minutes per IP budget. Refresh, logout, me and providers use only the global limit. Limit responses are HTTP 429 and may be plain text rather than the JSON error format.
+- Global rate limit: 300 requests/minute per IP. Each sensitive `/auth` POST action (register, login, forgot-password, reset-password, verify-email, resend-verification, challenge, social, link-provider, change-password, phone-signup, phone-login, phone-verify, phone-resend) also has its own 30 requests/15 minutes per IP budget. Refresh, logout, me and providers use only the global limit. Limit responses are HTTP 429 and may be plain text rather than the JSON error format.
 - JSON body limit: 256 KB. Browser origins must be configured in `CORS_ORIGINS`.
 
 ### Authentication/session response
@@ -86,6 +86,10 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/auth/me` | Authenticated |
 | POST | `/api/v1/auth/logout` | Authenticated |
 | POST | `/api/v1/auth/change-password` | Authenticated |
+| POST | `/api/v1/auth/phone-signup` | Public |
+| POST | `/api/v1/auth/phone-login` | Public |
+| POST | `/api/v1/auth/phone-verify` | Public |
+| POST | `/api/v1/auth/phone-resend` | Public |
 | GET | `/api/v1/catalog/homepage` | Public |
 | GET | `/api/v1/catalog/support` | Public |
 | POST | `/api/v1/catalog/searches` | Public |
