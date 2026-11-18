@@ -107,11 +107,26 @@ test("management, uploads, scheduled checkout and returns after paid settlement"
     (await db.category.findUnique({ where: { id: child.id } })).parentSlug,
     "ops-renamed-" + suffix,
   );
-  assert.equal(
-    (await call("delete", "/admin/categories/" + category.id, admin)).status,
-    409,
+  const deletable = await ok(
+    call("post", "/admin/categories", admin, {
+      name: "Deletable category",
+      slug: "ops-deletable-" + suffix,
+    }),
   );
-  await ok(call("delete", "/admin/categories/" + child.id, admin));
+  const deletableChild = await ok(
+    call("post", "/admin/categories", admin, {
+      name: "Deletable child",
+      slug: "ops-deletable-child-" + suffix,
+      parentSlug: deletable.slug,
+    }),
+  );
+  await ok(call("delete", "/admin/categories/" + deletable.id, admin));
+  assert.equal(
+    (await db.category.findUnique({ where: { id: deletableChild.id } }))
+      .parentSlug,
+    null,
+  );
+  await ok(call("delete", "/admin/categories/" + deletableChild.id, admin));
   const coupon = await ok(
     call("post", "/admin/coupons", admin, {
       categoryIds: [category.id],

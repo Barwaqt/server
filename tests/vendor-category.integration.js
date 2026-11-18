@@ -93,10 +93,6 @@ test("vendor registration accepts several categories and a per-vendor commission
     created.categories.map((category) => category.id),
     [first.id, second.id],
   );
-  assert.equal(
-    (await call("delete", "/admin/categories/" + second.id, admin)).status,
-    409,
-  );
   const narrowed = await ok(
     call("patch", "/admin/vendors/" + created.id, admin, {
       categoryIds: [second.id],
@@ -114,6 +110,10 @@ test("vendor registration accepts several categories and a per-vendor commission
     ).status,
     422,
   );
+  await ok(call("delete", "/admin/categories/" + second.id, admin));
+  const afterDelete = await db.vendor.findUnique({ where: { id: created.id } });
+  assert.deepEqual(afterDelete.categoryIds, []);
+  assert.equal(afterDelete.categoryId, null);
 });
 
 test("category commission is inherited, synchronized, and snapshotted; payout data stays private", async () => {
@@ -260,10 +260,9 @@ test("category commission is inherited, synchronized, and snapshotted; payout da
   assert.deepEqual(moved.categoryIds, [b.id, a.id]);
   assert.equal(moved.categoryId, b.id);
   assert.equal(moved.bankDetails.accountNumber, "00123456789");
-  assert.equal(
-    (await call("delete", "/admin/categories/" + b.id, admin)).status,
-    409,
-  );
+  const blocked = await call("delete", "/admin/categories/" + b.id, admin);
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.body.error.message, /Move the 1 product/);
   const audit = await db.auditLog.findFirst({
     where: { entityId: v.id, action: "VENDOR_UPDATED" },
     orderBy: { createdAt: "desc" },
@@ -278,8 +277,8 @@ test("category commission is inherited, synchronized, and snapshotted; payout da
   await ok(
     call("patch", "/admin/vendors/" + v.id, admin, { categoryId: c.id }),
   );
-  assert.equal(
-    (await call("delete", "/admin/categories/" + c.id, admin)).status,
-    409,
-  );
+  await ok(call("delete", "/admin/categories/" + c.id, admin));
+  const afterDelete = await db.vendor.findUnique({ where: { id: v.id } });
+  assert.deepEqual(afterDelete.categoryIds, [b.id, a.id]);
+  assert.equal(afterDelete.categoryId, b.id);
 });

@@ -99,21 +99,56 @@ export async function deleteCategory(user, id) {
   return transaction(async (tx) => {
     const c = await tx.category.findUnique({
       where: { id },
-      include: {
-        _count: { select: { products: true, catalogProducts: true } },
-      },
+      include: { _count: { select: { products: true } } },
     });
     assert(c, 404, "Category not found");
     assert(
-      !c._count.products &&
-        !c._count.catalogProducts &&
-        !(await tx.vendor.count({
-          where: { OR: [{ categoryId: id }, { categoryIds: { has: id } }] },
-        })) &&
-        !(await tx.category.count({ where: { parentSlug: c.slug } })),
+      !c._count.products,
       409,
-      "Reassign vendors and products, remove collection memberships and move child categories before deleting",
+      `Move the ${c._count.products} product${c._count.products === 1 ? "" : "s"} in this category to another category before deleting`,
     );
+    // Children move up one level so the hierarchy survives the delete.
+    await tx.category.updateMany({
+      where: { parentSlug: c.slug },
+      data: { parentSlug: c.parentSlug },
+    });
+    // Vendors keep working under their remaining categories.
+    const vendors = await tx.vendor.findMany({
+      where: { OR: [{ categoryId: id }, { categoryIds: { has: id } }] },
+      select: {
+        id: true,
+        categoryId: true,
+        categoryIds: true,
+        categoryCommissions: true,
+      },
+    });
+    for (const vendor of vendors) {
+      const remaining = vendor.categoryIds.filter(
+        (categoryId) => categoryId !== id,
+      );
+      const commissions =
+        vendor.categoryCommissions &&
+        typeof vendor.categoryCommissions === "object"
+          ? { ...vendor.categoryCommissions }
+          : {};
+      delete commissions[id];
+      await tx.vendor.update({
+        where: { id: vendor.id },
+        data: {
+          categoryIds: remaining,
+          categoryId:
+            vendor.categoryId === id
+              ? (remaining[0] ?? null)
+              : vendor.categoryId,
+          categoryCommissions: commissions,
+        },
+      });
+    }
+    // Collection memberships are only a shortcut to products, not ownership.
+    await tx.category.update({
+      where: { id },
+      data: { catalogProducts: { set: [] } },
+    });
     await tx.category.delete({ where: { id } });
     await audit(tx, user, "CATEGORY_DELETED", id);
   });
