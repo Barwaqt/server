@@ -381,9 +381,6 @@ export async function updateVendor(actor, id, input) {
         });
       }
     }
-    if (fields.status === "SUSPENDED") {
-      await tx.session.deleteMany({ where: { userId: current.ownerId } });
-    }
     const result = await tx.vendor.update({
       where: { id },
       data: fields,
