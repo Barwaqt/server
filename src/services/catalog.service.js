@@ -187,6 +187,7 @@ export async function products(q) {
           select: {
             id: true,
             name: true,
+            slug: true,
             logo: true,
             city: true,
             zone: true,
@@ -212,10 +213,10 @@ export async function products(q) {
     limit: q.limit,
   };
 }
-export async function product(id) {
+export async function product(identifier) {
   const result = await db.product.findFirst({
     where: {
-      id,
+      OR: [{ id: identifier }, { slug: identifier }],
       active: true,
       reviewStatus: "APPROVED",
       vendor: { status: "APPROVED" },
@@ -226,6 +227,7 @@ export async function product(id) {
         select: {
           id: true,
           name: true,
+          slug: true,
           logo: true,
           city: true,
           zone: true,

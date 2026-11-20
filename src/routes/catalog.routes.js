@@ -10,7 +10,7 @@ import { page } from "../validators/common.validator.js";
 export const catalogRouter = Router();
 const slug = z.string().regex(/^[a-z0-9-]{1,180}$/);
 catalogRouter.param("id", (req, res, next, value) => {
-  z.uuid().parse(value);
+  z.union([z.uuid(), slug]).parse(value);
   next();
 });
 catalogRouter.param("vendorId", (req, res, next, value) => {
