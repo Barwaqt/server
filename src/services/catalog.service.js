@@ -103,6 +103,14 @@ export async function categoriesFiltered(input) {
     where: ids ? { id: { in: ids } } : undefined,
     orderBy: { name: "asc" },
     include: {
+      products: {
+        where: {
+          active: true,
+          reviewStatus: "APPROVED",
+          vendor: { status: "APPROVED" },
+        },
+        select: { id: true },
+      },
       catalogProducts: {
         where: {
           active: true,
@@ -113,9 +121,14 @@ export async function categoriesFiltered(input) {
       },
     },
   });
-  return rows.map(({ catalogProducts, ...category }) => ({
+  return rows.map(({ products, catalogProducts, ...category }) => ({
     ...category,
-    productIds: catalogProducts.map((p) => p.id),
+    productIds: Array.from(
+      new Set([
+        ...(products || []).map((p) => p.id),
+        ...(catalogProducts || []).map((p) => p.id),
+      ]),
+    ),
   }));
 }
 export async function products(q) {
