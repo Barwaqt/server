@@ -38,6 +38,7 @@ export const productVariant = z
     id: id.optional(),
     name: z.string().trim().min(1).max(120),
     priceMinor: minor.positive(),
+    compareAtPriceMinor: minor.positive().nullable().optional(),
     stock: z.number().int().min(0).max(1000000),
     image: z
       .string()
@@ -58,6 +59,8 @@ export const product = z
     categoryId: id,
     description: z.string().max(10000).default(""),
     priceMinor: minor.positive(),
+    compareAtPriceMinor: minor.positive().nullable().optional(),
+    discountPercent: z.number().int().min(0).max(99).nullable().optional(),
     stock: z.number().int().min(0).max(1000000),
     images: z
       .array(

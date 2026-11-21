@@ -5,6 +5,8 @@ const reviewedFields = [
   "categoryId",
   "description",
   "priceMinor",
+  "compareAtPriceMinor",
+  "discountPercent",
   "images",
   "attributes",
   "variants",

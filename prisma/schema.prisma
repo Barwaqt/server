@@ -135,6 +135,8 @@ model Product {
  slug String @unique
  description String @default("")
  priceMinor Int
+ compareAtPriceMinor Int?
+ discountPercent Int?
  stock Int @default(0)
  active Boolean @default(true)
   images String[]
@@ -179,6 +181,7 @@ model ProductVariant {
  product Product @relation(fields:[productId],references:[id],onDelete:Cascade)
  name String
  priceMinor Int
+ compareAtPriceMinor Int?
  stock Int @default(0)
  image String?
  options Json? @default("{}")

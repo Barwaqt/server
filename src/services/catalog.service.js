@@ -19,11 +19,14 @@ export function normalizeProduct(p) {
   if (!p) return p;
   return {
     ...p,
+    compareAtPriceMinor: p.compareAtPriceMinor ?? null,
+    discountPercent: p.discountPercent ?? null,
     images: normalizeImages(p.images),
     ...(p.variants
       ? {
           variants: p.variants.map((v) => ({
             ...v,
+            compareAtPriceMinor: v.compareAtPriceMinor ?? null,
             image:
               typeof v.image === "string" && v.image.startsWith("/uploads/")
                 ? `${publicApiUrl}${v.image}`
@@ -44,14 +47,28 @@ function assertVariantNames(variants) {
 }
 // Keep the listing price and stock in step with its variants so cards and
 // filters stay accurate. Variants without stock still count towards the price.
-function variantTotals(variants) {
+function variantTotals(variants, discountPercent) {
   if (!variants.length) return {};
+  const hasCompare = variants.some((variant) => variant.compareAtPriceMinor);
   return {
     priceMinor: Math.min(...variants.map((variant) => variant.priceMinor)),
+    compareAtPriceMinor: hasCompare
+      ? Math.min(
+          ...variants.map(
+            (variant) => variant.compareAtPriceMinor || variant.priceMinor,
+          ),
+        )
+      : null,
     stock: variants.reduce((sum, variant) => sum + variant.stock, 0),
+    ...(discountPercent !== undefined
+      ? {
+          discountPercent:
+            discountPercent && discountPercent > 0 ? discountPercent : null,
+        }
+      : {}),
   };
 }
-async function syncVariants(tx, productId, variants) {
+async function syncVariants(tx, productId, variants, discountPercent) {
   assertVariantNames(variants);
   const kept = variants
     .filter((variant) => variant.id)
@@ -60,9 +77,23 @@ async function syncVariants(tx, productId, variants) {
     where: { productId, ...(kept.length ? { id: { notIn: kept } } : {}) },
   });
   for (const variant of variants) {
+    let priceMinor = variant.priceMinor;
+    let compareAtPriceMinor = variant.compareAtPriceMinor ?? null;
+    if (discountPercent && discountPercent > 0) {
+      const basePrice = compareAtPriceMinor || priceMinor;
+      compareAtPriceMinor = basePrice;
+      priceMinor = Math.max(
+        1,
+        Math.round(basePrice * (1 - discountPercent / 100)),
+      );
+    } else if (discountPercent === 0 || discountPercent === null) {
+      priceMinor = compareAtPriceMinor || priceMinor;
+      compareAtPriceMinor = null;
+    }
     const data = {
       name: variant.name.trim(),
-      priceMinor: variant.priceMinor,
+      priceMinor,
+      compareAtPriceMinor,
       stock: variant.stock,
       image: variant.image ?? null,
       options: variant.options ?? {},
@@ -268,15 +299,28 @@ export async function saveProduct(user, id, input) {
   };
   if (!id) {
     applyProductDeliveryFields(data);
+    if (data.discountPercent && data.discountPercent > 0) {
+      if (!variants?.length && data.priceMinor) {
+        const basePrice = data.compareAtPriceMinor || data.priceMinor;
+        data.compareAtPriceMinor = basePrice;
+        data.priceMinor = Math.max(
+          1,
+          Math.round(basePrice * (1 - data.discountPercent / 100)),
+        );
+      }
+    } else {
+      data.discountPercent = null;
+      data.compareAtPriceMinor = null;
+    }
     return transaction(async (tx) => {
       const created = await tx.product.create({
         data: { ...data, vendorId: user.vendor.id, reviewStatus: "PENDING" },
       });
       if (variants?.length) {
-        await syncVariants(tx, created.id, variants);
+        await syncVariants(tx, created.id, variants, data.discountPercent);
         await tx.product.update({
           where: { id: created.id },
-          data: variantTotals(variants),
+          data: variantTotals(variants, data.discountPercent),
         });
       }
       return normalizeProduct(
@@ -294,12 +338,48 @@ export async function saveProduct(user, id, input) {
     });
     assert(owned, 404, "Product not found");
     applyProductDeliveryFields(data, owned);
-    if (variants) await syncVariants(tx, id, variants);
+    const effDiscount =
+      data.discountPercent !== undefined
+        ? data.discountPercent
+        : owned.discountPercent;
+    if (effDiscount && effDiscount > 0) {
+      if (
+        !variants?.length &&
+        (data.priceMinor !== undefined || data.discountPercent !== undefined)
+      ) {
+        const basePrice =
+          data.compareAtPriceMinor ||
+          data.priceMinor ||
+          owned.compareAtPriceMinor ||
+          owned.priceMinor;
+        data.compareAtPriceMinor = basePrice;
+        data.priceMinor = Math.max(
+          1,
+          Math.round(basePrice * (1 - effDiscount / 100)),
+        );
+      }
+      data.discountPercent = effDiscount;
+    } else if (data.discountPercent === 0 || data.discountPercent === null) {
+      if (
+        !variants?.length &&
+        (data.priceMinor !== undefined || owned.compareAtPriceMinor)
+      ) {
+        data.priceMinor =
+          data.priceMinor || owned.compareAtPriceMinor || owned.priceMinor;
+      }
+      data.discountPercent = null;
+      data.compareAtPriceMinor = null;
+    }
+    const variantDiscount =
+      data.discountPercent !== undefined
+        ? data.discountPercent
+        : owned.discountPercent;
+    if (variants) await syncVariants(tx, id, variants, variantDiscount);
     const updated = await tx.product.update({
       where: { id },
       data: {
         ...data,
-        ...(variants ? variantTotals(variants) : {}),
+        ...(variants ? variantTotals(variants, variantDiscount) : {}),
         ...reviewReset(owned, { ...data, ...(variants ? { variants } : {}) }),
         reviewVersion: { increment: 1 },
         ...(data.categoryId && data.categoryId !== owned.categoryId

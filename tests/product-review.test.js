@@ -19,6 +19,7 @@ test("listing edits require review; inventory and visibility changes do not", ()
     { categoryId: "other" },
     { description: "Changed" },
     { priceMinor: 2000 },
+    { discountPercent: 20 },
     { images: ["/two.png"] },
     { attributes: { Size: "Small" } },
   ])
