@@ -27,6 +27,11 @@ export const category = z
 export const categoryUpdate = category
   .partial()
   .refine((v) => Object.keys(v).length > 0, "Provide at least one field");
+export const categoryDeleteQuery = z
+  .object({
+    reassignTo: id.optional(),
+  })
+  .strict();
 export const couponUpdate = coupon
   .partial()
   .extend({ active: z.boolean().optional() })

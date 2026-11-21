@@ -10,7 +10,11 @@ export const updateCategory = async (req, res) =>
     data: await s.saveCategory(req.user, req.params.id, req.input.body),
   });
 export const deleteCategory = async (req, res) => {
-  await s.deleteCategory(req.user, req.params.id);
+  const reassignTo =
+    req.input?.query?.reassignTo ||
+    req.query?.reassignTo ||
+    req.body?.reassignTo;
+  await s.deleteCategory(req.user, req.params.id, reassignTo);
   res.status(204).end();
 };
 export const coupons = async (req, res) =>

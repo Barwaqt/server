@@ -249,6 +249,37 @@ export async function updateProduct(actor, id, input) {
     return result;
   });
 }
+export async function deleteProduct(actor, id) {
+  return transaction(async (tx) => {
+    const product = await tx.product.findUnique({
+      where: { id },
+      include: { _count: { select: { items: true } } },
+    });
+    assert(product, 404, "Product not found");
+    assert(
+      !product._count.items,
+      409,
+      "Cannot delete a product that has existing orders. Unpublish it instead.",
+    );
+    await tx.cartItem.deleteMany({ where: { productId: id } });
+    await tx.wishlistItem.deleteMany({ where: { productId: id } });
+    await tx.review.deleteMany({ where: { productId: id } });
+    await tx.productVariant.deleteMany({ where: { productId: id } });
+    await tx.product.update({
+      where: { id },
+      data: { catalogCategories: { set: [] } },
+    });
+    await tx.product.delete({ where: { id } });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: "PRODUCT_DELETED",
+        entityId: id,
+        metadata: { name: product.name, slug: product.slug },
+      },
+    });
+  });
+}
 export async function staff(q) {
   const where = {
     role: q.role ? q.role : { in: ["RIDER", "DISPATCHER", "FINANCE"] },

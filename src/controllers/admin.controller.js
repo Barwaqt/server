@@ -47,3 +47,8 @@ export const reviewProduct = async (req, res) =>
   res.json({
     data: await s.reviewProduct(req.user, req.params.id, req.input.body),
   });
+
+export const deleteProduct = async (req, res) => {
+  await s.deleteProduct(req.user, req.params.id);
+  res.status(204).end();
+};

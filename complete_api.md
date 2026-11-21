@@ -138,6 +138,7 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | PATCH | `/api/v1/admin/vendors/:id` | ADMIN |
 | GET | `/api/v1/admin/products` | ADMIN |
 | PATCH | `/api/v1/admin/products/:id` | ADMIN |
+| DELETE | `/api/v1/admin/products/:id` | ADMIN |
 | POST | `/api/v1/admin/products/:id/review` | ADMIN |
 | GET | `/api/v1/admin/staff` | ADMIN |
 | POST | `/api/v1/admin/staff` | ADMIN |
@@ -1164,6 +1165,12 @@ Lists products from every vendor regardless of vendor status, including inactive
 
 id is product UUID; the product may belong to any vendor. Same fields/rules as the vendor product routes, all optional. Supplied stock is absolute; supplied images/attributes replace those values; setting a new categoryId resets explicit category memberships. Changes are audited as PRODUCT_UPDATED. Missing products return 404. Content edits reset moderation as described below; active=true does not approve. Use the review endpoint to decide.
 
+### DELETE /api/v1/admin/products/:id
+
+**Access:** ADMIN.
+
+Permanently deletes a product along with its variants, cart items, wishlist items, and reviews. If the product has customer orders, returns 409 (`Cannot delete a product that has existing orders. Unpublish it instead.`); unpublish or reject instead. Changes are audited as `PRODUCT_DELETED`. Returns 204 No Content. Missing product returns 404.
+
 ### POST /api/v1/admin/products/:id/review
 
 **Access:** ADMIN. id is the product UUID. No query parameters.
@@ -1549,7 +1556,11 @@ At least one field on PATCH. Name 1–200 trimmed characters; slug/parentSlug lo
 
 ### DELETE /api/v1/admin/categories/:id
 
-**Access:** ADMIN. Success: 204. Returns 409 if products, collection memberships, or child categories remain. Reassign/clear these before deletion. Changes are audited.
+**Access:** ADMIN. Optional query parameter `reassignTo` (UUID of another category). Success: 204.
+
+When `reassignTo` is provided, all products currently assigned to this category are atomically reassigned to `reassignTo`. Any vendor whose primary category was this category will have their category updated to `reassignTo`, and `reassignTo` is added to their allowed categories if not already present. Child categories move up to this category's parent. Collection memberships are cleared. The category is then deleted and audited as `CATEGORY_DELETED`.
+
+When `reassignTo` is omitted, returns 409 if products remain in the category. Missing category returns 404. Invalid or identical `reassignTo` returns 422.
 
 ### GET /api/v1/admin/coupons
 

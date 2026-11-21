@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   category,
   categoryUpdate,
+  categoryDeleteQuery,
 } from "../src/validators/management.validator.js";
 import { vendor } from "../src/validators/commerce.validator.js";
 import { vendorPayout } from "../src/validators/vendor-payout.validator.js";
@@ -118,6 +119,18 @@ test("vendor registration requires at least one category and a payout account, a
         [input.categoryId]: -10,
       },
     }).success,
+    false,
+  );
+});
+
+test("categoryDeleteQuery accepts optional valid target category and rejects invalid UUIDs", () => {
+  assert.deepEqual(categoryDeleteQuery.parse({}), {});
+  const targetId = "7f3c2ab4-5d61-4b8e-9c0d-2f4a6b8c1d3e";
+  assert.deepEqual(categoryDeleteQuery.parse({ reassignTo: targetId }), {
+    reassignTo: targetId,
+  });
+  assert.equal(
+    categoryDeleteQuery.safeParse({ reassignTo: "not-a-uuid" }).success,
     false,
   );
 });

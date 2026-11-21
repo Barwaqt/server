@@ -95,18 +95,30 @@ export async function saveCategory(user, id, input) {
     return row;
   });
 }
-export async function deleteCategory(user, id) {
+export async function deleteCategory(user, id, reassignTo) {
   return transaction(async (tx) => {
     const c = await tx.category.findUnique({
       where: { id },
       include: { _count: { select: { products: true } } },
     });
     assert(c, 404, "Category not found");
-    assert(
-      !c._count.products,
-      409,
-      `Move the ${c._count.products} product${c._count.products === 1 ? "" : "s"} in this category to another category before deleting`,
-    );
+    if (reassignTo) {
+      assert(reassignTo !== id, 422, "Target category must be different");
+      const target = await tx.category.findUnique({
+        where: { id: reassignTo },
+      });
+      assert(target, 404, "Target category not found");
+      await tx.product.updateMany({
+        where: { categoryId: id },
+        data: { categoryId: reassignTo },
+      });
+    } else {
+      assert(
+        !c._count.products,
+        409,
+        `Move the ${c._count.products} product${c._count.products === 1 ? "" : "s"} in this category to another category before deleting`,
+      );
+    }
     // Children move up one level so the hierarchy survives the delete.
     await tx.category.updateMany({
       where: { parentSlug: c.slug },
@@ -126,6 +138,9 @@ export async function deleteCategory(user, id) {
       const remaining = vendor.categoryIds.filter(
         (categoryId) => categoryId !== id,
       );
+      if (reassignTo && !remaining.includes(reassignTo)) {
+        remaining.push(reassignTo);
+      }
       const commissions =
         vendor.categoryCommissions &&
         typeof vendor.categoryCommissions === "object"
@@ -138,7 +153,7 @@ export async function deleteCategory(user, id) {
           categoryIds: remaining,
           categoryId:
             vendor.categoryId === id
-              ? (remaining[0] ?? null)
+              ? (reassignTo || remaining[0] || null)
               : vendor.categoryId,
           categoryCommissions: commissions,
         },

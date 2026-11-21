@@ -17,6 +17,7 @@ import * as m from "../controllers/management.controller.js";
 import {
   category,
   categoryUpdate,
+  categoryDeleteQuery,
   couponUpdate,
 } from "../validators/management.validator.js";
 import { page } from "../validators/common.validator.js";
@@ -98,6 +99,7 @@ adminRouter.patch(
   validate(productUpdate, "body", { partial: true }),
   c.updateProduct,
 );
+adminRouter.delete("/products/:id", c.deleteProduct);
 adminRouter.get("/staff", validate(staffQuery, "query"), c.staff);
 adminRouter.patch("/staff/:id", validate(staffUpdate), c.updateStaff);
 adminRouter.post("/staff", validate(staff), c.createStaff);
@@ -108,7 +110,11 @@ adminRouter.patch(
   validate(categoryUpdate),
   m.updateCategory,
 );
-adminRouter.delete("/categories/:id", m.deleteCategory);
+adminRouter.delete(
+  "/categories/:id",
+  validate(categoryDeleteQuery, "query"),
+  m.deleteCategory,
+);
 adminRouter.get("/coupons", validate(page, "query"), m.coupons);
 adminRouter.post("/coupons", validate(coupon), m.createCoupon);
 adminRouter.patch("/coupons/:id", validate(couponUpdate), m.updateCoupon);
