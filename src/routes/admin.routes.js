@@ -18,6 +18,8 @@ import {
   category,
   categoryUpdate,
   categoryDeleteQuery,
+  brand,
+  brandUpdate,
   couponUpdate,
 } from "../validators/management.validator.js";
 import { page } from "../validators/common.validator.js";
@@ -115,6 +117,10 @@ adminRouter.delete(
   validate(categoryDeleteQuery, "query"),
   m.deleteCategory,
 );
+adminRouter.get("/brands", validate(page, "query"), m.brands);
+adminRouter.post("/brands", validate(brand), m.createBrand);
+adminRouter.patch("/brands/:id", validate(brandUpdate), m.updateBrand);
+adminRouter.delete("/brands/:id", m.deleteBrand);
 adminRouter.get("/coupons", validate(page, "query"), m.coupons);
 adminRouter.post("/coupons", validate(coupon), m.createCoupon);
 adminRouter.patch("/coupons/:id", validate(couponUpdate), m.updateCoupon);

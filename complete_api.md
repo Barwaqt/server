@@ -98,6 +98,7 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/admin/settings` | ADMIN |
 | PUT | `/api/v1/admin/settings` | ADMIN |
 | GET | `/api/v1/catalog/categories` | Public |
+| GET | `/api/v1/catalog/brands` | Public |
 | GET | `/api/v1/catalog/products` | Public |
 | GET | `/api/v1/catalog/products/:id` | Public |
 | GET | `/api/v1/catalog/vendors` | Public |
@@ -147,6 +148,10 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | POST | `/api/v1/admin/categories` | ADMIN |
 | PATCH | `/api/v1/admin/categories/:id` | ADMIN |
 | DELETE | `/api/v1/admin/categories/:id` | ADMIN |
+| GET | `/api/v1/admin/brands` | ADMIN |
+| POST | `/api/v1/admin/brands` | ADMIN |
+| PATCH | `/api/v1/admin/brands/:id` | ADMIN |
+| DELETE | `/api/v1/admin/brands/:id` | ADMIN |
 | GET | `/api/v1/admin/coupons` | ADMIN |
 | POST | `/api/v1/admin/coupons` | ADMIN |
 | PATCH | `/api/v1/admin/coupons/:id` | ADMIN |
@@ -491,6 +496,16 @@ A homepage document published before `productPromos` existed is returned with tw
 
 No pagination or separate hierarchy endpoint. Nullable parentSlug describes the hierarchy. productIds contains published products explicitly assigned to the collection.
 
+### GET /api/v1/catalog/brands
+
+**Access:** Public.
+
+**Query:** page, limit (default 20, max 100); optional search (name contains, case-insensitive).
+
+**Body:** None.
+
+**Success:** 200; `data: Brand[]`, sorted by name. This route returns a plain array rather than a paginated wrapper. Each brand is `{id,name,slug,image,description,createdAt,updatedAt}`. `image` is null when no logo is set; otherwise it is an HTTPS URL or a `/uploads/...` path served by the API. Used by the vendor product form and the storefront brand strip. Example: `/api/v1/catalog/brands?search=sam&limit=100`.
+
 ### GET /api/v1/catalog/products
 
 **Access:** Public.
@@ -499,7 +514,7 @@ No pagination or separate hierarchy endpoint. Nullable parentSlug describes the 
 
 **Body:** None.
 
-**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category, vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one, pricing fields `priceMinor` (selling price), optional `compareAtPriceMinor` (original price before discount) and `discountPercent` (integer 0–99; null if no discount), plus `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,compareAtPriceMinor,stock,image,options}`; empty when the product has none). Cards show the lowest variant price, original compare price if discounted, and the summed variant stock. Delivery fields are set per product: the item advertises express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days. When compareAtPriceMinor > priceMinor, storefronts show the original price struck through alongside the discounted selling price.
+**Success:** 200; `data: {items: Product[], total, page, limit}`. Each item includes category, brand (the related Brand object, or null when unassigned), vendor `{id,name,city,zone,logo}`; `logo` is null when the vendor has not uploaded one, pricing fields `priceMinor` (selling price), optional `compareAtPriceMinor` (original price before discount) and `discountPercent` (integer 0–99; null if no discount), plus `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,compareAtPriceMinor,stock,image,options}`; empty when the product has none). Cards show the lowest variant price, original compare price if discounted, and the summed variant stock. Delivery fields are set per product: the item advertises express only while `expressDelivery` is true, promised in `expressEtaMinutes` minutes, and standard within `standardDeliveryDays` (1–7) days. When compareAtPriceMinor > priceMinor, storefronts show the original price struck through alongside the discounted selling price.
 
 Only APPROVED, active products from APPROVED vendors are returned; default sorting is newest first. Example: `/api/v1/catalog/products?page=1&limit=20&search=rice&city=Lahore&zone=Gulberg`.
 
@@ -511,7 +526,7 @@ Only APPROVED, active products from APPROVED vendors are returned; default sorti
 
 **Body:** None.
 
-**Success:** 200; `data: Product` with category, vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock,image,options}`; empty when the product has none), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
+**Success:** 200; `data: Product` with category, brand (the related Brand object, or null), vendor `{id,name,city,zone,logo}` (`logo` nullable), product-level delivery fields as in the listing, `variants` ordered oldest first (up to 50 rows `{id,name,priceMinor,stock,image,options}`; empty when the product has none), and up to 50 newest reviews `{rating,comment,createdAt}`. Stock follows the same rule as the listing: exact count in the payload, in-stock/out-of-stock only in the UI.
 
 The customer image gallery shows `images` first, then each variant's `image` appended in variant order and de-duplicated against the product images, so vendor variant/color photos are browsable without selecting the variant. Selecting a variant still switches the main image to that variant's photo.
 
@@ -835,7 +850,7 @@ products is a count. orders is `[{status,_count}]`. delivered is `{_sum:{subtota
 
 **Body:** None.
 
-**Success:** 200; `data: Product[]`, newest first, including inactive owned products. Each product includes its `variants` (oldest first) and current review fields.
+**Success:** 200; `data: Product[]`, newest first, including inactive owned products. Each product includes its `variants` (oldest first), the related `brand` object when assigned, and current review fields.
 
 No total-count wrapper. All review states are included unless reviewStatus is supplied. Use reviewStatus, not status, to filter moderation.
 
@@ -850,6 +865,7 @@ No total-count wrapper. All review states are included unless reviewStatus is su
   "name": "Basmati Rice 5kg",
   "slug": "basmati-rice-5kg",
   "categoryId": "11111111-1111-4111-8111-111111111111",
+  "brandId": "33333333-3333-4333-8333-333333333333",
   "description": "Premium basmati rice.",
   "priceMinor": 125000,
   "discountPercent": 20,
@@ -893,7 +909,7 @@ No total-count wrapper. All review states are included unless reviewStatus is su
 
 **Success:** 201; `data: Product`.
 
-Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. When `variants` is supplied, those two values are derived by the server instead: priceMinor becomes the lowest variant price and stock the sum of variant stock. Optional: `discountPercent` nullable integer 0–99 (when set, the base price becomes `compareAtPriceMinor` and `priceMinor` is saved as the discounted selling price: `priceMinor = Math.round(basePrice * (1 - discountPercent / 100))`; setting 0 or null removes the discount and clears `compareAtPriceMinor`), optional `compareAtPriceMinor` nullable positive integer, description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), variants up to 50 rows `{id?, name, priceMinor, compareAtPriceMinor?, stock, image?, options?}` where name is 1–120 characters and unique per product (case-insensitive), priceMinor is positive, stock is 0–1,000,000, optional nullable image string (max 2,000; HTTPS URL or single-leading-slash path) for variant/color photos, optional options string map (keys max 50, values max 100) storing structured variant dimensions (e.g. {"Size": "M", "Color": "Navy Blue"}), expressDelivery boolean (default false), expressEtaMinutes nullable integer 15–1440 (required while expressDelivery is true; turning express off clears it), standardDeliveryDays integer 1–7 (default 7), active boolean (default true). Delivery options belong to each product: express is only offered at checkout when every product in the basket supports it, and the ETA shown is the slowest product's. Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
+Required: name text, slug, categoryId UUID of existing category, positive priceMinor, stock integer 0–1,000,000. When `variants` is supplied, those two values are derived by the server instead: priceMinor becomes the lowest variant price and stock the sum of variant stock. Optional: nullable `brandId` UUID of an existing brand (send null to clear it), `discountPercent` nullable integer 0–99 (when set, the base price becomes `compareAtPriceMinor` and `priceMinor` is saved as the discounted selling price: `priceMinor = Math.round(basePrice * (1 - discountPercent / 100))`; setting 0 or null removes the discount and clears `compareAtPriceMinor`), optional `compareAtPriceMinor` nullable positive integer, description max 10,000 (default empty), images max 12 strings (max 2,000 each; HTTPS URL or single-leading-slash path), attributes string map (keys max 50, values max 500; default {}), variants up to 50 rows `{id?, name, priceMinor, compareAtPriceMinor?, stock, image?, options?}` where name is 1–120 characters and unique per product (case-insensitive), priceMinor is positive, stock is 0–1,000,000, optional nullable image string (max 2,000; HTTPS URL or single-leading-slash path) for variant/color photos, optional options string map (keys max 50, values max 100) storing structured variant dimensions (e.g. {"Size": "M", "Color": "Navy Blue"}), expressDelivery boolean (default false), expressEtaMinutes nullable integer 15–1440 (required while expressDelivery is true; turning express off clears it), standardDeliveryDays integer 1–7 (default 7), active boolean (default true). Delivery options belong to each product: express is only offered at checkout when every product in the basket supports it, and the ETA shown is the slowest product's. Owner vendorId is server assigned. New products are PENDING with reviewVersion=1 and null rejectionReason/reviewedAt/reviewedById. They are unpublished even if active=true until approved. Moderation fields cannot be supplied in product create/update bodies. Slug is globally unique. Upload files with /uploads first, then pass the returned media URL here.
 
 ### PATCH /api/v1/vendor/products/:id
 
@@ -1399,7 +1415,8 @@ These are scalar response fields, not additional writable fields. Relations appe
 |---|---|
 | Vendor | `id: String`, `ownerId: String`, `name: String`, `slug: String`, `logo: String?`, `description: String`, `businessType: String`, `city: String`, `zone: String`, `address: String`, `status: VendorStatus`, `categoryId: String?`, `commissionBps: Int`, `bankDetails: Json`, `createdAt: DateTime` |
 | Category | `id: String`, `name: String`, `slug: String`, `commissionBps: Int` |
-| Product | `id: String`, `vendorId: String`, `categoryId: String`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `reviewStatus: PENDING | APPROVED | REJECTED`, `rejectionReason: String?`, `reviewedAt: DateTime?`, `reviewedById: String?`, `reviewVersion: Int`, `images: String[]`, `attributes: Json`, `expressDelivery: Boolean`, `expressEtaMinutes: Int?`, `standardDeliveryDays: Int`, `createdAt: DateTime`, `updatedAt: DateTime` |
+| Brand | `id: String`, `name: String`, `slug: String`, `image: String?`, `description: String`, `createdAt: DateTime`, `updatedAt: DateTime` |
+| Product | `id: String`, `vendorId: String`, `categoryId: String`, `brandId: String?`, `name: String`, `slug: String`, `description: String`, `priceMinor: Int`, `stock: Int`, `active: Boolean`, `reviewStatus: PENDING | APPROVED | REJECTED`, `rejectionReason: String?`, `reviewedAt: DateTime?`, `reviewedById: String?`, `reviewVersion: Int`, `images: String[]`, `attributes: Json`, `expressDelivery: Boolean`, `expressEtaMinutes: Int?`, `standardDeliveryDays: Int`, `createdAt: DateTime`, `updatedAt: DateTime` |
 | Address | `id: String`, `userId: String`, `kind: String`, `firstName: String`, `lastName: String`, `phone: String`, `city: String`, `zone: String`, `street: String`, `building: String`, `apartment: String`, `directions: String`, `latitude: Float?`, `longitude: Float?`, `createdAt: DateTime` |
 | CartItem | `userId: String`, `productId: String`, `quantity: Int` |
 | WishlistItem | `userId: String`, `productId: String` |
@@ -1703,7 +1720,7 @@ RIDERS may upload only IMAGE; DOCUMENT uploads require ADMIN or an approved VEND
 {"active":false}
 ```
 
-Accepts a subset of the vendor product creation fields (name, slug, categoryId, description, priceMinor, stock, images, attributes, active), with the same validation; `variants` is vendor-managed and is ignored by the admin console. Changes are audited. Content edits reset moderation to PENDING; active=true does not approve. Success: 200 Product.
+Accepts a subset of the vendor product creation fields (name, slug, categoryId, brandId, description, priceMinor, stock, images, attributes, active), with the same validation; `variants` is vendor-managed and is ignored by the admin console. Changes are audited. Content edits reset moderation to PENDING; active=true does not approve. Success: 200 Product.
 
 ### GET /api/v1/admin/staff
 
@@ -2153,5 +2170,54 @@ Example `productPromos` inside the published `content`:
 - Admin UI: Homepage → section dropdown → **Product page promo banners** → Add item → upload the image, set the description and link → Publish homepage.
 
 No migration is required. A homepage document published before this release is returned with two defaults (`/product/cashback.webp` → `/category/deals` and `/product/grocery-banner.webp` → `/category/grocery`), and the storefront falls back to those same static images if the field is absent. The section is persisted the first time an admin publishes the homepage.
+
+## Product brands (2026-11-25)
+
+Brands are first-class records (Apple, Samsung, Xiaomi, etc.) used by vendor products and the customer storefront. This requires the `20261125203300_add_brand_model` migration. `Product.brandId` is nullable: deleting a brand detaches it from its products without deleting or unpublishing them. The admin console manages brands under **Brands**, vendors choose one in the product editor, and the storefront shows a brand strip above popular searches. Seeded starter brands and their logos can be published with `npm run db:seed:brands`.
+
+### GET /api/v1/admin/brands
+
+**Access:** ADMIN.
+
+**Query:** page, limit (default 20, max 100); optional search (name, case-insensitive).
+
+**Body:** None.
+
+**Success:** 200; `data: {items, total, page, limit}`, sorted by name. Each item includes the brand fields and `_count: {products}` with the number of products currently linked to the brand.
+
+### POST /api/v1/admin/brands
+
+**Access:** ADMIN.
+
+**Example JSON body:**
+
+```json
+{
+  "name": "Samsung",
+  "slug": "samsung",
+  "image": "/uploads/11111111-1111-4111-8111-111111111111.png",
+  "description": "Phones, tablets, TVs and appliances."
+}
+```
+
+**Success:** 201; `data: Brand`.
+
+Required: name (trimmed 1–200 characters) and slug (lowercase letters, digits and hyphens, 1–180 characters, globally unique). Optional: image (null, empty, HTTPS URL or single-leading-slash path, max 2,000 characters) and description (max 5,000 characters, default empty). Logo images are uploaded through `POST /uploads` with kind IMAGE; the returned `/uploads/...` URL can be stored directly. Audit action: `BRAND_CREATED`.
+
+### PATCH /api/v1/admin/brands/:id
+
+**Access:** ADMIN.
+
+```json
+{"name":"Samsung Electronics","image":"https://cdn.example.com/samsung.png"}
+```
+
+Any nonempty subset of name, slug, image and description, with the same validation as creation. `image: null` removes the logo. Success: 200 Brand; missing brands return 404. Audit action: `BRAND_UPDATED`.
+
+### DELETE /api/v1/admin/brands/:id
+
+**Access:** ADMIN. Success: 204. Products linked to the brand keep their listings and are detached (`brandId` becomes null). Missing brands return 404. Audit action: `BRAND_DELETED`.
+
+Vendor product create and update accept an optional nullable `brandId` (UUID of an existing brand); send `null` to clear it. Product responses from `/catalog/products`, `/catalog/products/:id` and `/vendor/products` include `brandId` and the related `brand` object. `/admin/products` includes the `brandId` scalar but not the joined brand object. Changing `brandId` follows the same moderation reset rules as other listing content.
 
 

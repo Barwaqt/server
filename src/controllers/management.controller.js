@@ -31,3 +31,17 @@ export const deleteCoupon = async (req, res) => {
   await s.deleteCoupon(req.user, req.params.id);
   res.status(204).end();
 };
+export const brands = async (req, res) =>
+  res.json({ data: await s.brands(req.input.query) });
+export const createBrand = async (req, res) =>
+  res
+    .status(201)
+    .json({ data: await s.saveBrand(req.user, null, req.input.body) });
+export const updateBrand = async (req, res) =>
+  res.json({
+    data: await s.saveBrand(req.user, req.params.id, req.input.body),
+  });
+export const deleteBrand = async (req, res) => {
+  await s.deleteBrand(req.user, req.params.id);
+  res.status(204).end();
+};

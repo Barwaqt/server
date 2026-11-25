@@ -36,7 +36,12 @@ catalogRouter.post(
     res.status(204).end();
   },
 );
-catalogRouter.get("/categories", validate(z.object({ids:z.string().optional()}),'query'), c.categoriesFiltered);
+catalogRouter.get(
+  "/categories",
+  validate(z.object({ ids: z.string().optional() }), "query"),
+  c.categoriesFiltered,
+);
+catalogRouter.get("/brands", validate(page, "query"), c.brands);
 catalogRouter.get("/products", validate(page, "query"), c.products);
 catalogRouter.get("/products/:id", c.product);
 

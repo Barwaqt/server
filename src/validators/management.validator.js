@@ -74,3 +74,22 @@ export const upload = z
     data: z.string().min(4).max(7000000),
   })
   .strict();
+export const brand = z
+  .object({
+    name: text,
+    slug: z
+      .string()
+      .regex(/^[a-z0-9-]+$/)
+      .max(180),
+    image: z
+      .string()
+      .max(2000)
+      .refine((v) => v === "" || /^https:\/\//.test(v) || /^\/(?!\/)/.test(v))
+      .nullable()
+      .optional(),
+    description: z.string().max(5000).optional(),
+  })
+  .strict();
+export const brandUpdate = brand
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, "Provide at least one field");

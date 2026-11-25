@@ -153,7 +153,7 @@ export async function deleteCategory(user, id, reassignTo) {
           categoryIds: remaining,
           categoryId:
             vendor.categoryId === id
-              ? (reassignTo || remaining[0] || null)
+              ? reassignTo || remaining[0] || null
               : vendor.categoryId,
           categoryCommissions: commissions,
         },
@@ -216,5 +216,47 @@ export async function deleteCoupon(user, id) {
     );
     await tx.coupon.delete({ where: { id } });
     await audit(tx, user, "COUPON_DELETED", id);
+  });
+}
+export async function brands(q) {
+  const where = q.search
+    ? { name: { contains: q.search, mode: "insensitive" } }
+    : {};
+  const [items, total] = await Promise.all([
+    db.brand.findMany({
+      where,
+      ...pagination(q),
+      orderBy: { name: "asc" },
+      include: { _count: { select: { products: true } } },
+    }),
+    db.brand.count({ where }),
+  ]);
+  return { items, total, page: q.page, limit: q.limit };
+}
+export async function saveBrand(user, id, input) {
+  return transaction(async (tx) => {
+    if (id)
+      assert(
+        await tx.brand.findUnique({ where: { id } }),
+        404,
+        "Brand not found",
+      );
+    const row = id
+      ? await tx.brand.update({ where: { id }, data: input })
+      : await tx.brand.create({ data: input });
+    await audit(tx, user, id ? "BRAND_UPDATED" : "BRAND_CREATED", row.id);
+    return row;
+  });
+}
+export async function deleteBrand(user, id) {
+  return transaction(async (tx) => {
+    assert(
+      await tx.brand.findUnique({ where: { id } }),
+      404,
+      "Brand not found",
+    );
+    // Products keep their listing; the brand reference is cleared by SetNull.
+    await tx.brand.delete({ where: { id } });
+    await audit(tx, user, "BRAND_DELETED", id);
   });
 }

@@ -22,6 +22,15 @@ export function normalizeProduct(p) {
     compareAtPriceMinor: p.compareAtPriceMinor ?? null,
     discountPercent: p.discountPercent ?? null,
     images: normalizeImages(p.images),
+    ...(p.brand
+      ? {
+          brand: {
+            ...p.brand,
+            image:
+              normalizeImages(p.brand.image ? [p.brand.image] : [])[0] ?? null,
+          },
+        }
+      : {}),
     ...(p.variants
       ? {
           variants: p.variants.map((v) => ({
@@ -128,6 +137,20 @@ export async function categoryList() {
     productIds: catalogProducts.map((p) => p.id),
   }));
 }
+export async function brands(q) {
+  const where = q.search
+    ? { name: { contains: q.search, mode: "insensitive" } }
+    : {};
+  const rows = await db.brand.findMany({
+    where,
+    ...pagination(q),
+    orderBy: { name: "asc" },
+  });
+  return rows.map((brand) => ({
+    ...brand,
+    image: normalizeImages(brand.image ? [brand.image] : [])[0] ?? null,
+  }));
+}
 export async function categoriesFiltered(input) {
   const ids = input.ids ? input.ids.split(",").filter(Boolean) : null;
   const rows = await db.category.findMany({
@@ -214,6 +237,7 @@ export async function products(q) {
       ...pagination(q),
       include: {
         category: true,
+        brand: true,
         vendor: {
           select: {
             id: true,
@@ -254,6 +278,7 @@ export async function product(identifier) {
     },
     include: {
       category: true,
+      brand: true,
       vendor: {
         select: {
           id: true,
@@ -286,7 +311,7 @@ export async function vendorProducts(user, q) {
       ...(q.categoryId ? { categoryId: q.categoryId } : {}),
     },
     ...pagination(q),
-    include: variantInclude,
+    include: { ...variantInclude, brand: true },
     orderBy: { createdAt: "desc" },
   });
   return items.map(normalizeProduct);

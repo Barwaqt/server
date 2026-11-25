@@ -57,6 +57,7 @@ export const product = z
       .regex(/^[a-z0-9-]+$/)
       .max(180),
     categoryId: id,
+    brandId: id.nullable().optional(),
     description: z.string().max(10000).default(""),
     priceMinor: minor.positive(),
     compareAtPriceMinor: minor.positive().nullable().optional(),

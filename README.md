@@ -96,6 +96,8 @@ Framework references: [Prisma PostgreSQL adapter](https://www.prisma.io/docs/orm
 
 Run `npm run db:seed:catalog` after migrations to import the original 218 products and 171 category entries, assigned to a manageable vendor. See [catalog seed instructions](prisma/CATALOG_SEED.md) for images, login credentials, stock, price conventions and repeat-run behavior.
 
+Run `npm run db:seed:brands` to add starter product brands (Apple, Samsung, Xiaomi and others) with bundled logos. The seed copies the PNGs from `prisma/brand-logos` into the server upload store (`uploads/public`), records them as uploads, and stores the same `/uploads/...` URLs that Admin → Brands produces. It is idempotent: uploads are reused, and a logo uploaded by an administrator is never overwritten. Replace logos from Admin → Brands.
+
 ## CI/CD
 
 GitHub Actions runs backend tests with PostgreSQL on pushes and pull requests to `main`. Successful pushes to `main` automatically publish tested code to the VPS through SSH, apply pending production migrations, and restart PM2; no server-side `git pull` or manual migration command is needed. See [deployment setup](docs/DEPLOYMENT.md) for secrets, prerequisites and migration handling.

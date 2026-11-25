@@ -1,552 +1,620 @@
 generator client {
- provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
+
 datasource db {
- provider = "postgresql"
+  provider = "postgresql"
 }
+
 enum Role {
- CUSTOMER
- VENDOR
- ADMIN
- DISPATCHER
- RIDER
- FINANCE
+  CUSTOMER
+  VENDOR
+  ADMIN
+  DISPATCHER
+  RIDER
+  FINANCE
 }
+
 enum VendorStatus {
- APPROVED
- SUSPENDED
+  APPROVED
+  SUSPENDED
 }
+
 enum OrderStatus {
- NEW
- PREPARING
- READY
- ASSIGNED
- PICKED_UP
- DELIVERED
- FAILED
- CANCELLED
- RETURNED
+  NEW
+  PREPARING
+  READY
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  FAILED
+  CANCELLED
+  RETURNED
 }
+
 enum ShiftStatus {
- AVAILABLE
- BUSY
- BREAK
- ENDED
+  AVAILABLE
+  BUSY
+  BREAK
+  ENDED
 }
+
 enum SettlementStatus {
- PENDING
- PROCESSED
- PAID
+  PENDING
+  PROCESSED
+  PAID
 }
+
 model User {
- id String @id @default(uuid())
- email String? @unique
- phone String? @unique
- googleSubject String? @unique
- appleSubject String? @unique
- passwordResets PasswordReset[]
- emailVerifications EmailVerification[]
- passwordHash String
- role Role @default(CUSTOMER)
- firstName String
- lastName String @default("")
- active Boolean @default(true)
- emailVerifiedAt DateTime?
- phoneVerifiedAt DateTime?
- deletedAt DateTime?
- profile Json @default("{}")
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
- vendor Vendor?
- sessions Session[]
- addresses Address[]
- cart CartItem[]
- wishlist WishlistItem[]
- orders Order[]
- assignedOrders VendorOrder[] @relation("RiderOrders")
- shifts Shift[]
- remittances Remittance[]
- notifications Notification[]
- reviews Review[]
+  id                 String              @id @default(uuid())
+  email              String?             @unique
+  phone              String?             @unique
+  googleSubject      String?             @unique
+  appleSubject       String?             @unique
+  passwordResets     PasswordReset[]
+  emailVerifications EmailVerification[]
+  passwordHash       String
+  role               Role                @default(CUSTOMER)
+  firstName          String
+  lastName           String              @default("")
+  active             Boolean             @default(true)
+  emailVerifiedAt    DateTime?
+  phoneVerifiedAt    DateTime?
+  deletedAt          DateTime?
+  profile            Json                @default("{}")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  vendor             Vendor?
+  sessions           Session[]
+  addresses          Address[]
+  cart               CartItem[]
+  wishlist           WishlistItem[]
+  orders             Order[]
+  assignedOrders     VendorOrder[]       @relation("RiderOrders")
+  shifts             Shift[]
+  remittances        Remittance[]
+  notifications      Notification[]
+  reviews            Review[]
 }
+
 model Session {
- id String @id @default(uuid())
- tokenHash String @unique
- userId String
- user User @relation(fields:[userId],references:[id],onDelete:Cascade)
- expiresAt DateTime
- createdAt DateTime @default(now())
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
+
 model Vendor {
- adjustments VendorAdjustment[]
- id String @id @default(uuid())
- ownerId String @unique
- owner User @relation(fields:[ownerId],references:[id])
- name String
- slug String @unique
- logo String?
- description String @default("")
- businessType String
- city String
- zone String
- address String
- status VendorStatus @default(APPROVED)
- categoryId String?
- category Category? @relation(fields:[categoryId],references:[id],onDelete:Restrict)
- categoryIds String[] @default([])
- commissionBps Int @default(1000)
- categoryCommissions Json @default("{}")
- bankDetails Json @default("{}")
- createdAt DateTime @default(now())
- products Product[]
- orders VendorOrder[]
- settlements Settlement[]
- @@index([categoryId])
+  adjustments         VendorAdjustment[]
+  id                  String             @id @default(uuid())
+  ownerId             String             @unique
+  owner               User               @relation(fields: [ownerId], references: [id])
+  name                String
+  slug                String             @unique
+  logo                String?
+  description         String             @default("")
+  businessType        String
+  city                String
+  zone                String
+  address             String
+  status              VendorStatus       @default(APPROVED)
+  categoryId          String?
+  category            Category?          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categoryIds         String[]           @default([])
+  commissionBps       Int                @default(1000)
+  categoryCommissions Json               @default("{}")
+  bankDetails         Json               @default("{}")
+  createdAt           DateTime           @default(now())
+  products            Product[]
+  orders              VendorOrder[]
+  settlements         Settlement[]
+
+  @@index([categoryId])
 }
+
 model Category {
- commissionBps Int @default(1000)
- vendors Vendor[]
- image String?
- parentSlug String?
- catalogProducts Product[] @relation("CatalogCategories")
- id String @id @default(uuid())
- name String
- slug String @unique
- products Product[]
+  commissionBps   Int       @default(1000)
+  vendors         Vendor[]
+  image           String?
+  parentSlug      String?
+  catalogProducts Product[] @relation("CatalogCategories")
+  id              String    @id @default(uuid())
+  name            String
+  slug            String    @unique
+  products        Product[]
 }
+
+model Brand {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  image       String?
+  description String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
 enum ProductReviewStatus {
- PENDING
- APPROVED
- REJECTED
+  PENDING
+  APPROVED
+  REJECTED
 }
+
 model Product {
- reviewStatus ProductReviewStatus @default(PENDING)
- rejectionReason String?
- reviewedAt DateTime?
- reviewedById String?
- reviewVersion Int @default(1)
- catalogCategories Category[] @relation("CatalogCategories")
- id String @id @default(uuid())
- vendorId String
- vendor Vendor @relation(fields:[vendorId],references:[id])
- categoryId String
- category Category @relation(fields:[categoryId],references:[id])
- name String
- slug String @unique
- description String @default("")
- priceMinor Int
- compareAtPriceMinor Int?
- discountPercent Int?
- stock Int @default(0)
- active Boolean @default(true)
-  images String[]
-  attributes Json @default("{}")
+  reviewStatus         ProductReviewStatus @default(PENDING)
+  rejectionReason      String?
+  reviewedAt           DateTime?
+  reviewedById         String?
+  reviewVersion        Int                 @default(1)
+  catalogCategories    Category[]          @relation("CatalogCategories")
+  id                   String              @id @default(uuid())
+  vendorId             String
+  vendor               Vendor              @relation(fields: [vendorId], references: [id])
+  categoryId           String
+  category             Category            @relation(fields: [categoryId], references: [id])
+  brandId              String?
+  brand                Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  name                 String
+  slug                 String              @unique
+  description          String              @default("")
+  priceMinor           Int
+  compareAtPriceMinor  Int?
+  discountPercent      Int?
+  stock                Int                 @default(0)
+  active               Boolean             @default(true)
+  images               String[]
+  attributes           Json                @default("{}")
   // Delivery options offered for this product: express (with an ETA in
   // minutes) and standard (within 1-7 days). The vendor sets them per product.
-  expressDelivery Boolean @default(false)
-  expressEtaMinutes Int?
-  standardDeliveryDays Int @default(7)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
- cart CartItem[]
- wishlist WishlistItem[]
- items OrderItem[]
- reviews Review[]
- variants ProductVariant[]
- @@index([reviewStatus,createdAt])
- @@index([vendorId,active])
- @@index([categoryId,active])
+  expressDelivery      Boolean             @default(false)
+  expressEtaMinutes    Int?
+  standardDeliveryDays Int                 @default(7)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  cart                 CartItem[]
+  wishlist             WishlistItem[]
+  items                OrderItem[]
+  reviews              Review[]
+  variants             ProductVariant[]
+
+  @@index([reviewStatus, createdAt])
+  @@index([vendorId, active])
+  @@index([categoryId, active])
+  @@index([brandId])
 }
+
 model Address {
- id String @id @default(uuid())
- userId String
- user User @relation(fields:[userId],references:[id],onDelete:Cascade)
- kind String @default("Home")
- firstName String
- lastName String @default("")
- phone String
- city String
- zone String
- street String
- building String @default("")
- apartment String @default("")
- directions String @default("")
- latitude Float?
- longitude Float?
- createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String   @default("Home")
+  firstName  String
+  lastName   String   @default("")
+  phone      String
+  city       String
+  zone       String
+  street     String
+  building   String   @default("")
+  apartment  String   @default("")
+  directions String   @default("")
+  latitude   Float?
+  longitude  Float?
+  createdAt  DateTime @default(now())
 }
+
 model ProductVariant {
- id String @id @default(uuid())
- productId String
- product Product @relation(fields:[productId],references:[id],onDelete:Cascade)
- name String
- priceMinor Int
- compareAtPriceMinor Int?
- stock Int @default(0)
- image String?
- options Json? @default("{}")
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
- cartItems CartItem[]
- orderItems OrderItem[]
- @@index([productId])
+  id                  String      @id @default(uuid())
+  productId           String
+  product             Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name                String
+  priceMinor          Int
+  compareAtPriceMinor Int?
+  stock               Int         @default(0)
+  image               String?
+  options             Json?       @default("{}")
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  cartItems           CartItem[]
+  orderItems          OrderItem[]
+
+  @@index([productId])
 }
+
 model CartItem {
- userId String
- user User @relation(fields:[userId],references:[id],onDelete:Cascade)
- productId String
- product Product @relation(fields:[productId],references:[id],onDelete:Cascade)
- variantId String?
- variant ProductVariant? @relation(fields:[variantId],references:[id],onDelete:SetNull)
- quantity Int
- @@id([userId,productId])
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  quantity  Int
+
+  @@id([userId, productId])
 }
+
 model WishlistItem {
- userId String
- user User @relation(fields:[userId],references:[id],onDelete:Cascade)
- productId String
- product Product @relation(fields:[productId],references:[id],onDelete:Cascade)
- @@id([userId,productId])
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
 }
+
 model Coupon {
- categoryIds String[] @default([])
- id String @id @default(uuid())
- code String @unique
- percentBps Int
- maxDiscountMinor Int
- minSubtotalMinor Int @default(0)
- maxUses Int
- used Int @default(0)
- active Boolean @default(true)
- expiresAt DateTime
- orders Order[]
+  categoryIds      String[] @default([])
+  id               String   @id @default(uuid())
+  code             String   @unique
+  percentBps       Int
+  maxDiscountMinor Int
+  minSubtotalMinor Int      @default(0)
+  maxUses          Int
+  used             Int      @default(0)
+  active           Boolean  @default(true)
+  expiresAt        DateTime
+  orders           Order[]
 }
+
 model Order {
- payment Payment?
- deliverySlotId String?
- deliverySlot DeliverySlot? @relation(fields:[deliverySlotId],references:[id])
- deliveryWindow Json?
- id String @id
- customerId String
- customer User @relation(fields:[customerId],references:[id])
- idempotencyKey String
- requestHash String
- address Json
- currency String @default("PKR")
- paymentMethod String @default("COD")
- subtotalMinor Int
- discountMinor Int
- deliveryMinor Int
- totalMinor Int
- couponId String?
- coupon Coupon? @relation(fields:[couponId],references:[id])
- // Delivery option the customer chose at checkout (EXPRESS or STANDARD) and
- // the promised ETA in minutes, snapshotted so vendor edits never rewrite history.
- deliveryOption String @default("STANDARD")
- deliveryEtaMinutes Int?
- // WSPAN: customer had cancelled >=2 shipments before this order.
- // Such orders are routed to the separate WSPAN section in admin/vendor.
- isWspan Boolean @default(false)
- cancelledShipments Int @default(0)
- createdAt DateTime @default(now())
- vendorOrders VendorOrder[]
- @@unique([customerId,idempotencyKey])
- @@index([customerId,createdAt])
- @@index([isWspan,createdAt])
+  payment            Payment?
+  deliverySlotId     String?
+  deliverySlot       DeliverySlot? @relation(fields: [deliverySlotId], references: [id])
+  deliveryWindow     Json?
+  id                 String        @id
+  customerId         String
+  customer           User          @relation(fields: [customerId], references: [id])
+  idempotencyKey     String
+  requestHash        String
+  address            Json
+  currency           String        @default("PKR")
+  paymentMethod      String        @default("COD")
+  subtotalMinor      Int
+  discountMinor      Int
+  deliveryMinor      Int
+  totalMinor         Int
+  couponId           String?
+  coupon             Coupon?       @relation(fields: [couponId], references: [id])
+  // Delivery option the customer chose at checkout (EXPRESS or STANDARD) and
+  // the promised ETA in minutes, snapshotted so vendor edits never rewrite history.
+  deliveryOption     String        @default("STANDARD")
+  deliveryEtaMinutes Int?
+  // WSPAN: customer had cancelled >=2 shipments before this order.
+  // Such orders are routed to the separate WSPAN section in admin/vendor.
+  isWspan            Boolean       @default(false)
+  cancelledShipments Int           @default(0)
+  createdAt          DateTime      @default(now())
+  vendorOrders       VendorOrder[]
+
+  @@unique([customerId, idempotencyKey])
+  @@index([customerId, createdAt])
+  @@index([isWspan, createdAt])
 }
+
 model VendorOrder {
- returnRequest ReturnRequest?
- id String @id
- orderId String
- order Order @relation(fields:[orderId],references:[id])
- vendorId String
- vendor Vendor @relation(fields:[vendorId],references:[id])
- status OrderStatus @default(NEW)
- deliveryOption String @default("STANDARD")
- deliveryEtaMinutes Int?
- subtotalMinor Int
- discountMinor Int
- deliveryMinor Int
- totalMinor Int
- commissionMinor Int
- payableMinor Int
- riderId String?
- rider User? @relation("RiderOrders",fields:[riderId],references:[id])
- proofImage String?
- codCollectedMinor Int @default(0)
- cashReceived Boolean @default(false)
- deliveredAt DateTime?
- failureReason String?
- latitude Float?
- longitude Float?
- locationAt DateTime?
- settlementId String?
- settlement Settlement? @relation(fields:[settlementId],references:[id])
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
- items OrderItem[]
- events OrderEvent[]
- refunds Refund[]
- @@index([vendorId,status])
- @@index([riderId,status])
+  returnRequest      ReturnRequest?
+  id                 String         @id
+  orderId            String
+  order              Order          @relation(fields: [orderId], references: [id])
+  vendorId           String
+  vendor             Vendor         @relation(fields: [vendorId], references: [id])
+  status             OrderStatus    @default(NEW)
+  deliveryOption     String         @default("STANDARD")
+  deliveryEtaMinutes Int?
+  subtotalMinor      Int
+  discountMinor      Int
+  deliveryMinor      Int
+  totalMinor         Int
+  commissionMinor    Int
+  payableMinor       Int
+  riderId            String?
+  rider              User?          @relation("RiderOrders", fields: [riderId], references: [id])
+  proofImage         String?
+  codCollectedMinor  Int            @default(0)
+  cashReceived       Boolean        @default(false)
+  deliveredAt        DateTime?
+  failureReason      String?
+  latitude           Float?
+  longitude          Float?
+  locationAt         DateTime?
+  settlementId       String?
+  settlement         Settlement?    @relation(fields: [settlementId], references: [id])
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  items              OrderItem[]
+  events             OrderEvent[]
+  refunds            Refund[]
+
+  @@index([vendorId, status])
+  @@index([riderId, status])
 }
+
 model OrderItem {
- id String @id @default(uuid())
- vendorOrderId String
- vendorOrder VendorOrder @relation(fields:[vendorOrderId],references:[id])
- productId String
- product Product @relation(fields:[productId],references:[id])
- variantId String?
- variant ProductVariant? @relation(fields:[variantId],references:[id],onDelete:SetNull)
- variantName String?
- name String
- unitPriceMinor Int
- quantity Int
- image String?
+  id             String          @id @default(uuid())
+  vendorOrderId  String
+  vendorOrder    VendorOrder     @relation(fields: [vendorOrderId], references: [id])
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id])
+  variantId      String?
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantName    String?
+  name           String
+  unitPriceMinor Int
+  quantity       Int
+  image          String?
 }
+
 model OrderEvent {
- id String @id @default(uuid())
- vendorOrderId String
- vendorOrder VendorOrder @relation(fields:[vendorOrderId],references:[id])
- actorId String
- status OrderStatus
- note String?
- createdAt DateTime @default(now())
+  id            String      @id @default(uuid())
+  vendorOrderId String
+  vendorOrder   VendorOrder @relation(fields: [vendorOrderId], references: [id])
+  actorId       String
+  status        OrderStatus
+  note          String?
+  createdAt     DateTime    @default(now())
 }
+
 model Shift {
- id String @id @default(uuid())
- riderId String
- rider User @relation(fields:[riderId],references:[id])
- status ShiftStatus @default(AVAILABLE)
- startedAt DateTime @default(now())
- endedAt DateTime?
- breakStartedAt DateTime?
- breakSeconds Int @default(0)
- @@index([riderId,endedAt])
+  id             String      @id @default(uuid())
+  riderId        String
+  rider          User        @relation(fields: [riderId], references: [id])
+  status         ShiftStatus @default(AVAILABLE)
+  startedAt      DateTime    @default(now())
+  endedAt        DateTime?
+  breakStartedAt DateTime?
+  breakSeconds   Int         @default(0)
+
+  @@index([riderId, endedAt])
 }
+
 model Remittance {
- id String @id @default(uuid())
- riderId String
- rider User @relation(fields:[riderId],references:[id])
- amountMinor Int
- reference String @unique
- receivedBy String
- createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  riderId     String
+  rider       User     @relation(fields: [riderId], references: [id])
+  amountMinor Int
+  reference   String   @unique
+  receivedBy  String
+  createdAt   DateTime @default(now())
 }
+
 model Settlement {
- adjustments VendorAdjustment[]
- id String @id @default(uuid())
- vendorId String
- vendor Vendor @relation(fields:[vendorId],references:[id])
- amountMinor Int
- status SettlementStatus @default(PENDING)
- reference String? @unique
- createdBy String
- paidAt DateTime?
- createdAt DateTime @default(now())
- orders VendorOrder[]
+  adjustments VendorAdjustment[]
+  id          String             @id @default(uuid())
+  vendorId    String
+  vendor      Vendor             @relation(fields: [vendorId], references: [id])
+  amountMinor Int
+  status      SettlementStatus   @default(PENDING)
+  reference   String?            @unique
+  createdBy   String
+  paidAt      DateTime?
+  createdAt   DateTime           @default(now())
+  orders      VendorOrder[]
 }
+
 model Refund {
- id String @id @default(uuid())
- vendorOrderId String
- vendorOrder VendorOrder @relation(fields:[vendorOrderId],references:[id])
- amountMinor Int
- reason String
- reference String @unique
- createdBy String
- createdAt DateTime @default(now())
+  id            String      @id @default(uuid())
+  vendorOrderId String
+  vendorOrder   VendorOrder @relation(fields: [vendorOrderId], references: [id])
+  amountMinor   Int
+  reason        String
+  reference     String      @unique
+  createdBy     String
+  createdAt     DateTime    @default(now())
 }
+
 model Notification {
- id String @id @default(uuid())
- userId String
- user User @relation(fields:[userId],references:[id],onDelete:Cascade)
- title String
- body String
- readAt DateTime?
- createdAt DateTime @default(now())
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 }
+
 model Review {
- id String @id @default(uuid())
- userId String
- user User @relation(fields:[userId],references:[id])
- productId String
- product Product @relation(fields:[productId],references:[id])
- rating Int
- comment String
- createdAt DateTime @default(now())
- @@unique([userId,productId])
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
 }
+
 model AuditLog {
- id String @id @default(uuid())
- actorId String
- action String
- entityId String
- metadata Json @default("{}")
- createdAt DateTime @default(now())
+  id        String   @id @default(uuid())
+  actorId   String
+  action    String
+  entityId  String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
 }
 
 model PasswordReset {
- id String @id @default(uuid())
- userId String
- user User @relation(fields:[userId],references:[id],onDelete:Cascade)
- tokenHash String @unique
- expiresAt DateTime
- createdAt DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
+
 model EmailVerification {
- id String @id @default(uuid())
- userId String
- user User @relation(fields:[userId],references:[id],onDelete:Cascade)
- tokenHash String @unique
- expiresAt DateTime
- createdAt DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
+
 model AuthChallenge {
- id String @id @default(uuid())
- tokenHash String @unique
- provider String
- expiresAt DateTime
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  provider  String
+  expiresAt DateTime
 }
 
 model DeliverySlot {
- id String @id @default(uuid())
- city String
- zone String
- startsAt DateTime
- endsAt DateTime
- capacity Int
- reserved Int @default(0)
- active Boolean @default(true)
- orders Order[]
- createdAt DateTime @default(now())
- @@index([city,zone,startsAt])
+  id        String   @id @default(uuid())
+  city      String
+  zone      String
+  startsAt  DateTime
+  endsAt    DateTime
+  capacity  Int
+  reserved  Int      @default(0)
+  active    Boolean  @default(true)
+  orders    Order[]
+  createdAt DateTime @default(now())
+
+  @@index([city, zone, startsAt])
 }
+
 model ReturnRequest {
- id String @id @default(uuid())
- vendorOrderId String @unique
- vendorOrder VendorOrder @relation(fields:[vendorOrderId],references:[id])
- customerId String
- reason String
- status String @default("REQUESTED")
- note String @default("")
- restocked Boolean @default(false)
- refundId String? @unique
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
- @@index([customerId,createdAt])
+  id            String      @id @default(uuid())
+  vendorOrderId String      @unique
+  vendorOrder   VendorOrder @relation(fields: [vendorOrderId], references: [id])
+  customerId    String
+  reason        String
+  status        String      @default("REQUESTED")
+  note          String      @default("")
+  restocked     Boolean     @default(false)
+  refundId      String?     @unique
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([customerId, createdAt])
 }
+
 model VendorAdjustment {
- id String @id @default(uuid())
- vendorId String
- vendor Vendor @relation(fields:[vendorId],references:[id])
- refundId String @unique
- amountMinor Int
- settlementId String?
- settlement Settlement? @relation(fields:[settlementId],references:[id])
- createdAt DateTime @default(now())
- @@index([vendorId,settlementId])
+  id           String      @id @default(uuid())
+  vendorId     String
+  vendor       Vendor      @relation(fields: [vendorId], references: [id])
+  refundId     String      @unique
+  amountMinor  Int
+  settlementId String?
+  settlement   Settlement? @relation(fields: [settlementId], references: [id])
+  createdAt    DateTime    @default(now())
+
+  @@index([vendorId, settlementId])
 }
+
 model Upload {
- id String @id @default(uuid())
- ownerId String
- kind String
- filename String
- mimeType String
- size Int
- createdAt DateTime @default(now())
- @@index([ownerId,createdAt])
+  id        String   @id @default(uuid())
+  ownerId   String
+  kind      String
+  filename  String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, createdAt])
 }
 
 model PaymentAccount {
- id String @id @default(uuid())
- method String @unique
- accountTitle String
- accountNumber String
- bankName String @default("")
- instructions String @default("")
- active Boolean @default(false)
- updatedAt DateTime @updatedAt
+  id            String   @id @default(uuid())
+  method        String   @unique
+  accountTitle  String
+  accountNumber String
+  bankName      String   @default("")
+  instructions  String   @default("")
+  active        Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
 }
+
 model Payment {
- id String @id @default(uuid())
- orderId String @unique
- order Order @relation(fields:[orderId],references:[id])
- method String
- amountMinor Int
- status String @default("AWAITING_TRANSFER")
- accountSnapshot Json
- verifiedAt DateTime?
- verifiedBy String?
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
- submissions PaymentSubmission[]
- @@index([status,createdAt])
+  id              String              @id @default(uuid())
+  orderId         String              @unique
+  order           Order               @relation(fields: [orderId], references: [id])
+  method          String
+  amountMinor     Int
+  status          String              @default("AWAITING_TRANSFER")
+  accountSnapshot Json
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  submissions     PaymentSubmission[]
+
+  @@index([status, createdAt])
 }
+
 model PaymentSubmission {
- id String @id @default(uuid())
- paymentId String
- payment Payment @relation(fields:[paymentId],references:[id])
- method String
- reference String
- status String @default("SUBMITTED")
- note String @default("")
- reviewedBy String?
- reviewedAt DateTime?
- createdAt DateTime @default(now())
- @@unique([method,reference])
+  id         String    @id @default(uuid())
+  paymentId  String
+  payment    Payment   @relation(fields: [paymentId], references: [id])
+  method     String
+  reference  String
+  status     String    @default("SUBMITTED")
+  note       String    @default("")
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([method, reference])
 }
 
 model StorefrontPage {
- key String @id
- content Json
- version Int @default(1)
- updatedAt DateTime @updatedAt
+  key       String   @id
+  content   Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model SearchTerm {
- term String @id
- count Int @default(1)
- updatedAt DateTime @updatedAt
+  term      String   @id
+  count     Int      @default(1)
+  updatedAt DateTime @updatedAt
 }
 
 model PhoneOtp {
- phone String @id
- id String @unique @default(uuid())
- purpose String
- portal String
- userId String?
- pending Json?
- codeHash String
- attempts Int @default(0)
- sends Int @default(1)
- windowStartedAt DateTime @default(now())
- sentAt DateTime @default(now())
- expiresAt DateTime
- status String @default("PENDING")
+  phone           String   @id
+  id              String   @unique @default(uuid())
+  purpose         String
+  portal          String
+  userId          String?
+  pending         Json?
+  codeHash        String
+  attempts        Int      @default(0)
+  sends           Int      @default(1)
+  windowStartedAt DateTime @default(now())
+  sentAt          DateTime @default(now())
+  expiresAt       DateTime
+  status          String   @default("PENDING")
 }
+
 model MarketingCampaign {
- id String @id @default(uuid())
- actorId String
- requestKey String
- requestHash String
- name String
- channels String[]
- content Json
- createdAt DateTime @default(now())
- messages MarketingMessage[]
- @@unique([actorId, requestKey])
+  id          String             @id @default(uuid())
+  actorId     String
+  requestKey  String
+  requestHash String
+  name        String
+  channels    String[]
+  content     Json
+  createdAt   DateTime           @default(now())
+  messages    MarketingMessage[]
+
+  @@unique([actorId, requestKey])
 }
+
 model MarketingMessage {
- id String @id @default(uuid())
- campaignId String
- campaign MarketingCampaign @relation(fields:[campaignId],references:[id],onDelete:Cascade)
- phone String
- channel String
- status String @default("QUEUED")
- providerId String?
- error String?
- updatedAt DateTime @updatedAt
- createdAt DateTime @default(now())
- @@unique([campaignId, phone, channel])
- @@index([status, createdAt])
+  id         String            @id @default(uuid())
+  campaignId String
+  campaign   MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  phone      String
+  channel    String
+  status     String            @default("QUEUED")
+  providerId String?
+  error      String?
+  updatedAt  DateTime          @updatedAt
+  createdAt  DateTime          @default(now())
+
+  @@unique([campaignId, phone, channel])
+  @@index([status, createdAt])
 }
