@@ -26,6 +26,9 @@ const schema = z.object({
   SMTP_PASS: z.string().default(""),
   SMTP_FROM: z.string().default(""),
   EMAIL_LOGO_URL: z.string().default(""),
+  FIREBASE_PROJECT_ID: z.string().default(""),
+  FIREBASE_CLIENT_EMAIL: z.string().default(""),
+  FIREBASE_PRIVATE_KEY: z.string().default(""),
   WEB_URL: z.url().default("http://localhost:3000"),
   VENDOR_WEB_URL: z.url().default("http://localhost:3001"),
   NODE_ENV: z

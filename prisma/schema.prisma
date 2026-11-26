@@ -74,6 +74,7 @@ model User {
   shifts             Shift[]
   remittances        Remittance[]
   notifications      Notification[]
+  deviceTokens       DeviceToken[]
   reviews            Review[]
 }
 
@@ -412,6 +413,17 @@ model Notification {
   body      String
   readAt    DateTime?
   createdAt DateTime  @default(now())
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   @default("WEB")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Review {

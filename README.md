@@ -72,11 +72,23 @@ Access JWTs expire after 15 minutes by default. Refresh tokens are random, hashe
 
 Bearer authentication is used; the API does not set authentication cookies. Store tokens appropriately in your frontend/BFF; never store actual passwords or delivery photos in logs. Browser origins are allowlisted. Helmet, bounded JSON bodies, request IDs, strict validation, password hashing and rate limits are configured. Built-in rate limiting is per process; use a shared store at multi-instance deployment. Configure proxy trust explicitly for your deployment rather than accepting arbitrary forwarded IP headers.
 
+## Rider push notifications (FCM)
+
+When dispatch assigns a ready order, the API creates the usual in-app notification and sends a Firebase Cloud Messaging push to every device the rider has registered. Delivery is best effort: a missing Firebase config or a provider error never fails the assignment.
+
+1. In Firebase Console, create/select a project and add a **Web app**. Copy its config into `rider_web/.env` as `NEXT_PUBLIC_FIREBASE_*` (the values are inlined at build time, so rebuild and restart the rider app after changing them).
+2. Enable **Cloud Messaging**, generate a **Web Push certificate** key pair, and set it as `NEXT_PUBLIC_FIREBASE_VAPID_KEY`.
+3. In **Project settings → Service accounts**, generate a key. Set `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` in `server/.env` (keep the quoted `\n` line breaks; the API converts them).
+4. Run `npm run db:migrate` from `server` to create the `DeviceToken` table.
+5. Sign in to the rider app in a browser and press **Enable delivery alerts**. This requests notification permission and registers the FCM token with `POST /api/v1/notifications/devices`.
+
+Push notifications require HTTPS (localhost is exempt) and a browser that supports service workers. On iOS, web push works only for home-screen web apps on iOS 16.4+.
+
 ## Frontend integration
 
 The `web` and `vendor_web` authentication and commerce screens call the backend through HttpOnly-cookie proxies. Customer catalog, cart, wishlist, addresses, COD checkout, orders and notifications use persisted API data. Vendor products, order actions, dashboard, settlements and business settings are connected. All commerce amounts use PKR and resource IDs use backend UUIDs. See [complete API reference](complete_api.md) and [frontend integration guide](docs/FRONTEND.md).
 
-Authentication is connected in both frontends; see [authentication setup](docs/AUTH_SETUP.md) for SMTP, Google and Apple credentials. Provider credentials are required for live email/social sign-in. Not connected: online gateways (CARD/JAZZCASH/EASYPAISA return 503), SMS/OTP sign-in, external push notifications, bank transfers, document storage/verification, and warehouse fulfillment. No mock payment success or fake identity verification is exposed. Vendor identity/bank documents should be verified through your chosen provider/storage before production onboarding. The PDF explicitly places warehouse fulfillment in a future phase.
+Authentication is connected in both frontends; see [authentication setup](docs/AUTH_SETUP.md) for SMTP, Google and Apple credentials. Provider credentials are required for live email/social sign-in. Not connected: online gateways (CARD/JAZZCASH/EASYPAISA return 503), SMS/OTP sign-in, bank transfers, document storage/verification, and warehouse fulfillment. No mock payment success or fake identity verification is exposed. Vendor identity/bank documents should be verified through your chosen provider/storage before production onboarding. The PDF explicitly places warehouse fulfillment in a future phase.
 
 ## Verification
 

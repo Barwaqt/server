@@ -11,6 +11,7 @@ import { orderInclude, sanitizeOrder } from "../models/order.model.js";
 import { allocateOrderNumber } from "../utils/order-number.js";
 import { pagination } from "../validators/common.validator.js";
 import { searchLocations, getPlaceDetails } from "./maps.service.js";
+import { sendPushToUser } from "./push.service.js";
 import {
   productsEtaMinutes,
   resolveDeliveryOption,
@@ -565,10 +566,11 @@ async function releaseRider(tx, riderId) {
     });
 }
 export async function assign(actor, id, riderId) {
-  return transaction(async (tx) => {
+  let vendorName = "the vendor";
+  const assigned = await transaction(async (tx) => {
     const order = await tx.vendorOrder.findUnique({
       where: { id },
-      include: { vendor: { select: { ownerId: true } } },
+      include: { vendor: { select: { name: true, ownerId: true } } },
     });
     assert(order?.status === "READY", 409, "Only ready orders can be assigned");
     const rider = await tx.user.findFirst({
@@ -591,11 +593,12 @@ export async function assign(actor, id, riderId) {
         events: { create: { actorId: actor.id, status: "ASSIGNED" } },
       },
     });
+    vendorName = order.vendor.name;
     await notify(
       tx,
       riderId,
-      "Delivery assigned",
-      `Collect vendor order ${id}.`,
+      "New delivery assigned",
+      `You have been assigned delivery order ${id}. Collect it from ${order.vendor.name}.`,
     );
     await notify(
       tx,
@@ -613,6 +616,14 @@ export async function assign(actor, id, riderId) {
     });
     return sanitizeOrder(result);
   });
+  // Sent after commit so a rolled-back assignment never reaches the rider.
+  await sendPushToUser(riderId, {
+    title: "New delivery assigned",
+    body: `You have been assigned delivery order ${id}. Collect it from ${vendorName}.`,
+    data: { type: "ORDER_ASSIGNED", orderId: id },
+    link: "/",
+  });
+  return assigned;
 }
 export async function transition(actor, id, input) {
   const result = await transaction(async (tx) => {

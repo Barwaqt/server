@@ -10,6 +10,20 @@ export const markRead = (user, id) =>
     where: { id, userId: user.id },
     data: { readAt: new Date() },
   });
+// FCM tokens are unique per browser/app install; upsert so a token that was
+// previously linked to another account follows the current signed-in user.
+export const registerDevice = (user, input) =>
+  db.deviceToken.upsert({
+    where: { token: input.token },
+    create: {
+      token: input.token,
+      userId: user.id,
+      platform: input.platform,
+    },
+    update: { userId: user.id, platform: input.platform },
+  });
+export const unregisterDevice = (user, token) =>
+  db.deviceToken.deleteMany({ where: { token, userId: user.id } });
 // Actionable counts for sidebar badges, scoped to the caller's role.
 // Keys map to dashboard menus; menus without pending activity report 0.
 export async function badgeCounts(user) {

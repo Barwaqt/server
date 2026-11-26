@@ -172,6 +172,8 @@ Only use query parameters explicitly documented for each endpoint. Several route
 | GET | `/api/v1/notifications` | Authenticated |
 | GET | `/api/v1/notifications/badges` | Authenticated |
 | PATCH | `/api/v1/notifications/:id/read` | Authenticated |
+| POST | `/api/v1/notifications/devices` | Authenticated |
+| DELETE | `/api/v1/notifications/devices` | Authenticated |
 | GET | `/api/v1/payments/accounts` | CUSTOMER, ADMIN, FINANCE |
 | PUT | `/api/v1/payments/accounts` | ADMIN |
 | GET | `/api/v1/payments` | CUSTOMER, ADMIN, FINANCE |
@@ -1389,7 +1391,7 @@ id is the child order number (`barwaqt-######`). All fields required: positive a
 
 **Success:** 200; `data: Notification[]`, newest 100 owned notifications.
 
-Includes customer order status notifications. No pagination/unread filter or push/WebSocket endpoint.
+Includes customer order status notifications. No pagination/unread filter or WebSocket endpoint. Push delivery (FCM) is opt-in per device; see the device-token endpoints and the mobile app integration section below.
 
 ### GET /api/v1/notifications/badges
 
@@ -1406,6 +1408,148 @@ Includes customer order status notifications. No pagination/unread filter or pus
 **Success:** 200; `data: {count: 1}` on an owned match, `{count: 0}` otherwise.
 
 id is notification UUID. Sets readAt; does not return the notification object.
+
+### POST /api/v1/notifications/devices
+
+**Access:** Authenticated (any role).
+
+**Body:** `{token: string (20–4096 chars), platform?: "WEB" | "ANDROID" | "IOS" (default WEB)}`.
+
+**Success:** 201; `data: DeviceToken`. Registers the device's FCM registration token for the signed-in user. Tokens are unique, so re-registering an existing token reassigns it to the current user.
+
+### DELETE /api/v1/notifications/devices
+
+**Access:** Authenticated.
+
+**Body:** `{token: string}`.
+
+**Success:** 200; `data: {count}`. Removes the token from the caller's devices. Use on sign-out or when the browser token is revoked.
+
+When an order is assigned to a rider, the API writes the in-app notification and sends an FCM push to all of that rider's registered devices (title "New delivery assigned", body naming the order and vendor, data `{type: "ORDER_ASSIGNED", orderId, link}`). Push is best effort and requires the `FIREBASE_*` server variables.
+
+## Mobile app integration (Android / iOS)
+
+There is no separate mobile push API. A mobile client uses the same public API as the web clients and the same Firebase project as the server; the server already sends the FCM message, so no push-sending code is written in the app. The app only registers its FCM registration token and displays the message it receives.
+
+**Prerequisites**
+
+- The Firebase project used by the app must be the one whose service account is configured on the server (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`). Add `google-services.json` (Android) or `GoogleService-Info.plist` (iOS) from that project to the app.
+- iOS additionally needs an APNs auth key or certificate uploaded in Firebase and the Push Notifications capability enabled in Xcode.
+- All push endpoints require a normal user access token: `Authorization: Bearer <accessToken>` from the login/refresh endpoints. The token must belong to the rider account that admin assigns orders to, because push is sent to that user's devices.
+
+### 1. Register the device token
+
+After login (and again whenever the FCM SDK rotates the token), call:
+
+```http
+POST /api/v1/notifications/devices
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{ "token": "<fcm registration token>", "platform": "ANDROID" }
+```
+
+- `platform` must be `"ANDROID"` or `"IOS"` for native apps. It defaults to `"WEB"`, which would still work, but keeping it accurate matters for diagnostics.
+- `token` is 20–4096 characters; the body is strict, so no extra keys.
+- The call is an upsert: repeating it is safe and moving a token to the current user is automatic. Register on every app start after the user is known, and in the SDK's token-refresh callback.
+- Success is `201` with `data: DeviceToken`.
+
+On sign-out, remove the device so the next user on that phone does not receive the previous rider's pushes:
+
+```http
+DELETE /api/v1/notifications/devices
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{ "token": "<fcm registration token>" }
+```
+
+Success is `200` with `data: {count}`.
+
+Android example (Kotlin):
+
+```kotlin
+FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+    api.post("/api/v1/notifications/devices", mapOf("token" to token, "platform" to "ANDROID"))
+}
+```
+
+Token refresh (Android): override `onNewToken` in the `FirebaseMessagingService` and repeat the `POST` while a user is signed in. iOS: use the `MessagingDelegate` `didReceiveRegistrationToken` callback.
+
+### 2. Message format
+
+The API sends FCM **data-only** messages (no `notification` block). Every value arrives as a string:
+
+```json
+{
+  "type": "ORDER_ASSIGNED",
+  "orderId": "<vendorOrder uuid>",
+  "title": "New delivery assigned",
+  "body": "You have been assigned delivery order <short id>. Collect it from <vendor name>.",
+  "link": "/"
+}
+```
+
+`link` is the web path used by the rider web app; mobile apps can ignore it or map it to their own order screen using `orderId`. Treat `type` as an open set and ignore types the app does not handle.
+
+Because the message has no `notification` block, the operating system does **not** show it by itself. The app must handle it in a background handler and post a local notification. This is deliberate: it lets each client show exactly one notification and control the text and deep link.
+
+### 3. Display the notification
+
+**Android** — data messages are delivered to `FirebaseMessagingService.onMessageReceived` even when the app is in the background, provided the app is not force-stopped. Create a notification channel (Android 8+) and post a local notification:
+
+```kotlin
+class PushService : FirebaseMessagingService() {
+    override fun onMessageReceived(message: RemoteMessage) {
+        val data = message.data
+        if (data["type"] != "ORDER_ASSIGNED") return
+        val intent = Intent(this, MainActivity::class.java)
+            .putExtra("orderId", data["orderId"])
+        val pending = PendingIntent.getActivity(
+            this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(this, "deliveries")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(data["title"])
+            .setContentText(data["body"])
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+        NotificationManagerCompat.from(this).notify(1, notification)
+    }
+
+    override fun onNewToken(token: String) { /* POST the new token */ }
+}
+```
+
+Also declare the service in `AndroidManifest.xml` with the `MESSAGING_EVENT` intent filter, create the `"deliveries"` channel at startup, and request the runtime `POST_NOTIFICATIONS` permission on Android 13+ from a user gesture (a permission prompt on first launch is often auto-denied).
+
+**iOS** — data messages arrive as APNs silent pushes. Register for remote notifications, forward the APNs token to FCM, and in `application(_:didReceiveRemoteNotification:fetchCompletionHandler:)` build a `UNMutableNotificationContent` from `title`/`body` and add it with `UNUserNotificationCenter`. Silent pushes are low priority and can be throttled or deferred by iOS, so they are best effort. Ask for notification authorization (`UNUserNotificationCenter.requestAuthorization`) from a user action, not at launch.
+
+**Foreground** — with data-only messages the OS never displays anything while the app is open. Listen for messages in the foreground and render your own in-app banner or call the same local-notification code: Android `FirebaseMessagingService.onMessageReceived` already fires in the foreground; iOS uses the `MessagingDelegate` `didReceiveRemoteMessage`/`application(_:didReceiveRemoteNotification:)` path.
+
+### 4. Notes and limitations
+
+- Delivery is best effort by design: the assignment succeeds even if FCM fails, and tokens reported as unregistered are deleted from the database automatically.
+- The server sends with default Android priority. During Doze/App Standby, background data delivery may be delayed; if reliable delivery while the app is backgrounded matters, ask the backend to set `android.priority: "high"` (and it should also attach a `notification` block if native auto-display is preferred over app-rendered notifications).
+- The device must be able to reach the API host over HTTPS; the app's `POST /notifications/devices` call needs the same base URL as the other API calls.
+- For React Native/Flutter, the flow is identical: obtain the FCM token from `@react-native-firebase/messaging` or `firebase_messaging`, `POST` it with `platform`, and show a local notification in the background handler.
+
+### 5. Where the Firebase credentials belong
+
+The server service-account credentials are secret and belong **only in the backend**; they must never be shipped inside a mobile app.
+
+| Credential | Where it goes | Secret | Purpose |
+|---|---|---|---|
+| `FIREBASE_PROJECT_ID` | `server/.env` | No | Identifies the Firebase project to `firebase-admin`. |
+| `FIREBASE_CLIENT_EMAIL` | `server/.env` | Yes | Service account identity used to send FCM messages. |
+| `FIREBASE_PRIVATE_KEY` | `server/.env` | Yes | Signs the service-account auth; keep it quoted with `\n` escapes. |
+| `google-services.json` | Android app module | No | Public client config so the SDK can obtain an FCM token. |
+| `GoogleService-Info.plist` | iOS app target | No | Public client config so the SDK can obtain an FCM token. |
+| `NEXT_PUBLIC_FIREBASE_*` + VAPID key | `rider_web/.env.local` (rebuild required) | No | Public web client config for the rider portal. |
+| APNs auth key (`.p8`) | Firebase Console → Project settings → Cloud Messaging | Yes | Lets FCM deliver to Apple devices. Not placed in app code or `server/.env`. |
+
+Read the three `FIREBASE_*` server values from Firebase Console → Project settings → Service accounts → Generate new private key. Without them `pushConfigured()` is false: assignment still succeeds and still writes the in-app notification, but no push is sent and no error is raised. After adding or changing them, restart the API; after changing `NEXT_PUBLIC_*` values, rebuild `rider_web` because they are inlined at build time.
 
 ## Response field reference
 
